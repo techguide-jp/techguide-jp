@@ -1,0 +1,61 @@
+<script lang="ts">
+  type Props = {
+    actionName: string;
+    pendingAction: string | null;
+    label: string;
+    pendingLabel: string;
+    disabled?: boolean;
+    variant?: "primary" | "secondary" | "danger";
+  };
+
+  let {
+    actionName,
+    pendingAction,
+    label,
+    pendingLabel,
+    disabled = false,
+    variant = "primary"
+  }: Props = $props();
+
+  const isPending = $derived(pendingAction === actionName);
+</script>
+
+<button
+  class="button {variant}"
+  type="submit"
+  disabled={disabled || pendingAction !== null}
+  aria-busy={isPending}
+>
+  {isPending ? pendingLabel : label}
+</button>
+
+<style>
+  .button {
+    min-width: 8rem;
+    border: 0;
+    border-radius: 6px;
+    padding: 0.55rem 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .primary {
+    background: #0f766e;
+    color: white;
+  }
+
+  .secondary {
+    background: #e5e7eb;
+    color: #111827;
+  }
+
+  .danger {
+    background: #b91c1c;
+    color: white;
+  }
+</style>
