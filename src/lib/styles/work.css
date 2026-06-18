@@ -12,6 +12,15 @@
     @apply grid gap-3 rounded-md border border-slate-200 p-4;
   }
 
+  .active-worker-card,
+  .worker-card-active {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .active-worker-card .session-row {
+    @apply border-emerald-200 bg-white;
+  }
+
   .worker-card-heading {
     @apply flex items-start justify-between gap-3;
   }
@@ -35,6 +44,26 @@
 
   .worker-summary-metrics div {
     @apply grid gap-1 rounded-md border border-slate-200 bg-slate-50 p-3;
+  }
+
+  .worker-summary-metrics div[data-tone="active"] {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-950;
+  }
+
+  .worker-summary-metrics div[data-tone="idle"] {
+    @apply border-slate-200 bg-slate-50 text-slate-700;
+  }
+
+  .worker-summary-metrics div[data-tone="total"] {
+    @apply border-sky-200 bg-sky-50 text-sky-950;
+  }
+
+  .worker-summary-metrics div[data-tone="open"] {
+    @apply border-blue-200 bg-blue-50 text-blue-950;
+  }
+
+  .worker-summary-metrics div[data-tone="todo"] {
+    @apply border-amber-200 bg-amber-50 text-amber-950;
   }
 
   .worker-summary-metrics span {
@@ -151,12 +180,53 @@
     @apply rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700;
   }
 
+  .summary-chip[data-tone="active"],
+  .summary-chip[data-tone="done"] {
+    @apply bg-emerald-100 text-emerald-900;
+  }
+
+  .summary-chip[data-tone="open"],
+  .summary-chip[data-tone="project-blue"] {
+    @apply bg-blue-100 text-blue-900;
+  }
+
+  .summary-chip[data-tone="todo"],
+  .summary-chip[data-tone="project-amber"] {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  .summary-chip[data-tone="unassigned"],
+  .summary-chip[data-tone="project-rose"] {
+    @apply bg-rose-100 text-rose-900;
+  }
+
+  .summary-chip[data-tone="assignee"],
+  .summary-chip[data-tone="project-violet"] {
+    @apply bg-violet-100 text-violet-900;
+  }
+
+  .summary-chip[data-tone="project-teal"] {
+    @apply bg-teal-100 text-teal-900;
+  }
+
+  .summary-chip[data-tone="muted"] {
+    @apply bg-slate-100 text-slate-500;
+  }
+
   .muted-chip {
     @apply bg-stone-100 text-slate-500;
   }
 
   .issue-summary-block {
     @apply grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .issue-summary-block[data-tone="todo"] {
+    @apply border-amber-200 bg-amber-50;
+  }
+
+  .issue-summary-block[data-tone="unassigned"] {
+    @apply border-rose-200 bg-rose-50;
   }
 
   .issue-summary-block > strong {
@@ -169,6 +239,78 @@
 
   .summary-label {
     @apply text-xs font-bold uppercase text-slate-500;
+  }
+
+  .admin-work-heading {
+    @apply rounded-lg border border-sky-200 bg-sky-50 p-5;
+  }
+
+  .admin-work-heading h1 {
+    @apply text-sky-950;
+  }
+
+  .admin-work-section {
+    @apply border-l-4;
+  }
+
+  .admin-work-section h2 {
+    @apply mb-3;
+  }
+
+  .admin-work-section[data-tone="active"] {
+    @apply border-l-emerald-400;
+  }
+
+  .admin-work-section[data-tone="workers"] {
+    @apply border-l-violet-400;
+  }
+
+  .admin-work-section[data-tone="todo"] {
+    @apply border-l-amber-400;
+  }
+
+  .admin-work-section[data-tone="unassigned"] {
+    @apply border-l-rose-400;
+  }
+
+  .admin-work-section[data-tone="requests"] {
+    @apply border-l-orange-400;
+  }
+
+  .admin-metric-card {
+    @apply border-l-4;
+  }
+
+  .admin-metric-card[data-tone="total"] {
+    @apply border-sky-200 border-l-sky-500 bg-sky-50 text-sky-950;
+  }
+
+  .admin-metric-card[data-tone="open"] {
+    @apply border-blue-200 border-l-blue-500 bg-blue-50 text-blue-950;
+  }
+
+  .admin-metric-card[data-tone="todo"] {
+    @apply border-amber-200 border-l-amber-500 bg-amber-50 text-amber-950;
+  }
+
+  .admin-metric-card[data-tone="unassigned"] {
+    @apply border-rose-200 border-l-rose-500 bg-rose-50 text-rose-950;
+  }
+
+  .request-type-badge {
+    @apply inline-flex rounded-md px-2 py-1 text-xs font-bold;
+  }
+
+  .request-type-badge[data-type="add"] {
+    @apply bg-emerald-100 text-emerald-900;
+  }
+
+  .request-type-badge[data-type="edit"] {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  .request-type-badge[data-type="exclude"] {
+    @apply bg-rose-100 text-rose-900;
   }
 
   .profile-heading {

@@ -24,9 +24,43 @@
   ): CountBreakdown[] => breakdowns.slice(0, limit);
   const remainingCount = (breakdowns: CountBreakdown[], limit = 4): number =>
     breakdowns.slice(limit).reduce((total, entry) => total + entry.count, 0);
+  const statusTone = (label: string): string => {
+    const normalized = label.toLowerCase();
+    if (label === "未担当") return "unassigned";
+    if (label.includes("未設定")) return "muted";
+    if (normalized.includes("todo")) return "todo";
+    if (normalized.includes("open")) return "open";
+    if (normalized.includes("done") || normalized.includes("closed")) {
+      return "done";
+    }
+    if (
+      normalized.includes("progress") ||
+      normalized.includes("doing") ||
+      label.includes("稼働")
+    ) {
+      return "active";
+    }
+    return "neutral";
+  };
+  const repositoryTone = (label: string): string => {
+    const tones = [
+      "project-teal",
+      "project-blue",
+      "project-violet",
+      "project-amber",
+      "project-rose",
+    ];
+    const index = [...label].reduce(
+      (total, char) => total + char.charCodeAt(0),
+      0,
+    );
+    return tones[index % tones.length];
+  };
+  const assigneeTone = (label: string): string =>
+    label === "未担当" ? "unassigned" : "assignee";
 </script>
 
-<section class="page-heading">
+<section class="page-heading admin-work-heading">
   <div>
     <p class="eyebrow">admin work</p>
     <h1>稼働確認</h1>
@@ -40,36 +74,36 @@
   </section>
 {/if}
 
-<section class="panel">
+<section class="panel admin-work-section admin-overview-panel">
   <h2>Issue集計</h2>
-  <div class="health-grid">
-    <div class="health-card">
+  <div class="health-grid admin-metric-grid">
+    <div class="health-card admin-metric-card" data-tone="total">
       <span>Project内Issue</span>
       <strong>{countLabel(data.issueSummary.total)}</strong>
     </div>
-    <div class="health-card">
+    <div class="health-card admin-metric-card" data-tone="open">
       <span>OPEN</span>
       <strong>{countLabel(data.issueSummary.open)}</strong>
     </div>
-    <div class="health-card">
+    <div class="health-card admin-metric-card" data-tone="todo">
       <span>未着手Todo</span>
       <strong>{countLabel(data.notStartedIssueSummary.total)}</strong>
     </div>
-    <div class="health-card">
+    <div class="health-card admin-metric-card" data-tone="unassigned">
       <span>未担当</span>
       <strong>{countLabel(data.unassignedIssueSummary.total)}</strong>
     </div>
   </div>
 </section>
 
-<section class="panel">
+<section class="panel admin-work-section" data-tone="active">
   <h2>稼働中</h2>
   {#if data.activeWorkers.length === 0}
     <p class="muted">現在稼働中の作業者はいません。</p>
   {:else}
     <div class="worker-card-grid">
       {#each data.activeWorkers as worker (worker.login)}
-        <article class="worker-card">
+        <article class="worker-card active-worker-card">
           <div class="worker-card-heading">
             <div>
               <h3>
@@ -113,14 +147,16 @@
   {/if}
 </section>
 
-<section class="panel">
+<section class="panel admin-work-section" data-tone="workers">
   <h2>作業者別集計</h2>
   {#if data.workers.length === 0}
     <p class="muted">表示できる作業者はいません。</p>
   {:else}
     <div class="worker-card-grid">
       {#each data.workers as worker (worker.login)}
-        <article class="worker-card worker-summary-card">
+        <article
+          class={`worker-card worker-summary-card ${worker.openSessions.length ? "worker-card-active" : ""}`}
+        >
           <div class="worker-card-heading">
             <div>
               <h3>
@@ -131,19 +167,19 @@
             <CopyLoginButton login={worker.login} />
           </div>
           <div class="worker-summary-metrics">
-            <div>
+            <div data-tone={worker.openSessions.length ? "active" : "idle"}>
               <span>稼働中</span>
               <strong>{countLabel(worker.openSessions.length)}</strong>
             </div>
-            <div>
+            <div data-tone="total">
               <span>担当Issue</span>
               <strong>{countLabel(worker.issueSummary.total)}</strong>
             </div>
-            <div>
+            <div data-tone="open">
               <span>OPEN</span>
               <strong>{countLabel(worker.issueSummary.open)}</strong>
             </div>
-            <div>
+            <div data-tone="todo">
               <span>Todo</span>
               <strong>{countLabel(worker.issueSummary.todo)}</strong>
             </div>
@@ -164,7 +200,7 @@
             <span class="summary-label">Status</span>
             <div class="summary-chip-list">
               {#each topBreakdowns(worker.issueSummary.byStatus) as entry (entry.label)}
-                <span class="summary-chip"
+                <span class="summary-chip" data-tone={statusTone(entry.label)}
                   >{entry.label}: {countLabel(entry.count)}</span
                 >
               {/each}
@@ -181,7 +217,9 @@
             <span class="summary-label">Project</span>
             <div class="summary-chip-list">
               {#each topBreakdowns(worker.issueSummary.byRepository, 3) as entry (entry.label)}
-                <span class="summary-chip"
+                <span
+                  class="summary-chip"
+                  data-tone={repositoryTone(entry.label)}
                   >{formatProjectName(entry.label)}: {countLabel(
                     entry.count,
                   )}</span
@@ -202,18 +240,18 @@
   {/if}
 </section>
 
-<section class="panel">
+<section class="panel admin-work-section" data-tone="todo">
   <h2>未着手Issue</h2>
   {#if data.notStartedIssueSummary.total === 0}
     <p class="muted">未着手のTodo Issueはありません。</p>
   {:else}
-    <div class="issue-summary-block">
+    <div class="issue-summary-block" data-tone="todo">
       <strong>{countLabel(data.notStartedIssueSummary.total)}</strong>
       <div class="summary-group">
         <span class="summary-label">Project</span>
         <div class="summary-chip-list">
           {#each topBreakdowns(data.notStartedIssueSummary.byRepository) as entry (entry.label)}
-            <span class="summary-chip"
+            <span class="summary-chip" data-tone={repositoryTone(entry.label)}
               >{formatProjectName(entry.label)}: {countLabel(entry.count)}</span
             >
           {/each}
@@ -230,7 +268,7 @@
         <span class="summary-label">Assignee</span>
         <div class="summary-chip-list">
           {#each topBreakdowns(data.notStartedIssueSummary.byAssignee) as entry (entry.label)}
-            <span class="summary-chip"
+            <span class="summary-chip" data-tone={assigneeTone(entry.label)}
               >{entry.label}: {countLabel(entry.count)}</span
             >
           {/each}
@@ -247,18 +285,18 @@
   {/if}
 </section>
 
-<section class="panel">
+<section class="panel admin-work-section" data-tone="unassigned">
   <h2>未担当Issue</h2>
   {#if data.unassignedIssueSummary.total === 0}
     <p class="muted">未担当のIssueはありません。</p>
   {:else}
-    <div class="issue-summary-block">
+    <div class="issue-summary-block" data-tone="unassigned">
       <strong>{countLabel(data.unassignedIssueSummary.total)}</strong>
       <div class="summary-group">
         <span class="summary-label">Status</span>
         <div class="summary-chip-list">
           {#each topBreakdowns(data.unassignedIssueSummary.byStatus) as entry (entry.label)}
-            <span class="summary-chip"
+            <span class="summary-chip" data-tone={statusTone(entry.label)}
               >{entry.label}: {countLabel(entry.count)}</span
             >
           {/each}
@@ -275,7 +313,7 @@
         <span class="summary-label">Project</span>
         <div class="summary-chip-list">
           {#each topBreakdowns(data.unassignedIssueSummary.byRepository) as entry (entry.label)}
-            <span class="summary-chip"
+            <span class="summary-chip" data-tone={repositoryTone(entry.label)}
               >{formatProjectName(entry.label)}: {countLabel(entry.count)}</span
             >
           {/each}
@@ -292,7 +330,7 @@
   {/if}
 </section>
 
-<section class="panel">
+<section class="panel admin-work-section" data-tone="requests">
   <h2>未処理の修正申請</h2>
   {#if data.pendingRequests.length === 0}
     <p class="muted">未処理の修正申請はありません。</p>
@@ -324,7 +362,14 @@
                   )}
                 </a>
               </td>
-              <td>{requestTypeLabel(request.requestType)}</td>
+              <td>
+                <span
+                  class="request-type-badge"
+                  data-type={request.requestType}
+                >
+                  {requestTypeLabel(request.requestType)}
+                </span>
+              </td>
               <td>
                 {formatDateTime(request.requestedStartedAt)} - {formatDateTime(
                   request.requestedEndedAt,
