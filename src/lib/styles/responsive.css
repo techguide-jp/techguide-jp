@@ -1,0 +1,29 @@
+@media (max-width: 640px) {
+  @layer components {
+    .page-heading,
+    .session-row,
+    .modal-actions,
+    .section-heading {
+      @apply flex-col items-stretch;
+    }
+
+    .guide-card,
+    .pending-session {
+      @apply grid-cols-1;
+    }
+
+    .row-actions,
+    .form-actions {
+      @apply justify-stretch;
+    }
+
+    .button,
+    .row-actions.compact .button {
+      @apply w-full;
+    }
+
+    .pending-meta {
+      @apply justify-start text-left;
+    }
+  }
+}

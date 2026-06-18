@@ -1,0 +1,48 @@
+@layer components {
+  .session-list {
+    @apply grid gap-3;
+  }
+
+  .session-row {
+    @apply flex items-center justify-between gap-4 rounded-md border border-slate-200 p-3;
+  }
+
+  .session-issue,
+  .session-issue span {
+    @apply grid gap-1;
+  }
+
+  .row-actions,
+  .review-actions,
+  .form-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .row-actions.compact .button {
+    @apply min-w-18;
+  }
+
+  .request-form {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    @apply grid gap-3;
+  }
+
+  .request-form label {
+    @apply grid gap-1 font-bold;
+  }
+
+  .request-form input,
+  .request-form textarea {
+    @apply rounded-md border border-stone-300 p-2;
+    font: inherit;
+  }
+
+  .wide,
+  .form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .form-actions {
+    @apply justify-end;
+  }
+}

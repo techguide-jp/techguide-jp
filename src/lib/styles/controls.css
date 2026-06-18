@@ -1,0 +1,75 @@
+@layer components {
+  .button {
+    @apply inline-flex min-w-32 cursor-pointer items-center justify-center rounded-md border border-transparent px-4 py-2 text-center font-bold no-underline;
+    font: inherit;
+  }
+
+  .button:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .button.primary {
+    @apply bg-teal-700 text-white;
+  }
+
+  .button.secondary {
+    @apply bg-slate-200 text-slate-900;
+  }
+
+  .button.danger {
+    @apply bg-red-700 text-white;
+  }
+
+  .button.ghost {
+    @apply border-stone-300 bg-white text-slate-900;
+  }
+
+  .button.danger.ghost {
+    @apply border-red-200 bg-white text-red-800;
+  }
+
+  .month-nav {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .month-nav a,
+  .month-nav span {
+    @apply rounded-md border border-stone-300 bg-white px-3 py-2 text-emerald-900 no-underline font-bold;
+  }
+
+  .month-nav span {
+    @apply text-stone-400;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto;
+  }
+
+  td a,
+  .detail-item a,
+  .planned-list a,
+  .pending-issue a,
+  .session-issue a {
+    @apply w-fit font-bold;
+  }
+
+  .login {
+    @apply grid min-h-[60vh] max-w-lg content-center;
+  }
+
+  .login h1 {
+    @apply mb-3 text-3xl;
+  }
+
+  .login p {
+    @apply mb-6 text-slate-600;
+  }
+
+  .login .button {
+    @apply w-fit bg-slate-800 text-white;
+  }
+
+  .icon-button {
+    @apply grid h-8 w-8 cursor-pointer place-items-center rounded-full border border-stone-300 bg-white text-xl leading-none text-slate-900 no-underline;
+  }
+}

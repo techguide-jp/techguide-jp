@@ -1,0 +1,40 @@
+@layer components {
+  .guide-grid {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    @apply mb-4 grid gap-3;
+  }
+
+  .guide-card {
+    @apply grid grid-cols-[auto_1fr] gap-3 rounded-lg border border-stone-300 bg-white p-4;
+  }
+
+  .guide-card p,
+  .faq-list p {
+    @apply mt-2 leading-7 text-slate-600;
+  }
+
+  .step {
+    @apply grid h-8 w-8 place-items-center rounded-full bg-teal-700 text-white font-extrabold;
+  }
+
+  .columns {
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    @apply grid gap-4;
+  }
+
+  .panel ul {
+    @apply mt-3 leading-7 text-slate-600;
+  }
+
+  .faq-list {
+    @apply grid gap-3;
+  }
+
+  .faq-list article {
+    @apply border-t border-slate-200 pt-3;
+  }
+
+  .faq-list article:first-child {
+    @apply border-t-0 pt-0;
+  }
+}

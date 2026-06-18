@@ -1,0 +1,86 @@
+@layer components {
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    @apply mb-4 grid gap-3;
+  }
+
+  .summary-grid div {
+    @apply rounded-lg border border-stone-300 bg-white p-4;
+  }
+
+  .summary-grid strong {
+    @apply mt-1 block text-xl;
+  }
+
+  .submission-status {
+    @apply mb-3 flex flex-wrap gap-3;
+  }
+
+  .submission-status div {
+    @apply min-w-44;
+  }
+
+  .submission-status span {
+    @apply mb-1 block text-xs;
+  }
+
+  .pending-list {
+    @apply m-0 grid list-none gap-0 p-0;
+  }
+
+  .pending-session {
+    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-t border-slate-200 py-3;
+  }
+
+  .pending-session:first-child {
+    @apply border-t-0 pt-0;
+  }
+
+  .pending-session:last-child {
+    @apply pb-0;
+  }
+
+  .pending-issue {
+    @apply grid min-w-0 gap-1;
+  }
+
+  .pending-issue span {
+    @apply text-slate-600;
+  }
+
+  .pending-meta {
+    @apply flex flex-wrap items-center justify-end gap-3 text-right;
+  }
+
+  .pending-meta span:not(.status-badge) {
+    @apply grid gap-0.5;
+  }
+
+  .pending-meta small {
+    @apply text-xs text-slate-500;
+  }
+
+  .pending-meta strong {
+    @apply whitespace-nowrap text-sm;
+  }
+
+  .status-badge {
+    @apply whitespace-nowrap rounded-full px-2 py-1 text-xs font-bold;
+  }
+
+  .status-badge.complete {
+    @apply bg-emerald-50 text-emerald-700;
+  }
+
+  .status-badge.measuring {
+    @apply bg-orange-50 text-orange-800;
+  }
+
+  .status-badge.reference {
+    @apply bg-indigo-50 text-indigo-800;
+  }
+
+  .log-detail-block {
+    @apply mt-4 border-t border-slate-200 pt-4;
+  }
+}
