@@ -13,6 +13,7 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 - 管理者による月次承認スナップショット保存
 - Projectフィールドのヘルスチェック
 - 管理者向け運用ヘルス、監査ログ、期限切れセッション削除
+- Vercel Web Analyticsによるページビュー計測
 
 ## 必要なGitHub Projectフィールド
 
@@ -38,6 +39,10 @@ PUBLIC_APP_ORIGIN=http://localhost:5173
 
 `GITHUB_PROJECT_TOKEN` は private org Project v2 を読める権限を持つサーバー用トークンです。
 GitHub OAuthで認証できたユーザーはログインできます。管理者画面の権限は `ADMIN_GITHUB_LOGINS` に記載されたGitHubログインで判定します。
+
+## Vercel Analytics
+
+`@vercel/analytics` はアプリ側で組み込み済みです。VercelのWeb Analytics画面で対象ProjectのAnalyticsを有効化すると、デプロイ後のページビューが記録されます。
 
 ## 開発
 
