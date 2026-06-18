@@ -13,6 +13,15 @@ const optional = (name: string): string | undefined => {
 const optionalPublic = (name: keyof typeof publicEnv): string | undefined =>
   normalize(publicEnv[name]);
 
+const loginSet = (name: string): Set<string> => {
+  return new Set(
+    (optional(name) ?? "")
+      .split(",")
+      .map((login) => login.trim().toLowerCase())
+      .filter(Boolean),
+  );
+};
+
 export const env = {
   databaseUrl: optional("DATABASE_URL"),
   githubClientId: optional("GITHUB_CLIENT_ID"),
@@ -22,18 +31,8 @@ export const env = {
     optional("SESSION_SECRET") ??
     (dev ? "development-session-secret" : undefined),
   appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
-  allowedGithubLogins: new Set(
-    (optional("ALLOWED_GITHUB_LOGINS") ?? "")
-      .split(",")
-      .map((login) => login.trim())
-      .filter(Boolean),
-  ),
-  adminGithubLogins: new Set(
-    (optional("ADMIN_GITHUB_LOGINS") ?? "")
-      .split(",")
-      .map((login) => login.trim())
-      .filter(Boolean),
-  ),
+  allowedGithubLogins: loginSet("ALLOWED_GITHUB_LOGINS"),
+  adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
 };
 
 export const requireEnv = (value: string | undefined, name: string): string => {

@@ -37,7 +37,7 @@ PUBLIC_APP_ORIGIN=http://localhost:5173
 ```
 
 `GITHUB_PROJECT_TOKEN` は private org Project v2 を読める権限を持つサーバー用トークンです。
-`ALLOWED_GITHUB_LOGINS` を設定すると、記載されたGitHubログインと管理者だけがログインできます。
+productionでは、`ALLOWED_GITHUB_LOGINS` に記載されたGitHubログインと管理者だけがログインできます。developmentでは未設定でもログインできます。
 
 ## 開発
 

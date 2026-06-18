@@ -1,4 +1,5 @@
 import { and, eq, gt } from "drizzle-orm";
+import { dev } from "$app/environment";
 import { createHmac, randomBytes } from "node:crypto";
 import { db } from "$lib/server/db/client";
 import { authSessions } from "$lib/server/db/schema";
@@ -22,9 +23,10 @@ const sessionIdHash = (sessionId: string): string => {
 };
 
 export const isGithubLoginAllowed = (login: string): boolean => {
-  if (env.adminGithubLogins.has(login)) return true;
-  if (env.allowedGithubLogins.size === 0) return true;
-  return env.allowedGithubLogins.has(login);
+  const normalizedLogin = login.toLowerCase();
+  if (env.adminGithubLogins.has(normalizedLogin)) return true;
+  if (env.allowedGithubLogins.size === 0) return dev;
+  return env.allowedGithubLogins.has(normalizedLogin);
 };
 
 export const createSession = async (user: {
@@ -69,7 +71,7 @@ export const resolveSessionUser = async (
     login: session.githubLogin,
     name: session.githubName,
     avatarUrl: session.githubAvatarUrl,
-    isAdmin: env.adminGithubLogins.has(session.githubLogin),
+    isAdmin: env.adminGithubLogins.has(session.githubLogin.toLowerCase()),
   };
 };
 
