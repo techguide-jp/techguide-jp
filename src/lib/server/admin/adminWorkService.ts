@@ -19,19 +19,33 @@ import {
 } from "$lib/server/workers/workerProfileService";
 
 export type AdminWorkerSummary = WorkerProfileView & {
-  issues: ProjectIssue[];
   openSessions: WorkSession[];
-  issueCount: number;
-  todoIssueCount: number;
+  issueSummary: AdminIssueSummary;
+};
+
+export type CountBreakdown = {
+  label: string;
+  count: number;
+};
+
+export type AdminIssueSummary = {
+  total: number;
+  open: number;
+  closed: number;
+  todo: number;
+  byStatus: CountBreakdown[];
+  byRepository: CountBreakdown[];
+  byAssignee: CountBreakdown[];
 };
 
 export type AdminWorkDashboard = {
   health: ProjectFieldHealth;
   projectFetchError: string | null;
+  issueSummary: AdminIssueSummary;
   workers: AdminWorkerSummary[];
   activeWorkers: AdminWorkerSummary[];
-  notStartedIssues: ProjectIssue[];
-  unassignedIssues: ProjectIssue[];
+  notStartedIssueSummary: AdminIssueSummary;
+  unassignedIssueSummary: AdminIssueSummary;
   pendingRequests: WorkLogChangeRequest[];
 };
 
@@ -58,6 +72,46 @@ const compareIssues = (a: ProjectIssue, b: ProjectIssue): number =>
 
 const compareSessions = (a: WorkSession, b: WorkSession): number =>
   b.startedAt.getTime() - a.startedAt.getTime();
+
+const compareBreakdowns = (a: CountBreakdown, b: CountBreakdown): number =>
+  b.count - a.count || a.label.localeCompare(b.label, "ja");
+
+const increment = (counts: Map<string, number>, key: string): void => {
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+};
+
+const toBreakdown = (counts: Map<string, number>): CountBreakdown[] =>
+  [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort(compareBreakdowns);
+
+const summarizeIssues = (issues: ProjectIssue[]): AdminIssueSummary => {
+  const byStatus = new Map<string, number>();
+  const byRepository = new Map<string, number>();
+  const byAssignee = new Map<string, number>();
+
+  for (const issue of issues) {
+    increment(byStatus, issue.status ?? "Status未設定");
+    increment(byRepository, issue.repository);
+    if (issue.assignees.length === 0) {
+      increment(byAssignee, "未担当");
+    } else {
+      for (const login of issue.assignees) increment(byAssignee, login);
+    }
+  }
+
+  return {
+    total: issues.length,
+    open: issues.filter((issue) => issue.state === "OPEN").length,
+    closed: issues.filter((issue) => issue.state === "CLOSED").length,
+    todo: issues.filter(
+      (issue) => issue.state === "OPEN" && issue.status === "Todo",
+    ).length,
+    byStatus: toBreakdown(byStatus),
+    byRepository: toBreakdown(byRepository),
+    byAssignee: toBreakdown(byAssignee),
+  };
+};
 
 const collectLogins = (
   issues: ProjectIssue[],
@@ -113,12 +167,8 @@ export const buildAdminWorkDashboard = (
 
     return {
       ...profile,
-      issues,
       openSessions,
-      issueCount: issues.length,
-      todoIssueCount: issues.filter(
-        (issue) => issue.state === "OPEN" && issue.status === "Todo",
-      ).length,
+      issueSummary: summarizeIssues(issues),
     };
   });
 
@@ -131,19 +181,26 @@ export const buildAdminWorkDashboard = (
   return {
     health: input.health,
     projectFetchError: input.projectFetchError,
+    issueSummary: summarizeIssues(input.issues),
     workers,
     activeWorkers: workers.filter((worker) => worker.openSessions.length > 0),
-    notStartedIssues: input.issues
-      .filter(
-        (issue) =>
-          issue.state === "OPEN" &&
-          issue.status === "Todo" &&
-          !openIssueKeys.has(issueKey(issue)),
-      )
-      .sort(compareIssues),
-    unassignedIssues: input.issues
-      .filter((issue) => issue.state === "OPEN" && issue.assignees.length === 0)
-      .sort(compareIssues),
+    notStartedIssueSummary: summarizeIssues(
+      input.issues
+        .filter(
+          (issue) =>
+            issue.state === "OPEN" &&
+            issue.status === "Todo" &&
+            !openIssueKeys.has(issueKey(issue)),
+        )
+        .sort(compareIssues),
+    ),
+    unassignedIssueSummary: summarizeIssues(
+      input.issues
+        .filter(
+          (issue) => issue.state === "OPEN" && issue.assignees.length === 0,
+        )
+        .sort(compareIssues),
+    ),
     pendingRequests: [...input.pendingRequests].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     ),

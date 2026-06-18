@@ -7,17 +7,23 @@
     formatProjectName,
   } from "$lib/format";
 
-  type Issue = PageProps["data"]["notStartedIssues"][number];
   type Request = PageProps["data"]["pendingRequests"][number];
+  type IssueSummary = PageProps["data"]["issueSummary"];
+  type CountBreakdown = IssueSummary["byStatus"][number];
 
   let { data }: PageProps = $props();
 
-  const issueHref = (issue: Issue): string =>
-    `https://github.com/${issue.repository}/issues/${issue.number}`;
   const requestHref = (request: Request): string =>
     `https://github.com/${request.repository}/issues/${request.issueNumber}`;
   const requestTypeLabel = (type: Request["requestType"]): string =>
     ({ add: "追加", edit: "修正", exclude: "除外" })[type];
+  const countLabel = (count: number): string => `${count.toLocaleString()}件`;
+  const topBreakdowns = (
+    breakdowns: CountBreakdown[],
+    limit = 4,
+  ): CountBreakdown[] => breakdowns.slice(0, limit);
+  const remainingCount = (breakdowns: CountBreakdown[], limit = 4): number =>
+    breakdowns.slice(limit).reduce((total, entry) => total + entry.count, 0);
 </script>
 
 <section class="page-heading">
@@ -33,6 +39,28 @@
     <p>{data.projectFetchError}</p>
   </section>
 {/if}
+
+<section class="panel">
+  <h2>Issue集計</h2>
+  <div class="health-grid">
+    <div class="health-card">
+      <span>Project内Issue</span>
+      <strong>{countLabel(data.issueSummary.total)}</strong>
+    </div>
+    <div class="health-card">
+      <span>OPEN</span>
+      <strong>{countLabel(data.issueSummary.open)}</strong>
+    </div>
+    <div class="health-card">
+      <span>未着手Todo</span>
+      <strong>{countLabel(data.notStartedIssueSummary.total)}</strong>
+    </div>
+    <div class="health-card">
+      <span>未担当</span>
+      <strong>{countLabel(data.unassignedIssueSummary.total)}</strong>
+    </div>
+  </div>
+</section>
 
 <section class="panel">
   <h2>稼働中</h2>
@@ -86,142 +114,180 @@
 </section>
 
 <section class="panel">
-  <h2>作業者別Issue</h2>
+  <h2>作業者別集計</h2>
   {#if data.workers.length === 0}
     <p class="muted">表示できる作業者はいません。</p>
   {:else}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>作業者</th>
-            <th>ID</th>
-            <th>スキル</th>
-            <th>稼働中</th>
-            <th>Todo</th>
-            <th>Issue</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each data.workers as worker (worker.login)}
-            <tr>
-              <td>
+    <div class="worker-card-grid">
+      {#each data.workers as worker (worker.login)}
+        <article class="worker-card worker-summary-card">
+          <div class="worker-card-heading">
+            <div>
+              <h3>
                 <a href={`/workers/${worker.login}`}>{worker.displayName}</a>
-              </td>
-              <td>
-                <div class="id-copy-cell">
-                  <code>{worker.login}</code>
-                  <CopyLoginButton login={worker.login} />
-                </div>
-              </td>
-              <td>
-                {#if worker.skills.length}
-                  <div class="chip-list">
-                    {#each worker.skills as skill (skill)}
-                      <span class="chip">{skill}</span>
-                    {/each}
-                  </div>
-                {:else}
-                  <span class="muted">未登録</span>
-                {/if}
-              </td>
-              <td>{worker.openSessions.length}</td>
-              <td>{worker.todoIssueCount}</td>
-              <td>
-                {#if worker.issues.length === 0}
-                  <span class="muted">-</span>
-                {:else}
-                  <ul class="plain-list">
-                    {#each worker.issues as issue (`${worker.login}-${issue.repository}#${issue.number}`)}
-                      <li>
-                        <a href={issue.url} target="_blank" rel="noreferrer">
-                          {formatProjectName(issue.repository)} / {formatIssueName(
-                            issue.number,
-                            issue.title,
-                          )}
-                        </a>
-                        <span class="muted"> {issue.status ?? "-"}</span>
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+              </h3>
+              <code>{worker.login}</code>
+            </div>
+            <CopyLoginButton login={worker.login} />
+          </div>
+          <div class="worker-summary-metrics">
+            <div>
+              <span>稼働中</span>
+              <strong>{countLabel(worker.openSessions.length)}</strong>
+            </div>
+            <div>
+              <span>担当Issue</span>
+              <strong>{countLabel(worker.issueSummary.total)}</strong>
+            </div>
+            <div>
+              <span>OPEN</span>
+              <strong>{countLabel(worker.issueSummary.open)}</strong>
+            </div>
+            <div>
+              <span>Todo</span>
+              <strong>{countLabel(worker.issueSummary.todo)}</strong>
+            </div>
+          </div>
+          <div class="summary-group">
+            <span class="summary-label">Skills</span>
+            {#if worker.skills.length}
+              <div class="chip-list">
+                {#each worker.skills as skill (skill)}
+                  <span class="chip">{skill}</span>
+                {/each}
+              </div>
+            {:else}
+              <span class="muted">未登録</span>
+            {/if}
+          </div>
+          <div class="summary-group">
+            <span class="summary-label">Status</span>
+            <div class="summary-chip-list">
+              {#each topBreakdowns(worker.issueSummary.byStatus) as entry (entry.label)}
+                <span class="summary-chip"
+                  >{entry.label}: {countLabel(entry.count)}</span
+                >
+              {/each}
+              {#if remainingCount(worker.issueSummary.byStatus)}
+                <span class="summary-chip muted-chip"
+                  >他 {countLabel(
+                    remainingCount(worker.issueSummary.byStatus),
+                  )}</span
+                >
+              {/if}
+            </div>
+          </div>
+          <div class="summary-group">
+            <span class="summary-label">Project</span>
+            <div class="summary-chip-list">
+              {#each topBreakdowns(worker.issueSummary.byRepository, 3) as entry (entry.label)}
+                <span class="summary-chip"
+                  >{formatProjectName(entry.label)}: {countLabel(
+                    entry.count,
+                  )}</span
+                >
+              {/each}
+              {#if remainingCount(worker.issueSummary.byRepository, 3)}
+                <span class="summary-chip muted-chip"
+                  >他 {countLabel(
+                    remainingCount(worker.issueSummary.byRepository, 3),
+                  )}</span
+                >
+              {/if}
+            </div>
+          </div>
+        </article>
+      {/each}
     </div>
   {/if}
 </section>
 
 <section class="panel">
   <h2>未着手Issue</h2>
-  {#if data.notStartedIssues.length === 0}
+  {#if data.notStartedIssueSummary.total === 0}
     <p class="muted">未着手のTodo Issueはありません。</p>
   {:else}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Issue</th>
-            <th>Assignee</th>
-            <th>報酬方式</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each data.notStartedIssues as issue (`${issue.repository}#${issue.number}`)}
-            <tr>
-              <td>{formatProjectName(issue.repository)}</td>
-              <td>
-                <a href={issueHref(issue)} target="_blank" rel="noreferrer">
-                  {formatIssueName(issue.number, issue.title)}
-                </a>
-              </td>
-              <td>
-                {#if issue.assignees.length}
-                  {issue.assignees.join(", ")}
-                {:else}
-                  <span class="bad">未担当</span>
-                {/if}
-              </td>
-              <td>{issue.rewardMode ?? "-"}</td>
-            </tr>
+    <div class="issue-summary-block">
+      <strong>{countLabel(data.notStartedIssueSummary.total)}</strong>
+      <div class="summary-group">
+        <span class="summary-label">Project</span>
+        <div class="summary-chip-list">
+          {#each topBreakdowns(data.notStartedIssueSummary.byRepository) as entry (entry.label)}
+            <span class="summary-chip"
+              >{formatProjectName(entry.label)}: {countLabel(entry.count)}</span
+            >
           {/each}
-        </tbody>
-      </table>
+          {#if remainingCount(data.notStartedIssueSummary.byRepository)}
+            <span class="summary-chip muted-chip"
+              >他 {countLabel(
+                remainingCount(data.notStartedIssueSummary.byRepository),
+              )}</span
+            >
+          {/if}
+        </div>
+      </div>
+      <div class="summary-group">
+        <span class="summary-label">Assignee</span>
+        <div class="summary-chip-list">
+          {#each topBreakdowns(data.notStartedIssueSummary.byAssignee) as entry (entry.label)}
+            <span class="summary-chip"
+              >{entry.label}: {countLabel(entry.count)}</span
+            >
+          {/each}
+          {#if remainingCount(data.notStartedIssueSummary.byAssignee)}
+            <span class="summary-chip muted-chip"
+              >他 {countLabel(
+                remainingCount(data.notStartedIssueSummary.byAssignee),
+              )}</span
+            >
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
 </section>
 
 <section class="panel">
   <h2>未担当Issue</h2>
-  {#if data.unassignedIssues.length === 0}
+  {#if data.unassignedIssueSummary.total === 0}
     <p class="muted">未担当のIssueはありません。</p>
   {:else}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Issue</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each data.unassignedIssues as issue (`${issue.repository}#${issue.number}`)}
-            <tr>
-              <td>{formatProjectName(issue.repository)}</td>
-              <td>
-                <a href={issueHref(issue)} target="_blank" rel="noreferrer">
-                  {formatIssueName(issue.number, issue.title)}
-                </a>
-              </td>
-              <td>{issue.status ?? "-"}</td>
-            </tr>
+    <div class="issue-summary-block">
+      <strong>{countLabel(data.unassignedIssueSummary.total)}</strong>
+      <div class="summary-group">
+        <span class="summary-label">Status</span>
+        <div class="summary-chip-list">
+          {#each topBreakdowns(data.unassignedIssueSummary.byStatus) as entry (entry.label)}
+            <span class="summary-chip"
+              >{entry.label}: {countLabel(entry.count)}</span
+            >
           {/each}
-        </tbody>
-      </table>
+          {#if remainingCount(data.unassignedIssueSummary.byStatus)}
+            <span class="summary-chip muted-chip"
+              >他 {countLabel(
+                remainingCount(data.unassignedIssueSummary.byStatus),
+              )}</span
+            >
+          {/if}
+        </div>
+      </div>
+      <div class="summary-group">
+        <span class="summary-label">Project</span>
+        <div class="summary-chip-list">
+          {#each topBreakdowns(data.unassignedIssueSummary.byRepository) as entry (entry.label)}
+            <span class="summary-chip"
+              >{formatProjectName(entry.label)}: {countLabel(entry.count)}</span
+            >
+          {/each}
+          {#if remainingCount(data.unassignedIssueSummary.byRepository)}
+            <span class="summary-chip muted-chip"
+              >他 {countLabel(
+                remainingCount(data.unassignedIssueSummary.byRepository),
+              )}</span
+            >
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
 </section>

@@ -113,12 +113,16 @@ describe("buildAdminWorkDashboard", () => {
     expect(dashboard.activeWorkers.map((worker) => worker.login)).toEqual([
       "tashua314",
     ]);
-    expect(dashboard.notStartedIssues.map((entry) => entry.number)).toEqual([
-      502, 503,
-    ]);
-    expect(dashboard.unassignedIssues.map((entry) => entry.number)).toEqual([
-      502,
-    ]);
+    expect(dashboard.notStartedIssueSummary.total).toBe(2);
+    expect(dashboard.unassignedIssueSummary.total).toBe(1);
+    expect(dashboard.notStartedIssueSummary.byAssignee).toContainEqual({
+      label: "yuta",
+      count: 1,
+    });
+    expect(dashboard.notStartedIssueSummary.byAssignee).toContainEqual({
+      label: "未担当",
+      count: 1,
+    });
     expect(
       dashboard.workers.find((worker) => worker.login === "yuta")?.displayName,
     ).toBe("yuta");
@@ -141,8 +145,10 @@ describe("buildAdminWorkDashboard", () => {
       login: "tashua314",
       displayName: "たしゅあ",
       skills: ["SvelteKit", "Drizzle"],
-      issueCount: 1,
-      todoIssueCount: 1,
+      issueSummary: expect.objectContaining({
+        total: 1,
+        todo: 1,
+      }),
     });
   });
 });

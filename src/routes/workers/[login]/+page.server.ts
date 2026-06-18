@@ -13,8 +13,17 @@ export const load = async (event) => {
     throw redirect(303, "/work");
   }
 
+  const profile = await loadWorkerProfile(login);
+
   return {
-    profile: await loadWorkerProfile(login),
+    profile: user.isAdmin
+      ? profile
+      : {
+          ...profile,
+          adminNote: "",
+          adminNoteUpdatedBy: null,
+          adminNoteUpdatedAt: null,
+        },
     canEditSelf: user.login === login,
     canEditAdminNote: user.isAdmin,
   };

@@ -20,6 +20,31 @@
     @apply font-bold no-underline;
   }
 
+  .worker-card-heading code {
+    @apply rounded-md bg-slate-50 px-2 py-1 text-sm text-slate-700;
+  }
+
+  .worker-summary-card {
+    @apply content-start;
+  }
+
+  .worker-summary-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    @apply grid gap-2;
+  }
+
+  .worker-summary-metrics div {
+    @apply grid gap-1 rounded-md border border-slate-200 bg-slate-50 p-3;
+  }
+
+  .worker-summary-metrics span {
+    @apply text-xs font-bold text-slate-500;
+  }
+
+  .worker-summary-metrics strong {
+    @apply text-lg;
+  }
+
   .session-row {
     @apply flex items-center justify-between gap-4 rounded-md border border-slate-200 p-3;
   }
@@ -71,6 +96,33 @@
     @apply min-w-24 px-3 py-1.5 text-sm;
   }
 
+  .copy-login-button {
+    @apply grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md border border-slate-200 bg-white text-slate-600;
+    font: inherit;
+  }
+
+  .copy-login-button svg {
+    @apply h-4 w-4;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .copy-login-button:hover,
+  .copy-login-button:focus-visible {
+    @apply border-teal-300 bg-teal-50 text-teal-800 outline-2 outline-offset-2 outline-teal-600;
+  }
+
+  .copy-login-button[data-state="copied"] {
+    @apply border-teal-200 bg-teal-50 text-teal-800;
+  }
+
+  .copy-login-button[data-state="failed"] {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
   .id-copy-cell {
     @apply flex flex-wrap items-center gap-2;
   }
@@ -87,13 +139,163 @@
     @apply m-0 grid list-none gap-1 p-0;
   }
 
+  .summary-text {
+    @apply text-sm text-slate-700;
+  }
+
+  .summary-chip-list {
+    @apply flex flex-wrap gap-1.5;
+  }
+
+  .summary-chip {
+    @apply rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700;
+  }
+
+  .muted-chip {
+    @apply bg-stone-100 text-slate-500;
+  }
+
+  .issue-summary-block {
+    @apply grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .issue-summary-block > strong {
+    @apply text-2xl;
+  }
+
+  .summary-group {
+    @apply grid gap-2;
+  }
+
+  .summary-label {
+    @apply text-xs font-bold uppercase text-slate-500;
+  }
+
+  .profile-heading {
+    @apply items-start rounded-lg border border-stone-300 bg-white p-5;
+  }
+
+  .profile-heading h1 {
+    @apply text-3xl;
+  }
+
+  .profile-identity {
+    @apply mt-3 flex flex-wrap items-center gap-2;
+  }
+
+  .profile-identity code {
+    @apply rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm text-slate-700;
+  }
+
+  .profile-status {
+    @apply border-l-4 border-teal-700 pl-3 text-sm font-bold text-teal-800;
+  }
+
+  .profile-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    @apply grid items-start gap-4;
+  }
+
+  .profile-layout > .profile-panel:first-child:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .profile-panel {
+    @apply mb-4 rounded-lg border border-stone-300 bg-white p-5;
+  }
+
+  .profile-side-panel {
+    @apply sticky top-4;
+  }
+
+  .profile-panel-heading {
+    @apply mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4;
+  }
+
+  .profile-panel-heading h2 {
+    @apply mb-0;
+  }
+
+  .profile-editor,
+  .profile-admin-form {
+    @apply grid gap-5;
+  }
+
+  .profile-field {
+    @apply grid gap-2;
+  }
+
+  .profile-field > span,
+  .profile-field-label {
+    @apply text-sm font-bold text-slate-700;
+  }
+
+  .profile-field input,
+  .profile-field textarea {
+    @apply w-full rounded-md border border-stone-300 bg-white p-3;
+    font: inherit;
+  }
+
+  .profile-field input:focus,
+  .profile-field textarea:focus,
+  .skill-chip:focus-visible {
+    @apply border-teal-700 outline-2 outline-offset-2 outline-teal-600;
+  }
+
+  .profile-field textarea {
+    @apply resize-y leading-6;
+  }
+
+  .profile-note-grid {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    @apply grid gap-4;
+  }
+
+  .profile-field-wide,
+  .profile-actions {
+    grid-column: 1 / -1;
+  }
+
+  .profile-actions {
+    @apply justify-end border-t border-slate-100 pt-4;
+  }
+
+  .skill-entry {
+    @apply flex gap-2;
+  }
+
+  .skill-entry input {
+    @apply min-w-0 flex-1;
+  }
+
+  .skill-chip-list {
+    @apply flex min-h-10 flex-wrap items-center gap-2;
+  }
+
+  .skill-chip {
+    @apply inline-flex cursor-pointer items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-sm font-bold text-teal-900;
+    font: inherit;
+  }
+
+  .skill-chip span:last-child {
+    @apply text-teal-700;
+  }
+
   .profile-details {
     @apply m-0 grid gap-3;
+  }
+
+  .profile-details-clean {
+    @apply gap-0;
   }
 
   .profile-details > div {
     grid-template-columns: minmax(8rem, 12rem) 1fr;
     @apply grid gap-3 border-b border-slate-100 pb-3;
+  }
+
+  .profile-details-clean > div {
+    @apply py-4 first:pt-0 last:border-b-0 last:pb-0;
   }
 
   .profile-details dt {
