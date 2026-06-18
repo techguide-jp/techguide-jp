@@ -11,56 +11,74 @@
 <section class="page-heading">
   <p class="eyebrow">help</p>
   <h1>使い方</h1>
-  <p>稼働開始から精算確認までの基本的な流れを確認できます。</p>
+  <p>毎作業時の稼働記録と、月次の精算確認・確定申請を分けて確認できます。</p>
 </section>
 
-<section class="guide-grid" aria-label="主要な使い方">
-  <article class="guide-card">
-    <span class="step">1</span>
-    <div>
-      <h2>稼働を記録する</h2>
-      <p>
-        <a href={workHref}>稼働</a> でProject内Issueを選び、開始ボタンを押します。同じIssueの二重開始はできませんが、別Issueは同時に開始できます。
-        固定報酬のIssueでも、作業状況を把握するために稼働記録を入力してください。
-      </p>
-    </div>
-  </article>
-  <article class="guide-card">
-    <span class="step">2</span>
-    <div>
-      <h2>終了する</h2>
-      <p>
-        作業が終わったIssueの終了ボタンを押します。終了が未入力のログは集計対象外になり、未精算予定として確認できます。
-      </p>
-    </div>
-  </article>
-  <article class="guide-card">
-    <span class="step">3</span>
-    <div>
-      <h2>ログを修正する</h2>
-      <p>
-        押し忘れや時刻間違いがある場合は、対象Issueまたは対象ログから追加・修正・除外申請を出します。申請は月次承認時に管理者が採否を決めます。
-      </p>
-    </div>
-  </article>
-  <article class="guide-card">
-    <span class="step">4</span>
-    <div>
-      <h2>精算を確認する</h2>
-      <p>
-        <a href={selfSettlementHref}>自分の精算</a> では月ごとの明細、稼働ログ、未精算予定、承認済みとの差分を確認できます。
-      </p>
-    </div>
-  </article>
-  <article class="guide-card">
-    <span class="step">5</span>
-    <div>
-      <h2>月次を確定申請する</h2>
-      <p>
-        その月の稼働入力が終わったら、自分の精算ページで月次確定申請を出します。未終了ログや未処理の修正申請が残っている場合は申請できません。
-      </p>
-    </div>
-  </article>
+<section class="mb-8" aria-labelledby="daily-work-heading">
+  <div class="mb-3">
+    <p class="eyebrow">daily work</p>
+    <h2 id="daily-work-heading">毎作業時の操作</h2>
+    <p class="mt-1 text-slate-600">作業を始めるたび、終えるたびに行う記録です。</p>
+  </div>
+  <div class="guide-grid">
+    <article class="guide-card">
+      <span class="step">1</span>
+      <div>
+        <h2>稼働を開始する</h2>
+        <p>
+          <a href={workHref}>稼働</a> でProject内Issueを選び、開始ボタンを押します。同じIssueの二重開始はできませんが、別Issueは同時に開始できます。
+          固定報酬のIssueでも、作業状況を把握するために稼働記録を入力してください。
+        </p>
+      </div>
+    </article>
+    <article class="guide-card">
+      <span class="step">2</span>
+      <div>
+        <h2>稼働を終了する</h2>
+        <p>
+          作業が終わったIssueの終了ボタンを押します。終了が未入力のログは集計対象外になり、未精算予定として確認できます。
+        </p>
+      </div>
+    </article>
+    <article class="guide-card">
+      <span class="step">3</span>
+      <div>
+        <h2>ログを修正する</h2>
+        <p>
+          押し忘れや時刻間違いがある場合は、対象Issueまたは対象ログから追加・修正・除外申請を出します。申請は月次承認時に管理者が採否を決めます。
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="mb-8" aria-labelledby="monthly-work-heading">
+  <div class="mb-3">
+    <p class="eyebrow">monthly settlement</p>
+    <h2 id="monthly-work-heading">月次の操作</h2>
+    <p class="mt-1 text-slate-600">その月の入力が終わった後に、内容を確認して確定申請します。</p>
+  </div>
+  <div class="guide-grid">
+    <article class="guide-card">
+      <span class="step">1</span>
+      <div>
+        <h2>精算を確認する</h2>
+        <p>
+          <a href={selfSettlementHref}>自分の精算</a> で月ごとの明細、稼働ログ、未精算予定、承認済みとの差分を確認します。
+          未終了ログや未処理の修正申請が残っていないかも確認してください。
+        </p>
+      </div>
+    </article>
+    <article class="guide-card">
+      <span class="step">2</span>
+      <div>
+        <h2>月次を確定申請する</h2>
+        <p>
+          その月の稼働入力が終わったら、自分の精算ページで月次確定申請を出します。申請後にログや修正申請の状態が変わった場合は再申請が必要です。
+        </p>
+      </div>
+    </article>
+  </div>
 </section>
 
 <section class="panel" aria-label="画面ごとの確認内容">
