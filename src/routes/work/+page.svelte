@@ -71,8 +71,20 @@
     if (!date) return "";
     const value = typeof date === "string" ? new Date(date) : date;
     if (Number.isNaN(value.getTime())) return "";
-    const offset = value.getTimezoneOffset() * 60_000;
-    return new Date(value.getTime() - offset).toISOString().slice(0, 16);
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      })
+        .formatToParts(value)
+        .map((part) => [part.type, part.value])
+    );
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
   };
 
   const openAddDialog = (issue: Issue) => {
@@ -119,6 +131,49 @@
 {#if data.health.missingFields.length || data.health.invalidFields.length}
   <section class="alert">
     Projectフィールドに不足があります。管理者に確認してください。
+  </section>
+{/if}
+
+{#if data.statusSyncs.length}
+  <section class="panel alert">
+    <h2>GitHub Project Status再同期</h2>
+    <p>稼働開始時にProject Statusの自動更新が失敗したIssueがあります。</p>
+    <ul class="pending-list">
+      {#each data.statusSyncs as sync (sync.id)}
+        <li class="pending-session">
+          <div class="pending-issue">
+            <span class="project-name">{formatProjectName(sync.repository)}</span>
+            <a
+              href={`https://github.com/${sync.repository}/issues/${sync.issueNumber}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {formatIssueName(sync.issueNumber, sync.issueTitle)}
+            </a>
+            <small>
+              更新先: {sync.targetStatus} / 最終試行 {formatDateTime(sync.attemptedAt)}
+            </small>
+            {#if sync.errorMessage}
+              <small>{sync.errorMessage}</small>
+            {/if}
+          </div>
+          <form
+            method="POST"
+            action="?/retryStatusSync"
+            use:enhance={enhanceAction(`retry-status-${sync.id}`)}
+          >
+            <input type="hidden" name="syncId" value={sync.id} />
+            <ActionSubmit
+              actionName={`retry-status-${sync.id}`}
+              {pendingAction}
+              label="再同期"
+              pendingLabel="再同期中..."
+              variant="secondary"
+            />
+          </form>
+        </li>
+      {/each}
+    </ul>
   </section>
 {/if}
 

@@ -1,14 +1,33 @@
 <script lang="ts">
-  import type { PageProps } from "./$types";
-  import { formatIssueName, formatProjectName } from "$lib/format";
+  import { enhance } from "$app/forms";
+  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { ActionData, PageProps } from "./$types";
+  import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import { formatDateTime, formatIssueName, formatProjectName } from "$lib/format";
 
-  let { data }: PageProps = $props();
+  let { data, form }: PageProps = $props();
+  let pendingAction = $state<string | null>(null);
+
+  const enhanceAction = (name: string): SubmitFunction =>
+    () => {
+      pendingAction = name;
+      return async ({ update }) => {
+        await update();
+        pendingAction = null;
+      };
+    };
+
+  const actionMessage = $derived((form as ActionData | undefined)?.message);
 </script>
 
 <section class="page-heading">
   <p class="eyebrow">project health</p>
   <h1>{data.health.title}</h1>
 </section>
+
+{#if actionMessage}
+  <p class="notice" role="status">{actionMessage}</p>
+{/if}
 
 <section class="panel">
   <h2>必須フィールド</h2>
@@ -31,6 +50,50 @@
         {/each}
       </ul>
     {/if}
+  {/if}
+</section>
+
+<section class="panel">
+  <h2>GitHub Project Status再同期</h2>
+  {#if data.statusSyncs.length === 0}
+    <p class="ok">再同期待ちのStatus更新はありません。</p>
+  {:else}
+    <ul class="pending-list">
+      {#each data.statusSyncs as sync (sync.id)}
+        <li class="pending-session">
+          <div class="pending-issue">
+            <span class="project-name">{formatProjectName(sync.repository)}</span>
+            <a
+              href={`https://github.com/${sync.repository}/issues/${sync.issueNumber}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {formatIssueName(sync.issueNumber, sync.issueTitle)}
+            </a>
+            <small>
+              Assignee: {sync.assigneeLogin} / 更新先: {sync.targetStatus} / 最終試行 {formatDateTime(sync.attemptedAt)}
+            </small>
+            {#if sync.errorMessage}
+              <small>{sync.errorMessage}</small>
+            {/if}
+          </div>
+          <form
+            method="POST"
+            action="?/retryStatusSync"
+            use:enhance={enhanceAction(`retry-status-${sync.id}`)}
+          >
+            <input type="hidden" name="syncId" value={sync.id} />
+            <ActionSubmit
+              actionName={`retry-status-${sync.id}`}
+              {pendingAction}
+              label="再同期"
+              pendingLabel="再同期中..."
+              variant="secondary"
+            />
+          </form>
+        </li>
+      {/each}
+    </ul>
   {/if}
 </section>
 

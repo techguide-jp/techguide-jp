@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
+import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import type { WorkSession } from "$lib/server/db/schema";
 import {
@@ -12,6 +13,10 @@ import { requestWorkLogChange, startIssueWork } from "$lib/server/work/workServi
 
 vi.mock("$lib/server/github/projectClient", () => ({
   setProjectItemStatus: vi.fn()
+}));
+
+vi.mock("$lib/server/github/statusSyncService", () => ({
+  recordProjectStatusSyncFailure: vi.fn()
 }));
 
 vi.mock("$lib/server/work/workRepository", () => ({
@@ -83,6 +88,7 @@ beforeEach(() => {
   vi.mocked(createChangeRequest).mockResolvedValue({} as Awaited<ReturnType<typeof createChangeRequest>>);
   vi.mocked(getWorkSessionById).mockResolvedValue(null);
   vi.mocked(setProjectItemStatus).mockResolvedValue(undefined);
+  vi.mocked(recordProjectStatusSyncFailure).mockResolvedValue(undefined);
 });
 
 describe("startIssueWork", () => {
@@ -111,7 +117,34 @@ describe("startIssueWork", () => {
     expect(result.ok).toBe(true);
     expect(createWorkSession).toHaveBeenCalledOnce();
     expect(setProjectItemStatus).toHaveBeenCalledWith("item-1", "In Progress");
+    expect(recordProjectStatusSyncFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ projectItemId: "item-1" }),
+      "tashua314",
+      "In Progress",
+      expect.any(Error)
+    );
     expect(result.ok && result.message).toContain("Status更新に失敗しました");
+  });
+});
+
+describe("requestWorkLogChange datetime-local", () => {
+  it("追加申請のdatetime-localをJSTとして保存する", async () => {
+    const data = new FormData();
+    data.set("requestType", "add");
+    data.set("issueKey", "techguide-jp/techguide-jp#2");
+    data.set("requestedStartedAt", "2026-06-18T09:00");
+    data.set("requestedEndedAt", "2026-06-18T10:00");
+    data.set("reason", "押し忘れ");
+
+    const result = await requestWorkLogChange(data, [issue()], "tashua314");
+
+    expect(result.ok).toBe(true);
+    expect(createChangeRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestedStartedAt: new Date("2026-06-18T00:00:00.000Z"),
+        requestedEndedAt: new Date("2026-06-18T01:00:00.000Z")
+      })
+    );
   });
 });
 

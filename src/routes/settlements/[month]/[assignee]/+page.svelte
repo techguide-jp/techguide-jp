@@ -9,6 +9,17 @@
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
 
+  const snapshotTaxExcludedYen = (snapshot: unknown): number | null => {
+    if (!snapshot || typeof snapshot !== "object") return null;
+    const value = snapshot as {
+      taxExcludedYen?: unknown;
+      totals?: { taxExcludedYen?: unknown };
+    };
+    if (typeof value.totals?.taxExcludedYen === "number") return value.totals.taxExcludedYen;
+    if (typeof value.taxExcludedYen === "number") return value.taxExcludedYen;
+    return null;
+  };
+
   const enhanceAction = (name: string): SubmitFunction =>
     () => {
       pendingAction = name;
@@ -19,14 +30,14 @@
     };
 
   const summary = $derived(data.summary);
-  const snapshot = $derived(data.snapshot?.snapshot as { taxExcludedYen?: number } | undefined);
+  const approvedTaxExcludedYen = $derived(snapshotTaxExcludedYen(data.snapshot?.snapshot));
   const actionMessage = $derived((form as ActionData | undefined)?.message);
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
-    snapshot?.taxExcludedYen === undefined || !summary
+    approvedTaxExcludedYen === null || !summary
       ? null
-      : summary.taxExcludedYen - snapshot.taxExcludedYen
+      : summary.taxExcludedYen - approvedTaxExcludedYen
   );
   const formatProjectStatus = (status: string | null): string =>
     status === "In Progress" ? "作業中" : status ?? "-";

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
 import { monthlyWorkSubmissions, type MonthlyWorkSubmission } from "$lib/server/db/schema";
+import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
 export const getWorkSubmission = async (
@@ -31,7 +32,7 @@ export const upsertWorkSubmission = async (
   summary: SettlementSummary,
   submittedBy: string
 ): Promise<MonthlyWorkSubmission> => {
-  const payload = JSON.parse(JSON.stringify(summary));
+  const payload = createSettlementSnapshotPayload(summary);
   const [submission] = await db
     .insert(monthlyWorkSubmissions)
     .values({

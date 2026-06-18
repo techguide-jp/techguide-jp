@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or, type SQL } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
 import {
   workLogChangeRequests,
@@ -7,8 +7,60 @@ import {
   type WorkSession
 } from "$lib/server/db/schema";
 
+type IssueRef = {
+  repository: string;
+  issueNumber: number;
+};
+
+type UtcRange = {
+  start: Date;
+  end: Date;
+};
+
+const issueRefFilter = (issueRefs: IssueRef[]): SQL | undefined => {
+  if (issueRefs.length === 0) return undefined;
+  return or(
+    ...issueRefs.map((issue) =>
+      and(
+        eq(workSessions.repository, issue.repository),
+        eq(workSessions.issueNumber, issue.issueNumber)
+      )
+    )
+  );
+};
+
+const requestIssueRefFilter = (issueRefs: IssueRef[]): SQL | undefined => {
+  if (issueRefs.length === 0) return undefined;
+  return or(
+    ...issueRefs.map((issue) =>
+      and(
+        eq(workLogChangeRequests.repository, issue.repository),
+        eq(workLogChangeRequests.issueNumber, issue.issueNumber)
+      )
+    )
+  );
+};
+
 export const listWorkSessions = async (): Promise<WorkSession[]> => {
   return db.select().from(workSessions);
+};
+
+export const listWorkSessionsForSettlementContext = async (
+  range: UtcRange,
+  issueRefs: IssueRef[]
+): Promise<WorkSession[]> => {
+  const issueFilter = issueRefFilter(issueRefs);
+  return db
+    .select()
+    .from(workSessions)
+    .where(
+      or(
+        ...(issueFilter ? [issueFilter] : []),
+        and(gte(workSessions.startedAt, range.start), lt(workSessions.startedAt, range.end)),
+        and(gte(workSessions.endedAt, range.start), lt(workSessions.endedAt, range.end)),
+        and(isNull(workSessions.endedAt), isNull(workSessions.excludedAt))
+      )
+    );
 };
 
 export const listWorkSessionsForAssignee = async (assigneeLogin: string): Promise<WorkSession[]> => {
@@ -96,6 +148,26 @@ export const listChangeRequests = async (): Promise<WorkLogChangeRequest[]> => {
   return db.select().from(workLogChangeRequests);
 };
 
+export const listChangeRequestsForSettlementContext = async (
+  range: UtcRange,
+  issueRefs: IssueRef[]
+): Promise<WorkLogChangeRequest[]> => {
+  const issueFilter = requestIssueRefFilter(issueRefs);
+  return db
+    .select()
+    .from(workLogChangeRequests)
+    .where(
+      or(
+        ...(issueFilter ? [issueFilter] : []),
+        and(gte(workLogChangeRequests.createdAt, range.start), lt(workLogChangeRequests.createdAt, range.end)),
+        and(
+          gte(workLogChangeRequests.requestedStartedAt, range.start),
+          lt(workLogChangeRequests.requestedStartedAt, range.end)
+        )
+      )
+    );
+};
+
 export const listPendingChangeRequests = async (): Promise<WorkLogChangeRequest[]> => {
   return db
     .select()
@@ -142,7 +214,7 @@ export const reviewChangeRequest = async (
   const [request] = await db
     .update(workLogChangeRequests)
     .set({ status, reviewedBy, reviewedAt: new Date(), reviewNote: note })
-    .where(eq(workLogChangeRequests.id, requestId))
+    .where(and(eq(workLogChangeRequests.id, requestId), eq(workLogChangeRequests.status, "pending")))
     .returning();
   return request ?? null;
 };

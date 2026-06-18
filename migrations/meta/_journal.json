@@ -15,6 +15,13 @@
       "when": 1781752163533,
       "tag": "0001_flat_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781755298454,
+      "tag": "0002_slim_jubilee",
+      "breakpoints": true
     }
   ]
 }

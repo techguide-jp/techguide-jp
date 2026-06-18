@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
+import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
+import { parseJstDatetimeLocal } from "$lib/server/time";
 import {
   createChangeRequest,
   createWorkSession,
@@ -99,11 +101,16 @@ export const startIssueWork = async (
       try {
         await setProjectItemStatus(issue.projectItemId, "In Progress");
         return { ok: true, message: "稼働を開始し、StatusをIn Progressに更新しました。" };
-      } catch {
+      } catch (error) {
+        try {
+          await recordProjectStatusSyncFailure(issue, userLogin, "In Progress", error);
+        } catch {
+          // 稼働ログ作成は成功済みなので、再同期キュー保存の失敗で開始自体は取り消さない。
+        }
         return {
           ok: true,
           message:
-            "稼働を開始しましたが、GitHub ProjectのStatus更新に失敗しました。Project設定またはGITHUB_PROJECT_TOKENを確認してください。"
+            "稼働を開始しましたが、GitHub ProjectのStatus更新に失敗しました。あとで稼働画面から再同期できます。"
         };
       }
     }
@@ -140,8 +147,8 @@ export const requestWorkLogChange = async (
     const input = changeRequestSchema.parse(Object.fromEntries(formData));
     const parsedIssue = parseIssueKey(input.issueKey);
     const issue = findProjectIssue(issues, parsedIssue.repository, parsedIssue.issueNumber, userLogin);
-    const startedAt = input.requestedStartedAt ? new Date(input.requestedStartedAt) : undefined;
-    const endedAt = input.requestedEndedAt ? new Date(input.requestedEndedAt) : undefined;
+    const startedAt = input.requestedStartedAt ? parseJstDatetimeLocal(input.requestedStartedAt) : undefined;
+    const endedAt = input.requestedEndedAt ? parseJstDatetimeLocal(input.requestedEndedAt) : undefined;
 
     if ((input.requestType === "edit" || input.requestType === "exclude") && !input.targetSessionId) {
       return { ok: false, message: "修正・除外申請には対象ログIDが必要です。" };
@@ -155,6 +162,8 @@ export const requestWorkLogChange = async (
     if ((startedAt && Number.isNaN(startedAt.getTime())) || (endedAt && Number.isNaN(endedAt.getTime()))) {
       return { ok: false, message: "日時の形式が不正です。" };
     }
+    const requestedStartedAt = startedAt ?? undefined;
+    const requestedEndedAt = endedAt ?? undefined;
 
     if (input.targetSessionId) {
       const targetSession = await getWorkSessionById(input.targetSessionId);
@@ -180,8 +189,8 @@ export const requestWorkLogChange = async (
       issueNumber: issue.number,
       issueTitle: issue.title,
       targetSessionId: input.targetSessionId || undefined,
-      requestedStartedAt: startedAt,
-      requestedEndedAt: endedAt,
+      requestedStartedAt,
+      requestedEndedAt,
       reason: input.reason,
       requestedBy: userLogin
     });

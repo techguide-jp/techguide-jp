@@ -3,6 +3,10 @@ import {
   applyApprovedChangeRequests,
   buildSettlementSummaries,
 } from "../src/lib/server/settlements/settlementCalculator";
+import {
+  createSettlementSnapshotPayload,
+  hasSettlementSnapshotChanges,
+} from "../src/lib/server/settlements/settlementSnapshot";
 import type { ProjectIssue } from "../src/lib/server/github/projectTypes";
 import type {
   WorkLogChangeRequest,
@@ -212,5 +216,33 @@ describe("buildSettlementSummaries", () => {
     expect(summaries[0].lines).toHaveLength(1);
     expect(summaries[0].lines[0].workMinutes).toBe(0);
     expect(summaries[0].approvalRequired).toBe(true);
+  });
+
+  it("スナップショット比較は表示名変更を無視し、金額変更を検知する", () => {
+    const [summary] = buildSettlementSummaries(
+      "2026-07",
+      [issue({ rewardMode: "固定" })],
+      [],
+      requests,
+    );
+    const snapshot = createSettlementSnapshotPayload(summary);
+    const renamedSummary = {
+      ...summary,
+      lines: summary.lines.map((line) => ({
+        ...line,
+        issue: { ...line.issue, title: "rename only" },
+      })),
+    };
+    const amountChangedSummary = {
+      ...summary,
+      fixedRewardYen: summary.fixedRewardYen + 1,
+      taxExcludedYen: summary.taxExcludedYen + 1,
+      taxIncludedYen: summary.taxIncludedYen + 1,
+    };
+
+    expect(hasSettlementSnapshotChanges(snapshot, renamedSummary)).toBe(false);
+    expect(hasSettlementSnapshotChanges(snapshot, amountChangedSummary)).toBe(
+      true,
+    );
   });
 });
