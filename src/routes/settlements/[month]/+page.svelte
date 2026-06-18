@@ -9,6 +9,9 @@
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
+  const snapshotByAssignee = $derived(
+    new Map(data.snapshots.map((snapshot) => [snapshot.assigneeLogin, snapshot]))
+  );
 
   const enhanceAction = (name: string, clearHashOnSuccess = false): SubmitFunction =>
     () => {
@@ -30,6 +33,8 @@
   const pendingRequests = $derived(data.requests.filter((request) => request.status === "pending"));
   const formatProjectStatus = (status: string | null): string =>
     status === "In Progress" ? "作業中" : status ?? "-";
+  const formatUnsettledReason = (reason: "open_in_progress" | "closed_not_done"): string =>
+    reason === "closed_not_done" ? "Status未完了" : "未close";
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
   const nextMonth = $derived(addMonths(data.month, 1));
@@ -50,10 +55,11 @@
       <span>翌月</span>
     {/if}
   </nav>
-  {#if actionMessage}
-    <p class="notice">{actionMessage}</p>
-  {/if}
 </section>
+
+{#if actionMessage}
+  <p class="notice" role="status">{actionMessage}</p>
+{/if}
 
 <section class="panel">
   <h2>未処理の修正申請</h2>
@@ -135,6 +141,7 @@
     </thead>
     <tbody>
       {#each data.summaries as summary (summary.assigneeLogin)}
+        {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
         <tr>
           <td>
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}>{summary.assigneeLogin}</a>
@@ -146,6 +153,17 @@
           <td>
             {#if !summary.approvalRequired}
               <span class="muted">精算対象なし</span>
+            {:else if snapshot}
+              <span class="status-stack">
+                {#if snapshot.hasChanges && summary.blockingReasons.length}
+                  <strong class="bad">承認済み・要確認</strong>
+                {:else if snapshot.hasChanges}
+                  <strong class="bad">承認後変更あり</strong>
+                {:else}
+                  <strong class="ok">承認済み</strong>
+                {/if}
+                <small>{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small>
+              </span>
             {:else if summary.blockingReasons.length}
               <span class="bad">要確認 {summary.blockingReasons.length}</span>
             {:else}
@@ -155,10 +173,14 @@
           <td>
             {#if !summary.approvalRequired}
               <span class="muted">-</span>
+            {:else if snapshot && !snapshot.hasChanges}
+              <span class="muted">-</span>
             {:else if summary.blockingReasons.length > 0}
-              <button class="button primary" type="button" disabled>承認</button>
+              <button class="button primary" type="button" disabled>{snapshot ? "再承認" : "承認"}</button>
             {:else}
-              <a class="button primary" href={`#approve-${summary.assigneeLogin}`} data-sveltekit-reload>承認</a>
+              <a class={`button ${snapshot ? "secondary" : "primary"}`} href={`#approve-${summary.assigneeLogin}`} data-sveltekit-reload>
+                {snapshot ? "再承認" : "承認"}
+              </a>
             {/if}
           </td>
         </tr>
@@ -169,6 +191,7 @@
 
 {#each data.summaries as summary (summary.assigneeLogin)}
   {#if summary.approvalRequired}
+    {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
     <div
       id={`approve-${summary.assigneeLogin}`}
       class="modal-backdrop"
@@ -181,7 +204,17 @@
         <header class="modal-header">
           <div>
             <p class="eyebrow">monthly approval</p>
-            <h2 id={`approval-dialog-${summary.assigneeLogin}`}>{summary.assigneeLogin} の月次承認</h2>
+            <h2 id={`approval-dialog-${summary.assigneeLogin}`}>
+              {summary.assigneeLogin} の月次{snapshot ? "再承認" : "承認"}
+            </h2>
+            {#if snapshot}
+              <p class="approval-record">
+                前回承認: {formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}
+                {#if snapshot.hasChanges}
+                  <span>現在の承認内容に変更があります</span>
+                {/if}
+              </p>
+            {/if}
           </div>
           <a class="icon-button" href="#settlement-top" aria-label="閉じる">
             ×
@@ -261,11 +294,11 @@
 
         <div class="modal-section">
           <h3>未精算予定</h3>
-          {#if summary.unclosedProjectIssues.length === 0 && summary.unclosedIssueSessions.length === 0}
-            <p class="muted">作業中のProject Issueや未close Issueの稼働ログはありません。</p>
+          {#if summary.unsettledProjectIssues.length === 0 && summary.unsettledIssueSessions.length === 0}
+            <p class="muted">未精算予定のProject Issueや稼働ログはありません。</p>
           {:else}
             <ul class="planned-list">
-              {#each summary.unclosedProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
+              {#each summary.unsettledProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
                 <li>
                   <div>
                     <span class="project-name">{formatProjectName(line.issue.repository)}</span>
@@ -275,12 +308,13 @@
                   </div>
                   <div class="planned-meta">
                     <span>状態: {formatProjectStatus(line.issue.status)}</span>
+                    <span>理由: {formatUnsettledReason(line.reason)}</span>
                     <span>ログ: {line.sessions.length}件</span>
                     <span>稼働: {line.workMinutes}分</span>
                   </div>
                 </li>
               {/each}
-              {#each summary.unclosedIssueSessions as session (session.id)}
+              {#each summary.unsettledIssueSessions as session (session.id)}
                 <li>
                   <div>
                     <span class="project-name">{formatProjectName(session.repository)}</span>
@@ -311,8 +345,8 @@
             <ActionSubmit
               actionName={`approve-${summary.assigneeLogin}`}
               {pendingAction}
-              label="この内容で承認"
-              pendingLabel="承認中..."
+              label={snapshot ? "この内容で再承認" : "この内容で承認"}
+              pendingLabel={snapshot ? "再承認中..." : "承認中..."}
               disabled={summary.blockingReasons.length > 0}
             />
           </form>
@@ -392,10 +426,12 @@
   }
 
   .notice {
+    margin: -0.2rem 0 1rem;
     border-radius: 6px;
     background: #ecfdf5;
     color: #047857;
     padding: 0.7rem 0.85rem;
+    font-weight: 700;
   }
 
   .ok {
@@ -410,6 +446,31 @@
 
   .muted {
     color: #66736d;
+  }
+
+  .status-stack,
+  .approval-record {
+    display: grid;
+    gap: 0.18rem;
+  }
+
+  .status-stack small,
+  .approval-record {
+    color: #66736d;
+    font-size: 0.78rem;
+  }
+
+  .status-stack strong {
+    white-space: nowrap;
+  }
+
+  .approval-record {
+    margin: 0.3rem 0 0;
+  }
+
+  .approval-record span {
+    color: #b91c1c;
+    font-weight: 700;
   }
 
   .review-actions {

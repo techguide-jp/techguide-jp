@@ -13,6 +13,44 @@
   );
   const formatProjectStatus = (status: string | null): string =>
     status === "In Progress" ? "作業中" : status ?? "-";
+  const formatUnsettledReason = (reason: "open_in_progress" | "closed_not_done"): string =>
+    reason === "closed_not_done" ? "Status未完了" : "未close";
+  const sessionMinutes = (startedAt: Date | string, endedAt: Date | string | null): number => {
+    if (!endedAt) return 0;
+    return Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000));
+  };
+  const settledWorkLogs = $derived(
+    summary
+      ? summary.lines
+          .flatMap((line) =>
+            line.sessions.map((session) => ({
+              line,
+              session,
+              workMinutes: sessionMinutes(session.startedAt, session.endedAt),
+              source: session.id.startsWith("request-") ? "追加申請" : "記録"
+            }))
+          )
+          .sort((a, b) => new Date(a.session.startedAt).getTime() - new Date(b.session.startedAt).getTime())
+      : []
+  );
+  const unsettledWorkLogs = $derived(
+    summary
+      ? [
+          ...summary.unsettledProjectIssues.flatMap((line) =>
+            line.sessions.map((session) => ({
+              issue: line.issue,
+              session,
+              workMinutes: sessionMinutes(session.startedAt, session.endedAt)
+            }))
+          ),
+          ...summary.unsettledIssueSessions.map((session) => ({
+            issue: null,
+            session,
+            workMinutes: sessionMinutes(session.startedAt, session.endedAt)
+          }))
+        ].sort((a, b) => new Date(a.session.startedAt).getTime() - new Date(b.session.startedAt).getTime())
+      : []
+  );
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
   const nextMonth = $derived(addMonths(data.month, 1));
@@ -103,12 +141,54 @@
   </section>
 
   <section class="panel">
+    <h2>稼働ログ</h2>
+    {#if settledWorkLogs.length === 0}
+      <p class="muted">精算対象Issueに紐づく稼働ログはありません。</p>
+    {:else}
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Issue</th>
+            <th>開始</th>
+            <th>終了</th>
+            <th>稼働</th>
+            <th>扱い</th>
+            <th>由来</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each settledWorkLogs as log (`${log.session.id}-${log.line.issue.repository}#${log.line.issue.number}`)}
+            <tr>
+              <td>{formatProjectName(log.line.issue.repository)}</td>
+              <td>
+                <a href={log.line.issue.url} target="_blank" rel="noreferrer">
+                  {formatIssueName(log.line.issue.number, log.line.issue.title)}
+                </a>
+              </td>
+              <td>{formatDateTime(log.session.startedAt)}</td>
+              <td>{log.session.endedAt ? formatDateTime(log.session.endedAt) : "計測中"}</td>
+              <td>{log.session.endedAt ? `${log.workMinutes}分` : "-"}</td>
+              <td>
+                <span class={`status-badge ${log.line.issue.rewardMode === "ハイブリッド" ? "complete" : "reference"}`}>
+                  {log.line.issue.rewardMode === "ハイブリッド" ? "時間精算" : "参考"}
+                </span>
+              </td>
+              <td>{log.source}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </section>
+
+  <section class="panel">
     <h2>未精算予定</h2>
-    {#if summary.unclosedProjectIssues.length === 0 && summary.unclosedIssueSessions.length === 0}
-      <p class="muted">作業中のProject Issueや未close Issueの稼働ログはありません。</p>
+    {#if summary.unsettledProjectIssues.length === 0 && summary.unsettledIssueSessions.length === 0}
+      <p class="muted">未精算予定のProject Issueや稼働ログはありません。</p>
     {:else}
       <ul class="pending-list">
-        {#each summary.unclosedProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
+        {#each summary.unsettledProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
           <li class="pending-session">
             <div class="pending-issue">
               <span class="project-name">{formatProjectName(line.issue.repository)}</span>
@@ -122,6 +202,10 @@
                 <strong>{formatProjectStatus(line.issue.status)}</strong>
               </span>
               <span>
+                <small>理由</small>
+                <strong>{formatUnsettledReason(line.reason)}</strong>
+              </span>
+              <span>
                 <small>ログ</small>
                 <strong>{line.sessions.length}件</strong>
               </span>
@@ -133,7 +217,7 @@
             </div>
           </li>
         {/each}
-        {#each summary.unclosedIssueSessions as session (session.id)}
+        {#each summary.unsettledIssueSessions as session (session.id)}
           <li class="pending-session">
             <div class="pending-issue">
               <span class="project-name">{formatProjectName(session.repository)}</span>
@@ -161,6 +245,41 @@
           </li>
         {/each}
       </ul>
+      {#if unsettledWorkLogs.length}
+        <div class="log-detail-block">
+          <h3>未精算予定の稼働ログ</h3>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Issue</th>
+                <th>開始</th>
+                <th>終了</th>
+                <th>稼働</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each unsettledWorkLogs as log (log.session.id)}
+                <tr>
+                  <td>{formatProjectName(log.session.repository)}</td>
+                  <td>
+                    <a
+                      href={`https://github.com/${log.session.repository}/issues/${log.session.issueNumber}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {formatIssueName(log.session.issueNumber, log.issue?.title ?? log.session.issueTitle)}
+                    </a>
+                  </td>
+                  <td>{formatDateTime(log.session.startedAt)}</td>
+                  <td>{log.session.endedAt ? formatDateTime(log.session.endedAt) : "計測中"}</td>
+                  <td>{log.session.endedAt ? `${log.workMinutes}分` : "-"}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
     {/if}
   </section>
 {/if}
@@ -203,13 +322,19 @@
   }
 
   h1,
-  h2 {
+  h2,
+  h3 {
     margin: 0;
   }
 
   h2 {
     margin-bottom: 0.8rem;
     font-size: 1.1rem;
+  }
+
+  h3 {
+    margin-bottom: 0.65rem;
+    font-size: 0.98rem;
   }
 
   .summary-grid {
@@ -253,6 +378,10 @@
     border-collapse: collapse;
   }
 
+  .log-table {
+    font-size: 0.92rem;
+  }
+
   th,
   td {
     border-bottom: 1px solid #e5e7eb;
@@ -267,6 +396,12 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .log-detail-block {
+    margin-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
   }
 
   .pending-session {
@@ -347,6 +482,11 @@
   .status-badge.measuring {
     background: #fff7ed;
     color: #9a3412;
+  }
+
+  .status-badge.reference {
+    background: #eef2ff;
+    color: #3730a3;
   }
 
   @media (max-width: 640px) {

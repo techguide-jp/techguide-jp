@@ -20,6 +20,13 @@ export const getSnapshot = async (
   return snapshot ?? null;
 };
 
+export const listSnapshotsForMonth = async (month: string): Promise<MonthlySettlementSnapshot[]> => {
+  return db
+    .select()
+    .from(monthlySettlementSnapshots)
+    .where(eq(monthlySettlementSnapshots.month, month));
+};
+
 export const upsertSnapshot = async (
   summary: SettlementSummary,
   approvedBy: string

@@ -12,10 +12,15 @@ export type SettlementIssueLine = {
   sessions: WorkSession[];
 };
 
-export type UnclosedProjectIssueLine = {
+export type UnsettledProjectIssueReason =
+  | "open_in_progress"
+  | "closed_not_done";
+
+export type UnsettledProjectIssueLine = {
   issue: ProjectIssue;
   sessions: WorkSession[];
   workMinutes: number;
+  reason: UnsettledProjectIssueReason;
 };
 
 export type SettlementSummary = {
@@ -28,8 +33,8 @@ export type SettlementSummary = {
   taxIncludedYen: number;
   lines: SettlementIssueLine[];
   pendingRequests: WorkLogChangeRequest[];
-  unclosedProjectIssues: UnclosedProjectIssueLine[];
-  unclosedIssueSessions: WorkSession[];
+  unsettledProjectIssues: UnsettledProjectIssueLine[];
+  unsettledIssueSessions: WorkSession[];
   approvalRequired: boolean;
   blockingReasons: string[];
 };

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   applyApprovedChangeRequests,
-  buildSettlementSummaries
+  buildSettlementSummaries,
 } from "../src/lib/server/settlements/settlementCalculator";
 import type { ProjectIssue } from "../src/lib/server/github/projectTypes";
-import type { WorkLogChangeRequest, WorkSession } from "../src/lib/server/db/schema";
+import type {
+  WorkLogChangeRequest,
+  WorkSession,
+} from "../src/lib/server/db/schema";
 
 const issue = (overrides: Partial<ProjectIssue> = {}): ProjectIssue => ({
   projectItemId: "item-1",
@@ -21,7 +24,7 @@ const issue = (overrides: Partial<ProjectIssue> = {}): ProjectIssue => ({
   fixedRewardYen: 1000,
   extraCapYen: 5000,
   hourlyRateYen: 6000,
-  ...overrides
+  ...overrides,
 });
 
 const session = (overrides: Partial<WorkSession> = {}): WorkSession => ({
@@ -37,12 +40,14 @@ const session = (overrides: Partial<WorkSession> = {}): WorkSession => ({
   updatedAt: new Date("2026-06-10T01:30:00Z"),
   excludedAt: null,
   excludeReason: null,
-  ...overrides
+  ...overrides,
 });
 
 const requests: WorkLogChangeRequest[] = [];
 
-const request = (overrides: Partial<WorkLogChangeRequest> = {}): WorkLogChangeRequest => ({
+const request = (
+  overrides: Partial<WorkLogChangeRequest> = {},
+): WorkLogChangeRequest => ({
   id: crypto.randomUUID(),
   requestType: "add",
   status: "approved",
@@ -59,20 +64,25 @@ const request = (overrides: Partial<WorkLogChangeRequest> = {}): WorkLogChangeRe
   reviewedAt: new Date("2026-06-11T00:00:00Z"),
   reviewNote: null,
   createdAt: new Date("2026-06-10T03:00:00Z"),
-  ...overrides
+  ...overrides,
 });
 
 describe("buildSettlementSummaries", () => {
   it("複数Issue同時稼働を各Issueに満額計上する", () => {
     const summaries = buildSettlementSummaries(
       "2026-07",
-      [issue(), issue({ projectItemId: "item-2", number: 2, title: "Issue 2" })],
+      [
+        issue(),
+        issue({ projectItemId: "item-2", number: 2, title: "Issue 2" }),
+      ],
       [session(), session({ issueNumber: 2, issueTitle: "Issue 2" })],
-      requests
+      requests,
     );
 
     expect(summaries[0].timedRewardYen).toBe(6000);
-    expect(summaries[0].lines.map((line) => line.workMinutes)).toEqual([30, 30]);
+    expect(summaries[0].lines.map((line) => line.workMinutes)).toEqual([
+      30, 30,
+    ]);
   });
 
   it("固定Issueの稼働ログは参考表示のみで金額化しない", () => {
@@ -80,7 +90,7 @@ describe("buildSettlementSummaries", () => {
       "2026-07",
       [issue({ rewardMode: "固定" })],
       [session()],
-      requests
+      requests,
     );
 
     expect(summaries[0].lines[0].workMinutes).toBe(30);
@@ -93,7 +103,7 @@ describe("buildSettlementSummaries", () => {
       "2026-07",
       [issue()],
       [session({ endedAt: null })],
-      requests
+      requests,
     );
 
     expect(summaries[0].timedRewardYen).toBe(0);
@@ -105,14 +115,19 @@ describe("buildSettlementSummaries", () => {
       "2026-07",
       [issue({ extraCapYen: 1000 })],
       [session()],
-      requests
+      requests,
     );
 
     expect(summaries[0].blockingReasons[0]).toContain("追加精算上限");
   });
 
   it("承認済み追加申請を有効ログとして集計する", () => {
-    const summaries = buildSettlementSummaries("2026-07", [issue()], [], [request()]);
+    const summaries = buildSettlementSummaries(
+      "2026-07",
+      [issue()],
+      [],
+      [request()],
+    );
 
     expect(summaries[0].lines[0].workMinutes).toBe(15);
     expect(summaries[0].timedRewardYen).toBe(1500);
@@ -127,9 +142,9 @@ describe("buildSettlementSummaries", () => {
           requestType: "exclude",
           targetSessionId: baseSession.id,
           requestedStartedAt: null,
-          requestedEndedAt: null
-        })
-      ]
+          requestedEndedAt: null,
+        }),
+      ],
     );
 
     expect(effective[0].excludedAt).toBeInstanceOf(Date);
@@ -143,16 +158,41 @@ describe("buildSettlementSummaries", () => {
           state: "OPEN",
           closedAt: null,
           status: "In Progress",
-          rewardMode: "固定"
-        })
+          rewardMode: "固定",
+        }),
       ],
       [],
-      requests
+      requests,
     );
 
     expect(summaries[0].assigneeLogin).toBe("koideshogo");
-    expect(summaries[0].unclosedProjectIssues).toHaveLength(1);
-    expect(summaries[0].unclosedProjectIssues[0].workMinutes).toBe(0);
+    expect(summaries[0].unsettledProjectIssues).toHaveLength(1);
+    expect(summaries[0].unsettledProjectIssues[0].workMinutes).toBe(0);
+    expect(summaries[0].unsettledProjectIssues[0].reason).toBe(
+      "open_in_progress",
+    );
+    expect(summaries[0].approvalRequired).toBe(false);
+  });
+
+  it("closed済みでもStatusがDoneでないIssueをclose月の未精算予定に出す", () => {
+    const summaries = buildSettlementSummaries(
+      "2026-07",
+      [
+        issue({
+          status: "In Progress",
+          rewardMode: "固定",
+        }),
+      ],
+      [],
+      requests,
+    );
+
+    expect(summaries[0].assigneeLogin).toBe("koideshogo");
+    expect(summaries[0].lines).toHaveLength(0);
+    expect(summaries[0].unsettledProjectIssues).toHaveLength(1);
+    expect(summaries[0].unsettledProjectIssues[0].reason).toBe(
+      "closed_not_done",
+    );
     expect(summaries[0].approvalRequired).toBe(false);
   });
 
@@ -162,11 +202,11 @@ describe("buildSettlementSummaries", () => {
       [
         issue({
           rewardMode: "固定",
-          hourlyRateYen: null
-        })
+          hourlyRateYen: null,
+        }),
       ],
       [],
-      requests
+      requests,
     );
 
     expect(summaries[0].lines).toHaveLength(1);
