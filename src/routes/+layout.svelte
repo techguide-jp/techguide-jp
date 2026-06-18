@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import type { LayoutProps } from "./$types";
   import { currentJstMonth, formatMonthLabel } from "$lib/month";
+  import "../app.css";
 
   type BreadcrumbItem = {
     label: string;
@@ -98,7 +99,7 @@
       {/if}
     </nav>
   </header>
-  <main>
+  <main class="page-main">
     {#if breadcrumbs.length}
       <nav class="breadcrumb" aria-label="パンくず">
         <ol>
@@ -117,99 +118,3 @@
     {@render children()}
   </main>
 </div>
-
-<style>
-  :global(body) {
-    margin: 0;
-    color: #172026;
-    background: #f7f8f5;
-    font-family:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  :global(a) {
-    color: inherit;
-  }
-
-  .shell {
-    min-height: 100vh;
-  }
-
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.5rem;
-    background: #ffffff;
-    border-bottom: 1px solid #d8ded7;
-  }
-
-  .brand {
-    font-weight: 800;
-    text-decoration: none;
-  }
-
-  .topnav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.8rem;
-    font-size: 0.92rem;
-  }
-
-  .topnav a {
-    border-bottom: 2px solid transparent;
-    padding: 0.15rem 0;
-    text-decoration: none;
-    color: #38514a;
-  }
-
-  .topnav a.active {
-    border-color: #0f766e;
-    color: #0f766e;
-    font-weight: 800;
-  }
-
-  main {
-    width: min(1180px, calc(100% - 2rem));
-    margin: 0 auto;
-    padding: 1.5rem 0 3rem;
-  }
-
-  .breadcrumb {
-    margin-bottom: 1rem;
-    color: #66736d;
-    font-size: 0.9rem;
-  }
-
-  .breadcrumb ol {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .breadcrumb li {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .breadcrumb li:not(:last-child)::after {
-    content: "/";
-    color: #9aa59f;
-  }
-
-  .breadcrumb a {
-    color: #38514a;
-    font-weight: 700;
-    text-decoration: none;
-  }
-
-  .breadcrumb span {
-    color: #172026;
-    font-weight: 700;
-  }
-</style>
