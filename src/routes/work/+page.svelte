@@ -4,8 +4,14 @@
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import StatusSyncPanel from "$lib/components/StatusSyncPanel.svelte";
-  import WorkChangeDialog, { type WorkChangeDialogState } from "$lib/components/WorkChangeDialog.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName } from "$lib/format";
+  import WorkChangeDialog, {
+    type WorkChangeDialogState,
+  } from "$lib/components/WorkChangeDialog.svelte";
+  import {
+    formatDateTime,
+    formatIssueName,
+    formatProjectName,
+  } from "$lib/format";
 
   type Issue = PageProps["data"]["issues"][number];
   type WorkSession = PageProps["data"]["sessions"][number];
@@ -15,10 +21,15 @@
   let changeDialog = $state<WorkChangeDialogState | null>(null);
 
   const openKeySet = $derived(
-    new Set(data.openSessions.map((session) => `${session.repository}#${session.issueNumber}`))
+    new Set(
+      data.openSessions.map(
+        (session) => `${session.repository}#${session.issueNumber}`,
+      ),
+    ),
   );
 
-  const enhanceAction = (name: string, closeDialogOnSuccess = false): SubmitFunction =>
+  const enhanceAction =
+    (name: string, closeDialogOnSuccess = false): SubmitFunction =>
     () => {
       pendingAction = name;
       return async ({ result, update }) => {
@@ -32,10 +43,12 @@
 
   const actionMessage = $derived((form as ActionData | undefined)?.message);
 
-  const issueKey = (issue: Issue): string => `${issue.repository}#${issue.number}`;
+  const issueKey = (issue: Issue): string =>
+    `${issue.repository}#${issue.number}`;
   const issueLabel = (issue: Issue): string =>
     `${formatProjectName(issue.repository)} / ${formatIssueName(issue.number, issue.title)}`;
-  const sessionIssueKey = (session: WorkSession): string => `${session.repository}#${session.issueNumber}`;
+  const sessionIssueKey = (session: WorkSession): string =>
+    `${session.repository}#${session.issueNumber}`;
   const sessionIssueLabel = (session: WorkSession): string =>
     `${formatProjectName(session.repository)} / ${formatIssueName(session.issueNumber, session.issueTitle)}`;
   const toDatetimeLocal = (date: Date | string | null): string => {
@@ -50,10 +63,10 @@
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
-        hourCycle: "h23"
+        hourCycle: "h23",
       })
         .formatToParts(value)
-        .map((part) => [part.type, part.value])
+        .map((part) => [part.type, part.value]),
     );
     return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
   };
@@ -64,7 +77,7 @@
       issueKey: issueKey(issue),
       issueLabel: issueLabel(issue),
       startedAt: "",
-      endedAt: ""
+      endedAt: "",
     };
   };
 
@@ -75,7 +88,7 @@
       issueLabel: sessionIssueLabel(session),
       targetSessionId: session.id,
       startedAt: toDatetimeLocal(session.startedAt),
-      endedAt: toDatetimeLocal(session.endedAt)
+      endedAt: toDatetimeLocal(session.endedAt),
     };
   };
 
@@ -84,7 +97,7 @@
       requestType: "exclude",
       issueKey: sessionIssueKey(session),
       issueLabel: sessionIssueLabel(session),
-      targetSessionId: session.id
+      targetSessionId: session.id,
     };
   };
 </script>
@@ -106,7 +119,12 @@
 {/if}
 
 {#if data.statusSyncs.length}
-  <StatusSyncPanel statusSyncs={data.statusSyncs} {pendingAction} {enhanceAction} alert />
+  <StatusSyncPanel
+    statusSyncs={data.statusSyncs}
+    {pendingAction}
+    {enhanceAction}
+    alert
+  />
 {/if}
 
 <section class="panel">
@@ -116,7 +134,12 @@
   {:else}
     <div class="session-list">
       {#each data.openSessions as session (session.id)}
-        <form method="POST" action="?/stop" use:enhance={enhanceAction(`stop-${session.id}`)} class="session-row">
+        <form
+          method="POST"
+          action="?/stop"
+          use:enhance={enhanceAction(`stop-${session.id}`)}
+          class="session-row"
+        >
           <input type="hidden" name="sessionId" value={session.id} />
           <div class="session-issue">
             <span>
@@ -175,13 +198,29 @@
             </td>
             <td>{issue.status ?? "-"}</td>
             <td>{issue.rewardMode ?? "-"}</td>
-            <td>{issue.hourlyRateYen ? `${issue.hourlyRateYen.toLocaleString()}円` : "-"}</td>
+            <td
+              >{issue.hourlyRateYen
+                ? `${issue.hourlyRateYen.toLocaleString()}円`
+                : "-"}</td
+            >
             <td>{openKeySet.has(key) ? "稼働中" : "待機"}</td>
             <td>
               <div class="row-actions">
-                <form method="POST" action="?/start" use:enhance={enhanceAction(`start-${key}`)}>
-                  <input type="hidden" name="repository" value={issue.repository} />
-                  <input type="hidden" name="issueNumber" value={issue.number} />
+                <form
+                  method="POST"
+                  action="?/start"
+                  use:enhance={enhanceAction(`start-${key}`)}
+                >
+                  <input
+                    type="hidden"
+                    name="repository"
+                    value={issue.repository}
+                  />
+                  <input
+                    type="hidden"
+                    name="issueNumber"
+                    value={issue.number}
+                  />
                   <ActionSubmit
                     actionName={`start-${key}`}
                     {pendingAction}
@@ -190,7 +229,11 @@
                     disabled={openKeySet.has(key)}
                   />
                 </form>
-                <button class="button secondary" type="button" onclick={() => openAddDialog(issue)}>
+                <button
+                  class="button secondary"
+                  type="button"
+                  onclick={() => openAddDialog(issue)}
+                >
                   追加申請
                 </button>
               </div>
@@ -233,16 +276,25 @@
                 </a>
               </td>
               <td>{formatDateTime(session.startedAt)}</td>
-              <td>{isMeasuring ? "計測中" : formatDateTime(session.endedAt)}</td>
+              <td>{isMeasuring ? "計測中" : formatDateTime(session.endedAt)}</td
+              >
               <td>
                 {#if isMeasuring}
                   <span class="muted">終了後に申請可</span>
                 {:else}
                   <div class="row-actions compact">
-                    <button class="button secondary" type="button" onclick={() => openEditDialog(session)}>
+                    <button
+                      class="button secondary"
+                      type="button"
+                      onclick={() => openEditDialog(session)}
+                    >
                       修正
                     </button>
-                    <button class="button danger ghost" type="button" onclick={() => openExcludeDialog(session)}>
+                    <button
+                      class="button danger ghost"
+                      type="button"
+                      onclick={() => openExcludeDialog(session)}
+                    >
                       除外
                     </button>
                   </div>

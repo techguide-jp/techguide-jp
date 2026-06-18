@@ -2,10 +2,15 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName, formatYen } from "$lib/format";
+  import {
+    formatDateTime,
+    formatIssueName,
+    formatProjectName,
+    formatYen,
+  } from "$lib/format";
   import type {
     SettlementSummary,
-    UnsettledProjectIssueReason
+    UnsettledProjectIssueReason,
   } from "$lib/server/settlements/settlementTypes";
 
   type SnapshotMeta = {
@@ -27,7 +32,10 @@
     snapshot: SnapshotMeta | undefined;
     submission: SubmissionMeta | undefined;
     pendingAction: string | null;
-    enhanceAction: (name: string, clearHashOnSuccess?: boolean) => SubmitFunction;
+    enhanceAction: (
+      name: string,
+      clearHashOnSuccess?: boolean,
+    ) => SubmitFunction;
     formatProjectStatus: (status: string | null) => string;
     formatUnsettledReason: (reason: UnsettledProjectIssueReason) => string;
   };
@@ -40,7 +48,7 @@
     pendingAction,
     enhanceAction,
     formatProjectStatus,
-    formatUnsettledReason
+    formatUnsettledReason,
   }: Props = $props();
 </script>
 
@@ -76,9 +84,7 @@
           </p>
         {/if}
       </div>
-      <a class="icon-button" href="#settlement-top" aria-label="閉じる">
-        ×
-      </a>
+      <a class="icon-button" href="#settlement-top" aria-label="閉じる"> × </a>
     </header>
 
     <div class="approval-summary" aria-label="承認金額">
@@ -130,13 +136,17 @@
     <div class="modal-section">
       <div class="section-heading">
         <h3>精算対象明細</h3>
-        <a href={`/settlements/${month}/${summary.assigneeLogin}`}>個人明細を開く</a>
+        <a href={`/settlements/${month}/${summary.assigneeLogin}`}
+          >個人明細を開く</a
+        >
       </div>
       <div class="detail-list">
         {#each summary.lines as line (`${line.issue.repository}#${line.issue.number}`)}
           <article class="detail-item">
             <div class="issue-heading">
-              <span class="project-name">{formatProjectName(line.issue.repository)}</span>
+              <span class="project-name"
+                >{formatProjectName(line.issue.repository)}</span
+              >
               <a href={line.issue.url} target="_blank" rel="noreferrer">
                 {formatIssueName(line.issue.number, line.issue.title)}
               </a>
@@ -177,9 +187,16 @@
           {#each summary.unsettledProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
             <li>
               <div>
-                <span class="project-name">{formatProjectName(line.issue.repository)}</span>
+                <span class="project-name"
+                  >{formatProjectName(line.issue.repository)}</span
+                >
                 <a href={line.issue.url} target="_blank" rel="noreferrer">
-                  <strong>{formatIssueName(line.issue.number, line.issue.title)}</strong>
+                  <strong
+                    >{formatIssueName(
+                      line.issue.number,
+                      line.issue.title,
+                    )}</strong
+                  >
                 </a>
               </div>
               <div class="planned-meta">
@@ -193,18 +210,29 @@
           {#each summary.unsettledIssueSessions as session (session.id)}
             <li>
               <div>
-                <span class="project-name">{formatProjectName(session.repository)}</span>
+                <span class="project-name"
+                  >{formatProjectName(session.repository)}</span
+                >
                 <a
                   href={`https://github.com/${session.repository}/issues/${session.issueNumber}`}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <strong>{formatIssueName(session.issueNumber, session.issueTitle)}</strong>
+                  <strong
+                    >{formatIssueName(
+                      session.issueNumber,
+                      session.issueTitle,
+                    )}</strong
+                  >
                 </a>
               </div>
               <div class="planned-meta">
                 <span>Project外/未検出ログ</span>
-                <span>{formatDateTime(session.startedAt)} - {formatDateTime(session.endedAt)}</span>
+                <span
+                  >{formatDateTime(session.startedAt)} - {formatDateTime(
+                    session.endedAt,
+                  )}</span
+                >
               </div>
             </li>
           {/each}
@@ -213,22 +241,26 @@
     </div>
 
     <footer class="modal-actions">
-      <a class="button secondary" href="#settlement-top">
-        キャンセル
-      </a>
-      <form method="POST" action="?/approve" use:enhance={enhanceAction(`approve-${summary.assigneeLogin}`, true)}>
-        <input type="hidden" name="assigneeLogin" value={summary.assigneeLogin} />
+      <a class="button secondary" href="#settlement-top"> キャンセル </a>
+      <form
+        method="POST"
+        action="?/approve"
+        use:enhance={enhanceAction(`approve-${summary.assigneeLogin}`, true)}
+      >
+        <input
+          type="hidden"
+          name="assigneeLogin"
+          value={summary.assigneeLogin}
+        />
         <ActionSubmit
           actionName={`approve-${summary.assigneeLogin}`}
           {pendingAction}
           label={snapshot ? "この内容で再承認" : "この内容で承認"}
           pendingLabel={snapshot ? "再承認中..." : "承認中..."}
-          disabled={
-            summary.blockingReasons.length > 0 ||
+          disabled={summary.blockingReasons.length > 0 ||
             !submission ||
             submission.hasChanges ||
-            submission.blockingReasons.length > 0
-          }
+            submission.blockingReasons.length > 0}
         />
       </form>
     </footer>

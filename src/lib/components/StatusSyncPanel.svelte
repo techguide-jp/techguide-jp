@@ -2,7 +2,11 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName } from "$lib/format";
+  import {
+    formatDateTime,
+    formatIssueName,
+    formatProjectName,
+  } from "$lib/format";
 
   type StatusSync = {
     id: string;
@@ -30,7 +34,7 @@
     enhanceAction,
     showAssignee = false,
     emptyMessage = "再同期待ちのStatus更新はありません。",
-    alert = false
+    alert = false,
   }: Props = $props();
 </script>
 
@@ -46,7 +50,9 @@
       {#each statusSyncs as sync (sync.id)}
         <li class="pending-session">
           <div class="pending-issue">
-            <span class="project-name">{formatProjectName(sync.repository)}</span>
+            <span class="project-name"
+              >{formatProjectName(sync.repository)}</span
+            >
             <a
               href={`https://github.com/${sync.repository}/issues/${sync.issueNumber}`}
               target="_blank"
@@ -58,7 +64,9 @@
               {#if showAssignee}
                 Assignee: {sync.assigneeLogin} /
               {/if}
-              更新先: {sync.targetStatus} / 最終試行 {formatDateTime(sync.attemptedAt)}
+              更新先: {sync.targetStatus} / 最終試行 {formatDateTime(
+                sync.attemptedAt,
+              )}
             </small>
             {#if sync.errorMessage}
               <small>{sync.errorMessage}</small>

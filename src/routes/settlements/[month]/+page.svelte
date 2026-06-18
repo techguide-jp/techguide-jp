@@ -5,40 +5,61 @@
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName, formatYen } from "$lib/format";
+  import {
+    formatDateTime,
+    formatIssueName,
+    formatProjectName,
+    formatYen,
+  } from "$lib/format";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
   const snapshotByAssignee = $derived(
-    new Map(data.snapshots.map((snapshot) => [snapshot.assigneeLogin, snapshot]))
+    new Map(
+      data.snapshots.map((snapshot) => [snapshot.assigneeLogin, snapshot]),
+    ),
   );
   const submissionByAssignee = $derived(
-    new Map(data.submissions.map((submission) => [submission.assigneeLogin, submission]))
+    new Map(
+      data.submissions.map((submission) => [
+        submission.assigneeLogin,
+        submission,
+      ]),
+    ),
   );
 
-  const enhanceAction = (name: string, clearHashOnSuccess = false): SubmitFunction =>
+  const enhanceAction =
+    (name: string, clearHashOnSuccess = false): SubmitFunction =>
     () => {
       pendingAction = name;
       return async ({ result, update }) => {
         await update();
         pendingAction = null;
-        if (browser && clearHashOnSuccess && result.type === "success" && globalThis.location.hash) {
+        if (
+          browser &&
+          clearHashOnSuccess &&
+          result.type === "success" &&
+          globalThis.location.hash
+        ) {
           globalThis.history.replaceState(
             null,
             "",
-            `${globalThis.location.pathname}${globalThis.location.search}`
+            `${globalThis.location.pathname}${globalThis.location.search}`,
           );
         }
       };
     };
 
   const actionMessage = $derived((form as ActionData | undefined)?.message);
-  const pendingRequests = $derived(data.requests.filter((request) => request.status === "pending"));
+  const pendingRequests = $derived(
+    data.requests.filter((request) => request.status === "pending"),
+  );
   const formatProjectStatus = (status: string | null): string =>
-    status === "In Progress" ? "作業中" : status ?? "-";
-  const formatUnsettledReason = (reason: "open_in_progress" | "closed_not_done"): string =>
-    reason === "closed_not_done" ? "Status未完了" : "未close";
+    status === "In Progress" ? "作業中" : (status ?? "-");
+  const formatUnsettledReason = (
+    reason: "open_in_progress" | "closed_not_done",
+  ): string => (reason === "closed_not_done" ? "Status未完了" : "未close");
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
   const nextMonth = $derived(addMonths(data.month, 1));
@@ -97,10 +118,18 @@
               </a>
             </td>
             <td>{request.requestType}</td>
-            <td>{formatDateTime(request.requestedStartedAt)} - {formatDateTime(request.requestedEndedAt)}</td>
+            <td
+              >{formatDateTime(request.requestedStartedAt)} - {formatDateTime(
+                request.requestedEndedAt,
+              )}</td
+            >
             <td>{request.reason}</td>
             <td class="review-actions">
-              <form method="POST" action="?/reviewRequest" use:enhance={enhanceAction(`approve-request-${request.id}`)}>
+              <form
+                method="POST"
+                action="?/reviewRequest"
+                use:enhance={enhanceAction(`approve-request-${request.id}`)}
+              >
                 <input type="hidden" name="requestId" value={request.id} />
                 <input type="hidden" name="status" value="approved" />
                 <ActionSubmit
@@ -111,7 +140,11 @@
                   variant="secondary"
                 />
               </form>
-              <form method="POST" action="?/reviewRequest" use:enhance={enhanceAction(`reject-request-${request.id}`)}>
+              <form
+                method="POST"
+                action="?/reviewRequest"
+                use:enhance={enhanceAction(`reject-request-${request.id}`)}
+              >
                 <input type="hidden" name="requestId" value={request.id} />
                 <input type="hidden" name="status" value="rejected" />
                 <ActionSubmit
@@ -149,7 +182,9 @@
         {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
         <tr>
           <td>
-            <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}>{summary.assigneeLogin}</a>
+            <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
+              >{summary.assigneeLogin}</a
+            >
           </td>
           <td>{formatYen(summary.fixedRewardYen)}</td>
           <td>{formatYen(summary.timedRewardYen)}</td>
@@ -161,19 +196,25 @@
             {:else if snapshot && !snapshot.hasChanges}
               <span class="status-stack">
                 <strong class="ok">承認済み</strong>
-                <small>{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small>
+                <small
+                  >{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small
+                >
               </span>
             {:else if !submission}
               <span class="bad">未申請</span>
             {:else if submission.hasChanges}
               <span class="status-stack">
                 <strong class="bad">申請後変更あり</strong>
-                <small>{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small>
+                <small
+                  >{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small
+                >
               </span>
             {:else if submission.blockingReasons.length}
               <span class="status-stack">
                 <strong class="bad">申請済み・要確認</strong>
-                <small>{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small>
+                <small
+                  >{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small
+                >
               </span>
             {:else if snapshot}
               <span class="status-stack">
@@ -182,7 +223,9 @@
                 {:else}
                   <strong class="bad">承認後変更あり</strong>
                 {/if}
-                <small>{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small>
+                <small
+                  >{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small
+                >
               </span>
             {:else if summary.blockingReasons.length}
               <span class="bad">要確認 {summary.blockingReasons.length}</span>
@@ -196,11 +239,19 @@
             {:else if snapshot && !snapshot.hasChanges}
               <span class="muted">-</span>
             {:else if !submission || submission.hasChanges || submission.blockingReasons.length}
-              <button class="button primary" type="button" disabled>{snapshot ? "再承認" : "承認"}</button>
+              <button class="button primary" type="button" disabled
+                >{snapshot ? "再承認" : "承認"}</button
+              >
             {:else if summary.blockingReasons.length > 0}
-              <button class="button primary" type="button" disabled>{snapshot ? "再承認" : "承認"}</button>
+              <button class="button primary" type="button" disabled
+                >{snapshot ? "再承認" : "承認"}</button
+              >
             {:else}
-              <a class={`button ${snapshot ? "secondary" : "primary"}`} href={`#approve-${summary.assigneeLogin}`} data-sveltekit-reload>
+              <a
+                class={`button ${snapshot ? "secondary" : "primary"}`}
+                href={`#approve-${summary.assigneeLogin}`}
+                data-sveltekit-reload
+              >
                 {snapshot ? "再承認" : "承認"}
               </a>
             {/if}

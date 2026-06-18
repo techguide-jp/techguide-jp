@@ -3,7 +3,14 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName, formatYen } from "$lib/format";
+  import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
+  import UnsettledSettlementPanel from "$lib/components/UnsettledSettlementPanel.svelte";
+  import {
+    formatDateTime,
+    formatIssueName,
+    formatProjectName,
+    formatYen,
+  } from "$lib/format";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
 
   let { data, form }: PageProps = $props();
@@ -15,12 +22,14 @@
       taxExcludedYen?: unknown;
       totals?: { taxExcludedYen?: unknown };
     };
-    if (typeof value.totals?.taxExcludedYen === "number") return value.totals.taxExcludedYen;
+    if (typeof value.totals?.taxExcludedYen === "number")
+      return value.totals.taxExcludedYen;
     if (typeof value.taxExcludedYen === "number") return value.taxExcludedYen;
     return null;
   };
 
-  const enhanceAction = (name: string): SubmitFunction =>
+  const enhanceAction =
+    (name: string): SubmitFunction =>
     () => {
       pendingAction = name;
       return async ({ update }) => {
@@ -30,54 +39,16 @@
     };
 
   const summary = $derived(data.summary);
-  const approvedTaxExcludedYen = $derived(snapshotTaxExcludedYen(data.snapshot?.snapshot));
+  const approvedTaxExcludedYen = $derived(
+    snapshotTaxExcludedYen(data.snapshot?.snapshot),
+  );
   const actionMessage = $derived((form as ActionData | undefined)?.message);
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
     approvedTaxExcludedYen === null || !summary
       ? null
-      : summary.taxExcludedYen - approvedTaxExcludedYen
-  );
-  const formatProjectStatus = (status: string | null): string =>
-    status === "In Progress" ? "作業中" : status ?? "-";
-  const formatUnsettledReason = (reason: "open_in_progress" | "closed_not_done"): string =>
-    reason === "closed_not_done" ? "Status未完了" : "未close";
-  const sessionMinutes = (startedAt: Date | string, endedAt: Date | string | null): number => {
-    if (!endedAt) return 0;
-    return Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000));
-  };
-  const settledWorkLogs = $derived(
-    summary
-      ? summary.lines
-          .flatMap((line) =>
-            line.sessions.map((session) => ({
-              line,
-              session,
-              workMinutes: sessionMinutes(session.startedAt, session.endedAt),
-              source: session.id.startsWith("request-") ? "追加申請" : "記録"
-            }))
-          )
-          .sort((a, b) => new Date(a.session.startedAt).getTime() - new Date(b.session.startedAt).getTime())
-      : []
-  );
-  const unsettledWorkLogs = $derived(
-    summary
-      ? [
-          ...summary.unsettledProjectIssues.flatMap((line) =>
-            line.sessions.map((session) => ({
-              issue: line.issue,
-              session,
-              workMinutes: sessionMinutes(session.startedAt, session.endedAt)
-            }))
-          ),
-          ...summary.unsettledIssueSessions.map((session) => ({
-            issue: null,
-            session,
-            workMinutes: sessionMinutes(session.startedAt, session.endedAt)
-          }))
-        ].sort((a, b) => new Date(a.session.startedAt).getTime() - new Date(b.session.startedAt).getTime())
-      : []
+      : summary.taxExcludedYen - approvedTaxExcludedYen,
   );
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
@@ -168,13 +139,21 @@
       {#if !canSubmitWork}
         <p class="muted">月次確定申請はassignee本人だけが実行できます。</p>
       {:else if submission && !submission.hasChanges}
-        <p class="ok">この月の稼働は確定申請済みです。申請後に内容が変わった場合は再申請が必要です。</p>
+        <p class="ok">
+          この月の稼働は確定申請済みです。申請後に内容が変わった場合は再申請が必要です。
+        </p>
       {:else}
-        <form method="POST" action="?/submitWork" use:enhance={enhanceAction("submit-work")}>
+        <form
+          method="POST"
+          action="?/submitWork"
+          use:enhance={enhanceAction("submit-work")}
+        >
           <ActionSubmit
             actionName="submit-work"
             {pendingAction}
-            label={submission ? "変更内容で再申請" : "この月の稼働を確定して申請"}
+            label={submission
+              ? "変更内容で再申請"
+              : "この月の稼働を確定して申請"}
             pendingLabel={submission ? "再申請中..." : "申請中..."}
             disabled={data.submissionBlockingReasons.length > 0}
           />
@@ -228,146 +207,7 @@
     </table>
   </section>
 
-  <section class="panel">
-    <h2>稼働ログ</h2>
-    {#if settledWorkLogs.length === 0}
-      <p class="muted">精算対象Issueに紐づく稼働ログはありません。</p>
-    {:else}
-      <table class="log-table">
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Issue</th>
-            <th>開始</th>
-            <th>終了</th>
-            <th>稼働</th>
-            <th>扱い</th>
-            <th>由来</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each settledWorkLogs as log (`${log.session.id}-${log.line.issue.repository}#${log.line.issue.number}`)}
-            <tr>
-              <td>{formatProjectName(log.line.issue.repository)}</td>
-              <td>
-                <a href={log.line.issue.url} target="_blank" rel="noreferrer">
-                  {formatIssueName(log.line.issue.number, log.line.issue.title)}
-                </a>
-              </td>
-              <td>{formatDateTime(log.session.startedAt)}</td>
-              <td>{log.session.endedAt ? formatDateTime(log.session.endedAt) : "計測中"}</td>
-              <td>{log.session.endedAt ? `${log.workMinutes}分` : "-"}</td>
-              <td>
-                <span class={`status-badge ${log.line.issue.rewardMode === "ハイブリッド" ? "complete" : "reference"}`}>
-                  {log.line.issue.rewardMode === "ハイブリッド" ? "時間精算" : "参考"}
-                </span>
-              </td>
-              <td>{log.source}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {/if}
-  </section>
+  <SettlementWorkLogTable {summary} />
 
-  <section class="panel">
-    <h2>未精算予定</h2>
-    {#if summary.unsettledProjectIssues.length === 0 && summary.unsettledIssueSessions.length === 0}
-      <p class="muted">未精算予定のProject Issueや稼働ログはありません。</p>
-    {:else}
-      <ul class="pending-list">
-        {#each summary.unsettledProjectIssues as line (`${line.issue.repository}#${line.issue.number}`)}
-          <li class="pending-session">
-            <div class="pending-issue">
-              <span class="project-name">{formatProjectName(line.issue.repository)}</span>
-              <a href={line.issue.url} target="_blank" rel="noreferrer">
-                {formatIssueName(line.issue.number, line.issue.title)}
-              </a>
-            </div>
-            <div class="pending-meta" aria-label="Project状態">
-              <span>
-                <small>状態</small>
-                <strong>{formatProjectStatus(line.issue.status)}</strong>
-              </span>
-              <span>
-                <small>理由</small>
-                <strong>{formatUnsettledReason(line.reason)}</strong>
-              </span>
-              <span>
-                <small>ログ</small>
-                <strong>{line.sessions.length}件</strong>
-              </span>
-              <span>
-                <small>稼働</small>
-                <strong>{line.workMinutes}分</strong>
-              </span>
-              <span class="status-badge measuring">未精算</span>
-            </div>
-          </li>
-        {/each}
-        {#each summary.unsettledIssueSessions as session (session.id)}
-          <li class="pending-session">
-            <div class="pending-issue">
-              <span class="project-name">{formatProjectName(session.repository)}</span>
-              <a
-                href={`https://github.com/${session.repository}/issues/${session.issueNumber}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {formatIssueName(session.issueNumber, session.issueTitle)}
-              </a>
-            </div>
-            <div class="pending-meta" aria-label="稼働時間">
-              <span>
-                <small>開始</small>
-                <strong>{formatDateTime(session.startedAt)}</strong>
-              </span>
-              <span>
-                <small>終了</small>
-                <strong>{session.endedAt ? formatDateTime(session.endedAt) : "計測中"}</strong>
-              </span>
-              <span class={`status-badge ${session.endedAt ? "complete" : "measuring"}`}>
-                {session.endedAt ? "終了済み" : "計測中"}
-              </span>
-            </div>
-          </li>
-        {/each}
-      </ul>
-      {#if unsettledWorkLogs.length}
-        <div class="log-detail-block">
-          <h3>未精算予定の稼働ログ</h3>
-          <table class="log-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Issue</th>
-                <th>開始</th>
-                <th>終了</th>
-                <th>稼働</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each unsettledWorkLogs as log (log.session.id)}
-                <tr>
-                  <td>{formatProjectName(log.session.repository)}</td>
-                  <td>
-                    <a
-                      href={`https://github.com/${log.session.repository}/issues/${log.session.issueNumber}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {formatIssueName(log.session.issueNumber, log.issue?.title ?? log.session.issueTitle)}
-                    </a>
-                  </td>
-                  <td>{formatDateTime(log.session.startedAt)}</td>
-                  <td>{log.session.endedAt ? formatDateTime(log.session.endedAt) : "計測中"}</td>
-                  <td>{log.session.endedAt ? `${log.workMinutes}分` : "-"}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-    {/if}
-  </section>
+  <UnsettledSettlementPanel {summary} />
 {/if}

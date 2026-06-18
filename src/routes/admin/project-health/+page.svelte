@@ -7,7 +7,8 @@
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
 
-  const enhanceAction = (name: string): SubmitFunction =>
+  const enhanceAction =
+    (name: string): SubmitFunction =>
     () => {
       pendingAction = name;
       return async ({ update }) => {
@@ -52,7 +53,12 @@
   {/if}
 </section>
 
-<StatusSyncPanel statusSyncs={data.statusSyncs} {pendingAction} {enhanceAction} showAssignee />
+<StatusSyncPanel
+  statusSyncs={data.statusSyncs}
+  {pendingAction}
+  {enhanceAction}
+  showAssignee
+/>
 
 <section class="panel">
   <h2>Issue不備</h2>

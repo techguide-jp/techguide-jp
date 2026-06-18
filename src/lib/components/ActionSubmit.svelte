@@ -14,7 +14,7 @@
     label,
     pendingLabel,
     disabled = false,
-    variant = "primary"
+    variant = "primary",
   }: Props = $props();
 
   const isPending = $derived(pendingAction === actionName);

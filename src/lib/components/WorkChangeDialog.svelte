@@ -29,7 +29,10 @@
   type Props = {
     dialog: WorkChangeDialogState;
     pendingAction: string | null;
-    enhanceAction: (name: string, closeDialogOnSuccess?: boolean) => SubmitFunction;
+    enhanceAction: (
+      name: string,
+      closeDialogOnSuccess?: boolean,
+    ) => SubmitFunction;
     close: () => void;
   };
 
@@ -39,19 +42,29 @@
     {
       add: "稼働ログ追加申請",
       edit: "稼働ログ修正申請",
-      exclude: "稼働ログ除外申請"
-    }[dialog.requestType]
+      exclude: "稼働ログ除外申請",
+    }[dialog.requestType],
   );
 </script>
 
 <div class="modal-backdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="change-dialog-title">
+  <div
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="change-dialog-title"
+  >
     <div class="modal-header">
       <div>
         <p class="eyebrow">{dialog.issueLabel}</p>
         <h2 id="change-dialog-title">{dialogTitle}</h2>
       </div>
-      <button class="icon-button" type="button" aria-label="閉じる" onclick={close}>
+      <button
+        class="icon-button"
+        type="button"
+        aria-label="閉じる"
+        onclick={close}
+      >
         ×
       </button>
     </div>
@@ -64,16 +77,30 @@
       <input type="hidden" name="requestType" value={dialog.requestType} />
       <input type="hidden" name="issueKey" value={dialog.issueKey} />
       {#if dialog.requestType !== "add"}
-        <input type="hidden" name="targetSessionId" value={dialog.targetSessionId} />
+        <input
+          type="hidden"
+          name="targetSessionId"
+          value={dialog.targetSessionId}
+        />
       {/if}
       {#if dialog.requestType !== "exclude"}
         <label>
           開始
-          <input name="requestedStartedAt" type="datetime-local" value={dialog.startedAt} required />
+          <input
+            name="requestedStartedAt"
+            type="datetime-local"
+            value={dialog.startedAt}
+            required
+          />
         </label>
         <label>
           終了
-          <input name="requestedEndedAt" type="datetime-local" value={dialog.endedAt} required />
+          <input
+            name="requestedEndedAt"
+            type="datetime-local"
+            value={dialog.endedAt}
+            required
+          />
         </label>
       {/if}
       <label class="wide">
