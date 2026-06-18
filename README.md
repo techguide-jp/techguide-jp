@@ -34,11 +34,14 @@ GITHUB_CLIENT_SECRET=...
 GITHUB_PROJECT_TOKEN=github_pat_...
 SESSION_SECRET=change-me
 ADMIN_GITHUB_LOGINS=tashua314
-PUBLIC_APP_ORIGIN=http://localhost:5173
+# 任意: OAuth callback originを固定したい場合のみ
+PUBLIC_APP_ORIGIN=https://techguide-jp.vercel.app
 ```
 
 `GITHUB_PROJECT_TOKEN` は private org Project v2 を読める権限を持つサーバー用トークンです。
 GitHub OAuthで認証できたユーザーはログインできます。管理者画面の権限は `ADMIN_GITHUB_LOGINS` に記載されたGitHubログインで判定します。
+GitHub OAuth AppのAuthorization callback URLには、本番URLの `/auth/github/callback` を登録してください。
+`PUBLIC_APP_ORIGIN` が未設定の場合はリクエストURLからOAuth callback originを自動判定します。誤って localhost が設定された本番環境では、実際のリクエストURLを優先します。
 
 ## Vercel Analytics
 

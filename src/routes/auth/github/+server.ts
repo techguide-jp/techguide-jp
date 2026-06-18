@@ -2,16 +2,16 @@ import { redirect } from "@sveltejs/kit";
 import {
   createGithubAuthorization,
   githubStateCookieName,
+  resolveOAuthAppOrigin,
 } from "$lib/server/auth/githubOAuth";
-import { env } from "$lib/server/env";
 
 export const GET = async ({ cookies, url: requestUrl }) => {
-  const appOrigin = new URL(env.appOrigin).origin;
+  const appOrigin = resolveOAuthAppOrigin(requestUrl);
   if (requestUrl.origin !== appOrigin) {
     throw redirect(303, `${appOrigin}/auth/github`);
   }
 
-  const { state, url } = createGithubAuthorization();
+  const { state, url } = createGithubAuthorization(appOrigin);
   cookies.set(githubStateCookieName, state, {
     path: "/",
     httpOnly: true,
