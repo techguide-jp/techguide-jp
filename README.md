@@ -52,6 +52,24 @@ pnpm db:migrate
 pnpm dev
 ```
 
+## 本番DB migration
+
+mainブランチへのpush時、GitHub Actionsの `verify` が成功したあとに `migrate-production-database` job が実行され、Drizzle migrationを本番DBへ反映します。
+
+GitHub Actionsの `production` environment secret に `PRODUCTION_DATABASE_URL` を登録してください。値は本番Neon Postgresの接続文字列です。
+
+```env
+PRODUCTION_DATABASE_URL=postgresql://...
+```
+
+VercelのGit連携デプロイ自体はこのworkflowからは制御していません。破壊的なDB変更は後方互換を保って段階的に反映するか、Vercel deployもGitHub Actions管理に切り替えて migration 後に実行してください。
+
+ローカルから緊急で手動反映する場合は、同じ接続文字列を `DATABASE_URL` として渡して実行します。
+
+```bash
+DATABASE_URL="postgresql://..." pnpm db:migrate
+```
+
 ## 検証
 
 ```bash
