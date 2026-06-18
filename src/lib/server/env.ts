@@ -31,7 +31,6 @@ export const env = {
     optional("SESSION_SECRET") ??
     (dev ? "development-session-secret" : undefined),
   appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
-  allowedGithubLogins: loginSet("ALLOWED_GITHUB_LOGINS"),
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
 };
 

@@ -1,5 +1,4 @@
 import { and, eq, gt } from "drizzle-orm";
-import { dev } from "$app/environment";
 import { createHmac, randomBytes } from "node:crypto";
 import { db } from "$lib/server/db/client";
 import { authSessions } from "$lib/server/db/schema";
@@ -20,13 +19,6 @@ const sessionIdHash = (sessionId: string): string => {
   return createHmac("sha256", requireEnv(env.sessionSecret, "SESSION_SECRET"))
     .update(sessionId)
     .digest("base64url");
-};
-
-export const isGithubLoginAllowed = (login: string): boolean => {
-  const normalizedLogin = login.toLowerCase();
-  if (env.adminGithubLogins.has(normalizedLogin)) return true;
-  if (env.allowedGithubLogins.size === 0) return dev;
-  return env.allowedGithubLogins.has(normalizedLogin);
 };
 
 export const createSession = async (user: {

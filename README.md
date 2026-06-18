@@ -31,13 +31,12 @@ GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 GITHUB_PROJECT_TOKEN=github_pat_...
 SESSION_SECRET=change-me
-ALLOWED_GITHUB_LOGINS=Hiro3737,koideshogo,tashua314
 ADMIN_GITHUB_LOGINS=Hiro3737,yuta
 PUBLIC_APP_ORIGIN=http://localhost:5173
 ```
 
 `GITHUB_PROJECT_TOKEN` は private org Project v2 を読める権限を持つサーバー用トークンです。
-productionでは、`ALLOWED_GITHUB_LOGINS` に記載されたGitHubログインと管理者だけがログインできます。developmentでは未設定でもログインできます。
+GitHub OAuthで認証できたユーザーはログインできます。管理者画面の権限は `ADMIN_GITHUB_LOGINS` に記載されたGitHubログインで判定します。
 
 ## 開発
 
