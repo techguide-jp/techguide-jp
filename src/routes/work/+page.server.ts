@@ -32,7 +32,7 @@ export const actions = {
     const { issues } = await fetchProjectIssues();
     const result = await startIssueWork(await event.request.formData(), issues, user.login);
     if (!result.ok) return fail(400, { message: result.message });
-    return { message: "稼働を開始しました。" };
+    return { message: result.message ?? "稼働を開始しました。" };
   },
   stop: async (event) => {
     const user = requireUser(event);

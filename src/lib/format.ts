@@ -17,3 +17,12 @@ export const formatDateTime = (date: Date | string | null): string => {
     minute: "2-digit"
   }).format(typeof date === "string" ? new Date(date) : date);
 };
+
+export const formatProjectName = (repository: string): string => {
+  const parts = repository.split("/");
+  return parts[parts.length - 1] || repository;
+};
+
+export const formatIssueName = (issueNumber: number, issueTitle: string): string => {
+  return `#${issueNumber} ${issueTitle}`;
+};

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageProps } from "./$types";
+  import { formatIssueName, formatProjectName } from "$lib/format";
 
   let { data }: PageProps = $props();
 </script>
@@ -41,6 +42,7 @@
     <table>
       <thead>
         <tr>
+          <th>Project</th>
           <th>Issue</th>
           <th>不備</th>
         </tr>
@@ -48,11 +50,11 @@
       <tbody>
         {#each data.issueWarnings as entry (`${entry.issue.repository}#${entry.issue.number}`)}
           <tr>
+            <td>{formatProjectName(entry.issue.repository)}</td>
             <td>
               <a href={entry.issue.url} target="_blank" rel="noreferrer">
-                {entry.issue.repository}#{entry.issue.number}
+                {formatIssueName(entry.issue.number, entry.issue.title)}
               </a>
-              <span>{entry.issue.title}</span>
             </td>
             <td>{entry.warnings.join(" / ")}</td>
           </tr>
@@ -113,8 +115,7 @@
     text-align: left;
   }
 
-  td span {
-    display: block;
-    color: #52605a;
+  td a {
+    font-weight: 700;
   }
 </style>

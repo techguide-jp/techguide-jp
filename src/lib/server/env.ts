@@ -1,9 +1,16 @@
 import { dev } from "$app/environment";
+import { env as privateEnv } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
+
+const normalize = (value: string | undefined): string | undefined =>
+  value && value.trim().length > 0 ? value.trim() : undefined;
 
 const optional = (name: string): string | undefined => {
-  const value = process.env[name];
+  const value = privateEnv[name];
   return value && value.trim().length > 0 ? value.trim() : undefined;
 };
+
+const optionalPublic = (name: keyof typeof publicEnv): string | undefined => normalize(publicEnv[name]);
 
 export const env = {
   databaseUrl: optional("DATABASE_URL"),
@@ -11,7 +18,7 @@ export const env = {
   githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
   githubProjectToken: optional("GITHUB_PROJECT_TOKEN"),
   sessionSecret: optional("SESSION_SECRET") ?? (dev ? "development-session-secret" : undefined),
-  appOrigin: optional("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
+  appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
   adminGithubLogins: new Set(
     (optional("ADMIN_GITHUB_LOGINS") ?? "")
       .split(",")

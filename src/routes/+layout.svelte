@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { LayoutProps } from "./$types";
+  import { currentJstMonth } from "$lib/month";
 
   let { data, children }: LayoutProps = $props();
+  const currentMonth = $derived(currentJstMonth());
 </script>
 
 <svelte:head>
@@ -14,9 +16,9 @@
     <nav>
       {#if data.user}
         <a href="/work">稼働</a>
-        <a href={`/settlements/${new Date().toISOString().slice(0, 7)}/${data.user.login}`}>自分の精算</a>
+        <a href={`/settlements/${currentMonth}/${data.user.login}`}>自分の精算</a>
         {#if data.user.isAdmin}
-          <a href={`/settlements/${new Date().toISOString().slice(0, 7)}`}>月次一覧</a>
+          <a href={`/settlements/${currentMonth}`}>月次一覧</a>
           <a href="/admin/project-health">Project確認</a>
         {/if}
         <a href="/logout">ログアウト</a>

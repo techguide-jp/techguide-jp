@@ -134,4 +134,43 @@ describe("buildSettlementSummaries", () => {
 
     expect(effective[0].excludedAt).toBeInstanceOf(Date);
   });
+
+  it("作業中の未close Project Issueをログなしでも未精算予定に出す", () => {
+    const summaries = buildSettlementSummaries(
+      "2026-07",
+      [
+        issue({
+          state: "OPEN",
+          closedAt: null,
+          status: "In Progress",
+          rewardMode: "固定"
+        })
+      ],
+      [],
+      requests
+    );
+
+    expect(summaries[0].assigneeLogin).toBe("koideshogo");
+    expect(summaries[0].unclosedProjectIssues).toHaveLength(1);
+    expect(summaries[0].unclosedProjectIssues[0].workMinutes).toBe(0);
+    expect(summaries[0].approvalRequired).toBe(false);
+  });
+
+  it("固定報酬の精算対象Issueは稼働ログなしでも承認対象にする", () => {
+    const summaries = buildSettlementSummaries(
+      "2026-07",
+      [
+        issue({
+          rewardMode: "固定",
+          hourlyRateYen: null
+        })
+      ],
+      [],
+      requests
+    );
+
+    expect(summaries[0].lines).toHaveLength(1);
+    expect(summaries[0].lines[0].workMinutes).toBe(0);
+    expect(summaries[0].approvalRequired).toBe(true);
+  });
 });

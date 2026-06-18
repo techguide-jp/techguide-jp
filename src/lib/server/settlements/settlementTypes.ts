@@ -12,6 +12,12 @@ export type SettlementIssueLine = {
   sessions: WorkSession[];
 };
 
+export type UnclosedProjectIssueLine = {
+  issue: ProjectIssue;
+  sessions: WorkSession[];
+  workMinutes: number;
+};
+
 export type SettlementSummary = {
   month: string;
   assigneeLogin: string;
@@ -22,6 +28,8 @@ export type SettlementSummary = {
   taxIncludedYen: number;
   lines: SettlementIssueLine[];
   pendingRequests: WorkLogChangeRequest[];
+  unclosedProjectIssues: UnclosedProjectIssueLine[];
   unclosedIssueSessions: WorkSession[];
+  approvalRequired: boolean;
   blockingReasons: string[];
 };

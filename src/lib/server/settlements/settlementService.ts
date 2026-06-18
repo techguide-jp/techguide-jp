@@ -39,6 +39,9 @@ export const approveSettlement = async (
   if (!summary) {
     return { ok: false, message: "対象assigneeの精算データがありません。" };
   }
+  if (!summary.approvalRequired) {
+    return { ok: false, message: "精算対象がないため月次承認は不要です。" };
+  }
   if (summary.blockingReasons.length > 0) {
     return { ok: false, message: "未解決の不備があるため月次承認できません。" };
   }

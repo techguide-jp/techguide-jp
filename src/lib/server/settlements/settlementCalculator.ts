@@ -2,12 +2,22 @@ import type { WorkLogChangeRequest, WorkSession } from "$lib/server/db/schema";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { calculateTax, calculateTaxIncluded, calculateTimedReward } from "$lib/server/money";
 import { minutesBetween, toJstMonth } from "$lib/server/time";
-import type { SettlementIssueLine, SettlementSummary } from "$lib/server/settlements/settlementTypes";
+import type {
+  SettlementIssueLine,
+  SettlementSummary,
+  UnclosedProjectIssueLine
+} from "$lib/server/settlements/settlementTypes";
 
 const issueKey = (repository: string, issueNumber: number): string => `${repository}#${issueNumber}`;
 
 const isPayableIssue = (issue: ProjectIssue, month: string): boolean => {
   return issue.status === "Done" && issue.state === "CLOSED" && !!issue.closedAt && toJstMonth(issue.closedAt) === month;
+};
+
+const isUnclosedIssue = (issue: ProjectIssue): boolean => issue.state !== "CLOSED" && !issue.closedAt;
+
+const shouldShowUnclosedIssue = (issue: ProjectIssue, hasSessions: boolean): boolean => {
+  return isUnclosedIssue(issue) && (issue.status === "In Progress" || hasSessions);
 };
 
 const sessionMinutes = (session: WorkSession): number => {
@@ -144,6 +154,9 @@ export const buildSettlementSummaries = (
 
   const assignees = new Set<string>([
     ...Array.from(linesByAssignee.keys()),
+    ...issues
+      .filter((issue) => isUnclosedIssue(issue) && issue.status === "In Progress")
+      .flatMap((issue) => issue.assignees),
     ...effectiveSessions.map((session) => session.assigneeLogin),
     ...changeRequests.map((request) => request.assigneeLogin)
   ]);
@@ -157,13 +170,37 @@ export const buildSettlementSummaries = (
         const issue = issueByKey.get(issueKey(request.repository, request.issueNumber));
         return !!issue?.closedAt && toJstMonth(issue.closedAt) === month;
       });
-      const unclosedIssueSessions = effectiveSessions.filter((session) => {
+      const unclosedSessions = effectiveSessions.filter((session) => {
         const issue = issueByKey.get(issueKey(session.repository, session.issueNumber));
         return session.assigneeLogin === assigneeLogin && !issue?.closedAt && !session.excludedAt;
       });
+      const unclosedSessionKeys = new Set(
+        unclosedSessions.map((session) => issueKey(session.repository, session.issueNumber))
+      );
+      const unclosedProjectIssues: UnclosedProjectIssueLine[] = issues
+        .filter((issue) => issue.assignees.includes(assigneeLogin))
+        .filter((issue) => shouldShowUnclosedIssue(issue, unclosedSessionKeys.has(issueKey(issue.repository, issue.number))))
+        .map((issue) => {
+          const key = issueKey(issue.repository, issue.number);
+          const sessionsForIssue = unclosedSessions.filter(
+            (session) => issueKey(session.repository, session.issueNumber) === key
+          );
+          return {
+            issue,
+            sessions: sessionsForIssue,
+            workMinutes: sessionsForIssue.reduce((total, session) => total + sessionMinutes(session), 0)
+          };
+        });
+      const unclosedProjectIssueKeys = new Set(
+        unclosedProjectIssues.map((line) => issueKey(line.issue.repository, line.issue.number))
+      );
+      const unclosedIssueSessions = unclosedSessions.filter(
+        (session) => !unclosedProjectIssueKeys.has(issueKey(session.repository, session.issueNumber))
+      );
       const fixedRewardYen = lines.reduce((total, line) => total + line.fixedRewardYen, 0);
       const timedRewardYen = lines.reduce((total, line) => total + line.timedRewardYen, 0);
       const taxExcludedYen = fixedRewardYen + timedRewardYen;
+      const approvalRequired = lines.length > 0;
       const lineWarnings = lines.flatMap((line) =>
         line.warnings.map((warning) => `${line.issue.repository}#${line.issue.number}: ${warning}`)
       );
@@ -188,7 +225,9 @@ export const buildSettlementSummaries = (
         taxIncludedYen: calculateTaxIncluded(taxExcludedYen),
         lines,
         pendingRequests,
+        unclosedProjectIssues,
         unclosedIssueSessions,
+        approvalRequired,
         blockingReasons
       };
     });

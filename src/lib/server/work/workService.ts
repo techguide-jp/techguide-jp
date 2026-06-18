@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import {
   createChangeRequest,
@@ -70,7 +71,7 @@ export const startIssueWork = async (
   formData: FormData,
   issues: ProjectIssue[],
   userLogin: string
-): Promise<{ ok: true } | { ok: false; message: string }> => {
+): Promise<{ ok: true; message?: string } | { ok: false; message: string }> => {
   try {
     const input = issueInputSchema.parse(Object.fromEntries(formData));
     const issue = findProjectIssue(issues, input.repository, input.issueNumber, userLogin);
@@ -92,6 +93,19 @@ export const startIssueWork = async (
         return { ok: false, message: "このIssueはすでに稼働中です。" };
       }
       throw error;
+    }
+
+    if (issue.status === "Todo") {
+      try {
+        await setProjectItemStatus(issue.projectItemId, "In Progress");
+        return { ok: true, message: "稼働を開始し、StatusをIn Progressに更新しました。" };
+      } catch {
+        return {
+          ok: true,
+          message:
+            "稼働を開始しましたが、GitHub ProjectのStatus更新に失敗しました。Project設定またはGITHUB_PROJECT_TOKENを確認してください。"
+        };
+      }
     }
 
     return { ok: true };
@@ -153,6 +167,9 @@ export const requestWorkLogChange = async (
         targetSession.issueNumber !== issue.number
       ) {
         return { ok: false, message: "対象ログとIssueの組み合わせが不正です。" };
+      }
+      if (!targetSession.endedAt) {
+        return { ok: false, message: "計測中のログは修正・除外申請できません。終了してから申請してください。" };
       }
     }
 

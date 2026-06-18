@@ -9,12 +9,13 @@ import {
 } from "$lib/server/github/projectTypes";
 
 type GraphQLFieldNode =
-  | { __typename: "ProjectV2Field"; name: string; dataType: string }
+  | { __typename: "ProjectV2Field"; id: string; name: string; dataType: string }
   | {
       __typename: "ProjectV2SingleSelectField";
+      id: string;
       name: string;
       dataType: string;
-      options: Array<{ name: string }>;
+      options: Array<{ id: string; name: string }>;
     };
 
 type GraphQLFieldValue =
@@ -41,24 +42,43 @@ type GraphQLProjectItem = {
   fieldValues: { nodes: GraphQLFieldValue[] };
 };
 
-type GraphQLProjectResponse = {
-  data?: {
-    organization: {
-      projectV2: {
-        title: string;
-        fields: { nodes: GraphQLFieldNode[] };
-        items: {
-          pageInfo: {
-            hasNextPage: boolean;
-            endCursor: string | null;
-          };
-          nodes: GraphQLProjectItem[];
-        };
-      } | null;
-    } | null;
-  };
+type GraphQLResponse<TData> = {
+  data?: TData;
   errors?: Array<{ message: string }>;
 };
+
+type GraphQLProjectResponse = GraphQLResponse<{
+  organization: {
+    projectV2: {
+      title: string;
+      fields: { nodes: GraphQLFieldNode[] };
+      items: {
+        pageInfo: {
+          hasNextPage: boolean;
+          endCursor: string | null;
+        };
+        nodes: GraphQLProjectItem[];
+      };
+    } | null;
+  } | null;
+}>;
+
+type GraphQLProjectFieldsResponse = GraphQLResponse<{
+  organization: {
+    projectV2: {
+      id: string;
+      fields: { nodes: GraphQLFieldNode[] };
+    } | null;
+  } | null;
+}>;
+
+type GraphQLUpdateProjectItemFieldValueResponse = GraphQLResponse<{
+  updateProjectV2ItemFieldValue: {
+    projectV2Item: {
+      id: string;
+    } | null;
+  } | null;
+}>;
 
 const projectQuery = `
 query ProjectSettlementSource($owner: String!, $number: Int!, $after: String) {
@@ -69,13 +89,16 @@ query ProjectSettlementSource($owner: String!, $number: Int!, $after: String) {
         nodes {
           __typename
           ... on ProjectV2FieldCommon {
+            id
             name
             dataType
           }
           ... on ProjectV2SingleSelectField {
+            id
             name
             dataType
             options {
+              id
               name
             }
           }
@@ -144,6 +167,55 @@ query ProjectSettlementSource($owner: String!, $number: Int!, $after: String) {
   }
 }`;
 
+const projectFieldsQuery = `
+query ProjectFields($owner: String!, $number: Int!) {
+  organization(login: $owner) {
+    projectV2(number: $number) {
+      id
+      fields(first: 50) {
+        nodes {
+          __typename
+          ... on ProjectV2FieldCommon {
+            id
+            name
+            dataType
+          }
+          ... on ProjectV2SingleSelectField {
+            id
+            name
+            dataType
+            options {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+const updateProjectItemFieldValueMutation = `
+mutation UpdateProjectItemStatus(
+  $projectId: ID!
+  $itemId: ID!
+  $fieldId: ID!
+  $optionId: String!
+) {
+  updateProjectV2ItemFieldValue(
+    input: {
+      projectId: $projectId
+      itemId: $itemId
+      fieldId: $fieldId
+      value: { singleSelectOptionId: $optionId }
+    }
+  ) {
+    projectV2Item {
+      id
+    }
+  }
+}`;
+
 const graphQL = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
@@ -160,7 +232,7 @@ const graphQL = async <T>(query: string, variables: Record<string, unknown>): Pr
     throw new Error(`GitHub GraphQL request failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as GraphQLProjectResponse;
+  const payload = (await response.json()) as GraphQLResponse<unknown>;
   if (payload.errors?.length) {
     throw new Error(payload.errors.map((error) => error.message).join("; "));
   }
@@ -190,6 +262,65 @@ const selectValue = (map: Map<string, GraphQLFieldValue>, fieldName: string): st
   return value?.__typename === "ProjectV2ItemFieldSingleSelectValue" && "name" in value
     ? value.name
     : null;
+};
+
+const fetchProjectFields = async (): Promise<{
+  projectId: string;
+  fields: GraphQLFieldNode[];
+}> => {
+  const payload = await graphQL<GraphQLProjectFieldsResponse>(projectFieldsQuery, {
+    owner: PROJECT_OWNER,
+    number: PROJECT_NUMBER
+  });
+
+  const project = payload.data?.organization?.projectV2;
+  if (!project) {
+    throw new Error(`GitHub Project ${PROJECT_OWNER}/${PROJECT_NUMBER} was not found`);
+  }
+
+  return {
+    projectId: project.id,
+    fields: project.fields.nodes
+  };
+};
+
+const findStatusFieldOption = (
+  fields: GraphQLFieldNode[],
+  statusName: string
+): { fieldId: string; optionId: string } => {
+  const field = fields.find((candidate) => candidate.name === requiredProjectFields.status);
+  if (!field) {
+    throw new Error(`Project field ${requiredProjectFields.status} was not found`);
+  }
+  if (field.__typename !== "ProjectV2SingleSelectField" || field.dataType !== "SINGLE_SELECT") {
+    throw new Error(`Project field ${requiredProjectFields.status} must be SINGLE_SELECT`);
+  }
+
+  const option = field.options.find((candidate) => candidate.name === statusName);
+  if (!option) {
+    throw new Error(`Project status option ${statusName} was not found`);
+  }
+
+  return {
+    fieldId: field.id,
+    optionId: option.id
+  };
+};
+
+export const setProjectItemStatus = async (projectItemId: string, statusName: string): Promise<void> => {
+  if (!projectItemId) {
+    throw new Error("Project item ID is required");
+  }
+
+  const project = await fetchProjectFields();
+  const status = findStatusFieldOption(project.fields, statusName);
+
+  await graphQL<GraphQLUpdateProjectItemFieldValueResponse>(updateProjectItemFieldValueMutation, {
+    projectId: project.projectId,
+    itemId: projectItemId,
+    fieldId: status.fieldId,
+    optionId: status.optionId
+  });
 };
 
 const fetchProjectPage = async (after: string | null): Promise<{
