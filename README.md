@@ -17,7 +17,7 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 
 ## 必要なGitHub Projectフィールド
 
-Project 7 `akademy_fes 外注管理` に以下のフィールドが必要です。
+Project 7 `外注管理` は全PJの外注精算を扱います。以下のフィールドが必要です。
 
 - `Status` single select
 - `報酬方式` single select: `固定`, `ハイブリッド`
