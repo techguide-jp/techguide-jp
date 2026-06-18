@@ -30,7 +30,7 @@ export const load = async (event) => {
   const health = projectResult.ok
     ? projectResult.result.health
     : {
-        title: "GitHub Project",
+        title: "外注管理",
         missingFields: Object.values(requiredProjectFields),
         invalidFields: [],
         availableFields: [],

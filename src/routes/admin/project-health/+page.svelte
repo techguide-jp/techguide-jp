@@ -23,7 +23,10 @@
       };
     };
 
+  const projectTitleLabel = (title: string): string =>
+    title.endsWith(" 外注管理") ? "外注管理" : title;
   const actionMessage = $derived((form as ActionData | undefined)?.message);
+  const projectHealthTitle = $derived(projectTitleLabel(data.health.title));
   const mark = (value: boolean): string => (value ? "OK" : "NG");
   const auditDetails = (details: unknown): string => {
     if (!details || typeof details !== "object") return "-";
@@ -33,7 +36,7 @@
 
 <section class="page-heading">
   <p class="eyebrow">project health</p>
-  <h1>{data.health.title}</h1>
+  <h1>{projectHealthTitle}</h1>
 </section>
 
 {#if actionMessage}
