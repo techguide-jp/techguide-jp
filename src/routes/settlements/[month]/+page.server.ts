@@ -3,7 +3,7 @@ import { requireAdmin } from "$lib/server/auth/guards";
 import {
   approveSettlement,
   loadSettlementMonth,
-  reviewSettlementChangeRequest
+  reviewSettlementChangeRequest,
 } from "$lib/server/settlements/settlementService";
 
 export const load = async (event) => {
@@ -11,7 +11,7 @@ export const load = async (event) => {
   const month = event.params.month;
   return {
     month,
-    ...(await loadSettlementMonth(month))
+    ...(await loadSettlementMonth(month)),
   };
 };
 
@@ -20,7 +20,11 @@ export const actions = {
     const user = requireAdmin(event);
     const formData = await event.request.formData();
     const assigneeLogin = String(formData.get("assigneeLogin") ?? "");
-    const result = await approveSettlement(event.params.month, assigneeLogin, user.login);
+    const result = await approveSettlement(
+      event.params.month,
+      assigneeLogin,
+      user.login,
+    );
     if (!result.ok) return fail(400, { message: result.message });
     return { message: `${assigneeLogin} の月次精算を承認しました。` };
   },
@@ -35,8 +39,18 @@ export const actions = {
       return fail(400, { message: "申請の採否が不正です。" });
     }
 
-    const result = await reviewSettlementChangeRequest(requestId, status, user.login, note);
+    const result = await reviewSettlementChangeRequest(
+      requestId,
+      status,
+      user.login,
+      note,
+    );
     if (!result.ok) return fail(400, { message: result.message });
-    return { message: status === "approved" ? "修正申請を承認しました。" : "修正申請を却下しました。" };
-  }
+    return {
+      message:
+        status === "approved"
+          ? "修正申請を承認しました。"
+          : "修正申請を却下しました。",
+    };
+  },
 };

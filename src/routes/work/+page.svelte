@@ -3,36 +3,16 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import StatusSyncPanel from "$lib/components/StatusSyncPanel.svelte";
+  import WorkChangeDialog, { type WorkChangeDialogState } from "$lib/components/WorkChangeDialog.svelte";
   import { formatDateTime, formatIssueName, formatProjectName } from "$lib/format";
 
   type Issue = PageProps["data"]["issues"][number];
   type WorkSession = PageProps["data"]["sessions"][number];
-  type ChangeDialog =
-    | {
-        requestType: "add";
-        issueKey: string;
-        issueLabel: string;
-        startedAt: string;
-        endedAt: string;
-      }
-    | {
-        requestType: "edit";
-        issueKey: string;
-        issueLabel: string;
-        targetSessionId: string;
-        startedAt: string;
-        endedAt: string;
-      }
-    | {
-        requestType: "exclude";
-        issueKey: string;
-        issueLabel: string;
-        targetSessionId: string;
-      };
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
-  let changeDialog = $state<ChangeDialog | null>(null);
+  let changeDialog = $state<WorkChangeDialogState | null>(null);
 
   const openKeySet = $derived(
     new Set(data.openSessions.map((session) => `${session.repository}#${session.issueNumber}`))
@@ -51,15 +31,6 @@
     };
 
   const actionMessage = $derived((form as ActionData | undefined)?.message);
-  const dialogTitle = $derived(
-    changeDialog
-      ? {
-          add: "稼働ログ追加申請",
-          edit: "稼働ログ修正申請",
-          exclude: "稼働ログ除外申請"
-        }[changeDialog.requestType]
-      : ""
-  );
 
   const issueKey = (issue: Issue): string => `${issue.repository}#${issue.number}`;
   const issueLabel = (issue: Issue): string =>
@@ -135,46 +106,7 @@
 {/if}
 
 {#if data.statusSyncs.length}
-  <section class="panel alert">
-    <h2>GitHub Project Status再同期</h2>
-    <p>稼働開始時にProject Statusの自動更新が失敗したIssueがあります。</p>
-    <ul class="pending-list">
-      {#each data.statusSyncs as sync (sync.id)}
-        <li class="pending-session">
-          <div class="pending-issue">
-            <span class="project-name">{formatProjectName(sync.repository)}</span>
-            <a
-              href={`https://github.com/${sync.repository}/issues/${sync.issueNumber}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {formatIssueName(sync.issueNumber, sync.issueTitle)}
-            </a>
-            <small>
-              更新先: {sync.targetStatus} / 最終試行 {formatDateTime(sync.attemptedAt)}
-            </small>
-            {#if sync.errorMessage}
-              <small>{sync.errorMessage}</small>
-            {/if}
-          </div>
-          <form
-            method="POST"
-            action="?/retryStatusSync"
-            use:enhance={enhanceAction(`retry-status-${sync.id}`)}
-          >
-            <input type="hidden" name="syncId" value={sync.id} />
-            <ActionSubmit
-              actionName={`retry-status-${sync.id}`}
-              {pendingAction}
-              label="再同期"
-              pendingLabel="再同期中..."
-              variant="secondary"
-            />
-          </form>
-        </li>
-      {/each}
-    </ul>
-  </section>
+  <StatusSyncPanel statusSyncs={data.statusSyncs} {pendingAction} {enhanceAction} alert />
 {/if}
 
 <section class="panel">
@@ -325,55 +257,10 @@
 </section>
 
 {#if changeDialog}
-  <div class="modal-backdrop">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="change-dialog-title">
-      <div class="modal-header">
-        <div>
-          <p class="eyebrow">{changeDialog.issueLabel}</p>
-          <h2 id="change-dialog-title">{dialogTitle}</h2>
-        </div>
-        <button class="icon-button" type="button" aria-label="閉じる" onclick={() => (changeDialog = null)}>
-          ×
-        </button>
-      </div>
-      <form
-        method="POST"
-        action="?/requestChange"
-        use:enhance={enhanceAction("request-change", true)}
-        class="request-form"
-      >
-        <input type="hidden" name="requestType" value={changeDialog.requestType} />
-        <input type="hidden" name="issueKey" value={changeDialog.issueKey} />
-        {#if changeDialog.requestType !== "add"}
-          <input type="hidden" name="targetSessionId" value={changeDialog.targetSessionId} />
-        {/if}
-        {#if changeDialog.requestType !== "exclude"}
-          <label>
-            開始
-            <input name="requestedStartedAt" type="datetime-local" value={changeDialog.startedAt ?? ""} required />
-          </label>
-          <label>
-            終了
-            <input name="requestedEndedAt" type="datetime-local" value={changeDialog.endedAt ?? ""} required />
-          </label>
-        {/if}
-        <label class="wide">
-          理由
-          <textarea name="reason" rows="4" required></textarea>
-        </label>
-        <div class="form-actions">
-          <button class="button secondary ghost" type="button" onclick={() => (changeDialog = null)}>
-            キャンセル
-          </button>
-          <ActionSubmit
-            actionName="request-change"
-            {pendingAction}
-            label="申請"
-            pendingLabel="申請中..."
-            variant="secondary"
-          />
-        </div>
-      </form>
-    </div>
-  </div>
+  <WorkChangeDialog
+    dialog={changeDialog}
+    {pendingAction}
+    {enhanceAction}
+    close={() => (changeDialog = null)}
+  />
 {/if}

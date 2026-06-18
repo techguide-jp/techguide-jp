@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, currentJstMonth, formatMonthLabel, isMonthString } from "../src/lib/month";
-import { jstMonthRangeUtc, parseJstDatetimeLocal } from "../src/lib/server/time";
+import {
+  addMonths,
+  currentJstMonth,
+  formatMonthLabel,
+  isMonthString,
+} from "../src/lib/month";
+import {
+  jstMonthRangeUtc,
+  parseJstDatetimeLocal,
+} from "../src/lib/server/time";
 
 describe("month utilities", () => {
   it("月文字列を検証する", () => {
@@ -23,7 +31,9 @@ describe("month utilities", () => {
   });
 
   it("datetime-localをJSTとしてDateに変換する", () => {
-    expect(parseJstDatetimeLocal("2026-06-18T09:00")?.toISOString()).toBe("2026-06-18T00:00:00.000Z");
+    expect(parseJstDatetimeLocal("2026-06-18T09:00")?.toISOString()).toBe(
+      "2026-06-18T00:00:00.000Z",
+    );
     expect(parseJstDatetimeLocal("2026-02-31T09:00")).toBeNull();
   });
 

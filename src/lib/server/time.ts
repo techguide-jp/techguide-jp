@@ -3,7 +3,7 @@ export const toJstMonth = (isoDate: string | Date): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
-    month: "2-digit"
+    month: "2-digit",
   }).formatToParts(date);
   const year = parts.find((part) => part.type === "year")?.value;
   const month = parts.find((part) => part.type === "month")?.value;
@@ -28,10 +28,10 @@ export const parseJstDatetimeLocal = (value: string): Date | null => {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hourCycle: "h23"
+    hourCycle: "h23",
   });
   const parts = Object.fromEntries(
-    formatter.formatToParts(date).map((part) => [part.type, part.value])
+    formatter.formatToParts(date).map((part) => [part.type, part.value]),
   );
 
   if (
@@ -61,5 +61,8 @@ export const jstMonthRangeUtc = (month: string): { start: Date; end: Date } => {
 };
 
 export const minutesBetween = (startedAt: Date, endedAt: Date): number => {
-  return Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 60000));
+  return Math.max(
+    0,
+    Math.round((endedAt.getTime() - startedAt.getTime()) / 60000),
+  );
 };

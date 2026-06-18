@@ -1,0 +1,12 @@
+.playwright-mcp
+.svelte-kit
+.vercel
+build
+coverage
+dist
+node_modules
+playwright-report
+test-results
+
+migrations/meta/*.json
+pnpm-lock.yaml

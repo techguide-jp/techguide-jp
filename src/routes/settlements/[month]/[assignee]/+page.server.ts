@@ -2,7 +2,7 @@ import { fail } from "@sveltejs/kit";
 import { requireSelfOrAdmin } from "$lib/server/auth/guards";
 import {
   loadSettlementAssignee,
-  submitSettlementWork
+  submitSettlementWork,
 } from "$lib/server/settlements/settlementService";
 
 export const load = async (event) => {
@@ -10,15 +10,22 @@ export const load = async (event) => {
   return {
     month: event.params.month,
     assignee: event.params.assignee,
-    ...(await loadSettlementAssignee(event.params.month, event.params.assignee))
+    ...(await loadSettlementAssignee(
+      event.params.month,
+      event.params.assignee,
+    )),
   };
 };
 
 export const actions = {
   submitWork: async (event) => {
     const user = requireSelfOrAdmin(event, event.params.assignee);
-    const result = await submitSettlementWork(event.params.month, event.params.assignee, user.login);
+    const result = await submitSettlementWork(
+      event.params.month,
+      event.params.assignee,
+      user.login,
+    );
     if (!result.ok) return fail(400, { message: result.message });
     return { message: `${event.params.month} の稼働を確定して申請しました。` };
-  }
+  },
 };

@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   test: {
     include: ["tests/**/*.test.ts"],
-    environment: "node"
-  }
+    environment: "node",
+  },
 });

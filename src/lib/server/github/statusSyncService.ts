@@ -4,17 +4,19 @@ import {
   getPendingProjectStatusSync,
   markProjectStatusSyncAttemptFailed,
   upsertPendingProjectStatusSync,
-  resolveProjectStatusSync
+  resolveProjectStatusSync,
 } from "$lib/server/github/statusSyncRepository";
 
 const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : "GitHub ProjectのStatus更新に失敗しました。";
+  error instanceof Error
+    ? error.message
+    : "GitHub ProjectのStatus更新に失敗しました。";
 
 export const recordProjectStatusSyncFailure = async (
   issue: ProjectIssue,
   assigneeLogin: string,
   targetStatus: string,
-  error: unknown
+  error: unknown,
 ): Promise<void> => {
   await upsertPendingProjectStatusSync({
     projectItemId: issue.projectItemId,
@@ -23,14 +25,14 @@ export const recordProjectStatusSyncFailure = async (
     issueTitle: issue.title,
     assigneeLogin,
     targetStatus,
-    errorMessage: errorMessage(error)
+    errorMessage: errorMessage(error),
   });
 };
 
 export const retryProjectStatusSync = async (
   syncId: string,
   userLogin: string,
-  isAdmin: boolean
+  isAdmin: boolean,
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> => {
   const sync = await getPendingProjectStatusSync(syncId);
   if (!sync) {
@@ -48,7 +50,8 @@ export const retryProjectStatusSync = async (
     await markProjectStatusSyncAttemptFailed(sync.id, errorMessage(error));
     return {
       ok: false,
-      message: "GitHub ProjectのStatus再同期に失敗しました。Project設定またはGITHUB_PROJECT_TOKENを確認してください。"
+      message:
+        "GitHub ProjectのStatus再同期に失敗しました。Project設定またはGITHUB_PROJECT_TOKENを確認してください。",
     };
   }
 };

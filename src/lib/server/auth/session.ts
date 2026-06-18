@@ -1,8 +1,8 @@
 import { and, eq, gt } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { db } from "$lib/server/db/client";
 import { authSessions } from "$lib/server/db/schema";
-import { env } from "$lib/server/env";
+import { env, requireEnv } from "$lib/server/env";
 
 const SESSION_DAYS = 30;
 
@@ -15,32 +15,52 @@ export type SessionUser = {
   isAdmin: boolean;
 };
 
+const sessionIdHash = (sessionId: string): string => {
+  return createHmac("sha256", requireEnv(env.sessionSecret, "SESSION_SECRET"))
+    .update(sessionId)
+    .digest("base64url");
+};
+
+export const isGithubLoginAllowed = (login: string): boolean => {
+  if (env.adminGithubLogins.has(login)) return true;
+  if (env.allowedGithubLogins.size === 0) return true;
+  return env.allowedGithubLogins.has(login);
+};
+
 export const createSession = async (user: {
   login: string;
   name: string | null;
   avatarUrl: string | null;
 }): Promise<{ id: string; expiresAt: Date }> => {
   const id = randomBytes(32).toString("base64url");
+  const hashedId = sessionIdHash(id);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
   await db.insert(authSessions).values({
-    id,
+    id: hashedId,
     githubLogin: user.login,
     githubName: user.name,
     githubAvatarUrl: user.avatarUrl,
-    expiresAt
+    expiresAt,
   });
 
   return { id, expiresAt };
 };
 
-export const resolveSessionUser = async (sessionId: string | undefined): Promise<SessionUser | null> => {
+export const resolveSessionUser = async (
+  sessionId: string | undefined,
+): Promise<SessionUser | null> => {
   if (!sessionId) return null;
 
   const [session] = await db
     .select()
     .from(authSessions)
-    .where(and(eq(authSessions.id, sessionId), gt(authSessions.expiresAt, new Date())))
+    .where(
+      and(
+        eq(authSessions.id, sessionIdHash(sessionId)),
+        gt(authSessions.expiresAt, new Date()),
+      ),
+    )
     .limit(1);
 
   if (!session) return null;
@@ -49,11 +69,15 @@ export const resolveSessionUser = async (sessionId: string | undefined): Promise
     login: session.githubLogin,
     name: session.githubName,
     avatarUrl: session.githubAvatarUrl,
-    isAdmin: env.adminGithubLogins.has(session.githubLogin)
+    isAdmin: env.adminGithubLogins.has(session.githubLogin),
   };
 };
 
-export const deleteSession = async (sessionId: string | undefined): Promise<void> => {
+export const deleteSession = async (
+  sessionId: string | undefined,
+): Promise<void> => {
   if (!sessionId) return;
-  await db.delete(authSessions).where(eq(authSessions.id, sessionId));
+  await db
+    .delete(authSessions)
+    .where(eq(authSessions.id, sessionIdHash(sessionId)));
 };

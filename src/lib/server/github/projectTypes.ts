@@ -6,7 +6,7 @@ export const requiredProjectFields = {
   rewardMode: "報酬方式",
   fixedReward: "固定報酬額（円・税抜）",
   extraCap: "追加精算上限（円・税抜）",
-  hourlyRate: "時間単価（円・税抜）"
+  hourlyRate: "時間単価（円・税抜）",
 } as const;
 
 export type RewardMode = "固定" | "ハイブリッド";

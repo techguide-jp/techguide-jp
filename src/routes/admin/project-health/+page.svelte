@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
-  import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import { formatDateTime, formatIssueName, formatProjectName } from "$lib/format";
+  import StatusSyncPanel from "$lib/components/StatusSyncPanel.svelte";
+  import { formatIssueName, formatProjectName } from "$lib/format";
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
@@ -53,49 +52,7 @@
   {/if}
 </section>
 
-<section class="panel">
-  <h2>GitHub Project Status再同期</h2>
-  {#if data.statusSyncs.length === 0}
-    <p class="ok">再同期待ちのStatus更新はありません。</p>
-  {:else}
-    <ul class="pending-list">
-      {#each data.statusSyncs as sync (sync.id)}
-        <li class="pending-session">
-          <div class="pending-issue">
-            <span class="project-name">{formatProjectName(sync.repository)}</span>
-            <a
-              href={`https://github.com/${sync.repository}/issues/${sync.issueNumber}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {formatIssueName(sync.issueNumber, sync.issueTitle)}
-            </a>
-            <small>
-              Assignee: {sync.assigneeLogin} / 更新先: {sync.targetStatus} / 最終試行 {formatDateTime(sync.attemptedAt)}
-            </small>
-            {#if sync.errorMessage}
-              <small>{sync.errorMessage}</small>
-            {/if}
-          </div>
-          <form
-            method="POST"
-            action="?/retryStatusSync"
-            use:enhance={enhanceAction(`retry-status-${sync.id}`)}
-          >
-            <input type="hidden" name="syncId" value={sync.id} />
-            <ActionSubmit
-              actionName={`retry-status-${sync.id}`}
-              {pendingAction}
-              label="再同期"
-              pendingLabel="再同期中..."
-              variant="secondary"
-            />
-          </form>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</section>
+<StatusSyncPanel statusSyncs={data.statusSyncs} {pendingAction} {enhanceAction} showAssignee />
 
 <section class="panel">
   <h2>Issue不備</h2>

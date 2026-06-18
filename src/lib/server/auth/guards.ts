@@ -16,7 +16,10 @@ export const requireAdmin = (event: RequestEvent) => {
   return user;
 };
 
-export const requireSelfOrAdmin = (event: RequestEvent, assigneeLogin: string) => {
+export const requireSelfOrAdmin = (
+  event: RequestEvent,
+  assigneeLogin: string,
+) => {
   const user = requireUser(event);
   if (!user.isAdmin && user.login !== assigneeLogin) {
     throw redirect(303, "/work");

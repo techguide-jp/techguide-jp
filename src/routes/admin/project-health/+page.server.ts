@@ -8,7 +8,7 @@ export const load = async (event) => {
   const user = requireAdmin(event);
   const [{ health, issues }, statusSyncs] = await Promise.all([
     fetchProjectIssues(),
-    listPendingProjectStatusSyncs()
+    listPendingProjectStatusSyncs(),
   ]);
 
   return {
@@ -19,14 +19,19 @@ export const load = async (event) => {
     issueWarnings: issues
       .map((issue) => {
         const warnings: string[] = [];
-        if (issue.assignees.length !== 1) warnings.push("assigneeが単一ではありません");
-        if (issue.status === "Done" && issue.fixedRewardYen === null) warnings.push("固定報酬額が未入力です");
-        if (issue.rewardMode === "ハイブリッド" && issue.hourlyRateYen === null) {
+        if (issue.assignees.length !== 1)
+          warnings.push("assigneeが単一ではありません");
+        if (issue.status === "Done" && issue.fixedRewardYen === null)
+          warnings.push("固定報酬額が未入力です");
+        if (
+          issue.rewardMode === "ハイブリッド" &&
+          issue.hourlyRateYen === null
+        ) {
           warnings.push("時間単価が未入力です");
         }
         return { issue, warnings };
       })
-      .filter((entry) => entry.warnings.length > 0)
+      .filter((entry) => entry.warnings.length > 0),
   };
 };
 
@@ -38,5 +43,5 @@ export const actions = {
     const result = await retryProjectStatusSync(syncId, user.login, true);
     if (!result.ok) return fail(400, { message: result.message });
     return { message: result.message };
-  }
+  },
 };

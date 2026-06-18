@@ -10,21 +10,30 @@ const optional = (name: string): string | undefined => {
   return value && value.trim().length > 0 ? value.trim() : undefined;
 };
 
-const optionalPublic = (name: keyof typeof publicEnv): string | undefined => normalize(publicEnv[name]);
+const optionalPublic = (name: keyof typeof publicEnv): string | undefined =>
+  normalize(publicEnv[name]);
 
 export const env = {
   databaseUrl: optional("DATABASE_URL"),
   githubClientId: optional("GITHUB_CLIENT_ID"),
   githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
   githubProjectToken: optional("GITHUB_PROJECT_TOKEN"),
-  sessionSecret: optional("SESSION_SECRET") ?? (dev ? "development-session-secret" : undefined),
+  sessionSecret:
+    optional("SESSION_SECRET") ??
+    (dev ? "development-session-secret" : undefined),
   appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
+  allowedGithubLogins: new Set(
+    (optional("ALLOWED_GITHUB_LOGINS") ?? "")
+      .split(",")
+      .map((login) => login.trim())
+      .filter(Boolean),
+  ),
   adminGithubLogins: new Set(
     (optional("ADMIN_GITHUB_LOGINS") ?? "")
       .split(",")
       .map((login) => login.trim())
-      .filter(Boolean)
-  )
+      .filter(Boolean),
+  ),
 };
 
 export const requireEnv = (value: string | undefined, name: string): string => {

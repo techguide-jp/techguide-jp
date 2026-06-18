@@ -7,17 +7,27 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...svelte.configs["flat/recommended"],
   {
-    ignores: [".svelte-kit/**", ".vercel/**", "build/**", "dist/**", "node_modules/**"]
+    ignores: [
+      ".playwright-mcp/**",
+      ".svelte-kit/**",
+      ".vercel/**",
+      "build/**",
+      "coverage/**",
+      "dist/**",
+      "node_modules/**",
+      "playwright-report/**",
+      "test-results/**",
+    ],
   },
   {
     files: ["**/*.svelte"],
     rules: {
-      "svelte/no-navigation-without-resolve": "off"
+      "svelte/no-navigation-without-resolve": "off",
     },
     languageOptions: {
       parserOptions: {
-        parser: tseslint.parser
-      }
-    }
-  }
+        parser: tseslint.parser,
+      },
+    },
+  },
 );

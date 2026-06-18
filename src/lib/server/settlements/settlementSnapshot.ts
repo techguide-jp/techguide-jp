@@ -28,13 +28,20 @@ const dateValue = (value: unknown): string | null => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
-const issueKey = (issue: { repository?: unknown; number?: unknown } | undefined): string => {
+const issueKey = (
+  issue: { repository?: unknown; number?: unknown } | undefined,
+): string => {
   return `${String(issue?.repository ?? "")}#${String(issue?.number ?? "")}`;
 };
 
 const normalizeIssue = (issue: unknown) => {
-  const value = issue && typeof issue === "object" ? (issue as Record<string, unknown>) : {};
-  const assignees = Array.isArray(value.assignees) ? value.assignees.map(String).sort() : [];
+  const value =
+    issue && typeof issue === "object"
+      ? (issue as Record<string, unknown>)
+      : {};
+  const assignees = Array.isArray(value.assignees)
+    ? value.assignees.map(String).sort()
+    : [];
 
   return {
     repository: value.repository ?? null,
@@ -46,7 +53,7 @@ const normalizeIssue = (issue: unknown) => {
     rewardMode: value.rewardMode ?? null,
     fixedRewardYen: value.fixedRewardYen ?? null,
     extraCapYen: value.extraCapYen ?? null,
-    hourlyRateYen: value.hourlyRateYen ?? null
+    hourlyRateYen: value.hourlyRateYen ?? null,
   };
 };
 
@@ -55,7 +62,10 @@ const normalizeSessions = (sessions: unknown) => {
 
   return sessions
     .map((session) => {
-      const value = session && typeof session === "object" ? (session as Record<string, unknown>) : {};
+      const value =
+        session && typeof session === "object"
+          ? (session as Record<string, unknown>)
+          : {};
       return {
         id: value.id ?? null,
         assigneeLogin: value.assigneeLogin ?? null,
@@ -64,16 +74,17 @@ const normalizeSessions = (sessions: unknown) => {
         startedAt: dateValue(value.startedAt),
         endedAt: dateValue(value.endedAt),
         excludedAt: dateValue(value.excludedAt),
-        excludeReason: value.excludeReason ?? null
+        excludeReason: value.excludeReason ?? null,
       };
     })
-    .sort((a, b) =>
-      [
-        String(a.repository).localeCompare(String(b.repository)),
-        Number(a.issueNumber ?? 0) - Number(b.issueNumber ?? 0),
-        String(a.startedAt).localeCompare(String(b.startedAt)),
-        String(a.id).localeCompare(String(b.id))
-      ].find((result) => result !== 0) ?? 0
+    .sort(
+      (a, b) =>
+        [
+          String(a.repository).localeCompare(String(b.repository)),
+          Number(a.issueNumber ?? 0) - Number(b.issueNumber ?? 0),
+          String(a.startedAt).localeCompare(String(b.startedAt)),
+          String(a.id).localeCompare(String(b.id)),
+        ].find((result) => result !== 0) ?? 0,
     );
 };
 
@@ -82,7 +93,10 @@ const normalizeRequests = (requests: unknown) => {
 
   return requests
     .map((request) => {
-      const value = request && typeof request === "object" ? (request as Record<string, unknown>) : {};
+      const value =
+        request && typeof request === "object"
+          ? (request as Record<string, unknown>)
+          : {};
       return {
         id: value.id ?? null,
         requestType: value.requestType ?? null,
@@ -93,16 +107,21 @@ const normalizeRequests = (requests: unknown) => {
         targetSessionId: value.targetSessionId ?? null,
         requestedStartedAt: dateValue(value.requestedStartedAt),
         requestedEndedAt: dateValue(value.requestedEndedAt),
-        reason: value.reason ?? null
+        reason: value.reason ?? null,
       };
     })
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 };
 
 export const normalizeSettlementSnapshot = (summary: unknown) => {
-  const value = summary && typeof summary === "object" ? (summary as LegacySnapshotSummary) : {};
-  const unsettledProjectIssues = value.unsettledProjectIssues ?? value.unclosedProjectIssues ?? [];
-  const unsettledIssueSessions = value.unsettledIssueSessions ?? value.unclosedIssueSessions ?? [];
+  const value =
+    summary && typeof summary === "object"
+      ? (summary as LegacySnapshotSummary)
+      : {};
+  const unsettledProjectIssues =
+    value.unsettledProjectIssues ?? value.unclosedProjectIssues ?? [];
+  const unsettledIssueSessions =
+    value.unsettledIssueSessions ?? value.unclosedIssueSessions ?? [];
 
   return {
     month: value.month ?? null,
@@ -115,8 +134,13 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
     approvalRequired: value.approvalRequired ?? null,
     lines: (Array.isArray(value.lines) ? value.lines : [])
       .map((line) => {
-        const valueLine = line && typeof line === "object" ? (line as Record<string, unknown>) : {};
-        const warnings = Array.isArray(valueLine.warnings) ? valueLine.warnings.map(String).sort() : [];
+        const valueLine =
+          line && typeof line === "object"
+            ? (line as Record<string, unknown>)
+            : {};
+        const warnings = Array.isArray(valueLine.warnings)
+          ? valueLine.warnings.map(String).sort()
+          : [];
         return {
           issue: normalizeIssue(valueLine.issue),
           fixedRewardYen: valueLine.fixedRewardYen ?? null,
@@ -124,24 +148,32 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
           timedRewardYen: valueLine.timedRewardYen ?? null,
           taxExcludedYen: valueLine.taxExcludedYen ?? null,
           warnings,
-          sessions: normalizeSessions(valueLine.sessions)
+          sessions: normalizeSessions(valueLine.sessions),
         };
       })
       .sort((a, b) => issueKey(a.issue).localeCompare(issueKey(b.issue))),
     pendingRequests: normalizeRequests(value.pendingRequests),
-    unsettledProjectIssues: (Array.isArray(unsettledProjectIssues) ? unsettledProjectIssues : [])
+    unsettledProjectIssues: (Array.isArray(unsettledProjectIssues)
+      ? unsettledProjectIssues
+      : []
+    )
       .map((line) => {
-        const valueLine = line && typeof line === "object" ? (line as Record<string, unknown>) : {};
+        const valueLine =
+          line && typeof line === "object"
+            ? (line as Record<string, unknown>)
+            : {};
         return {
           issue: normalizeIssue(valueLine.issue),
           workMinutes: valueLine.workMinutes ?? null,
           reason: valueLine.reason ?? null,
-          sessions: normalizeSessions(valueLine.sessions)
+          sessions: normalizeSessions(valueLine.sessions),
         };
       })
       .sort((a, b) => issueKey(a.issue).localeCompare(issueKey(b.issue))),
     unsettledIssueSessions: normalizeSessions(unsettledIssueSessions),
-    blockingReasons: Array.isArray(value.blockingReasons) ? value.blockingReasons.map(String).sort() : []
+    blockingReasons: Array.isArray(value.blockingReasons)
+      ? value.blockingReasons.map(String).sort()
+      : [],
   };
 };
 
@@ -150,18 +182,25 @@ export const hashSettlementSummary = (summary: SettlementSummary): string => {
   return createHash("sha256").update(JSON.stringify(comparable)).digest("hex");
 };
 
-const isVersionedSettlementSnapshot = (snapshot: unknown): snapshot is VersionedSettlementSnapshot => {
+const isVersionedSettlementSnapshot = (
+  snapshot: unknown,
+): snapshot is VersionedSettlementSnapshot => {
   return (
     typeof snapshot === "object" &&
     snapshot !== null &&
-    (snapshot as { schemaVersion?: unknown }).schemaVersion === SETTLEMENT_SNAPSHOT_SCHEMA_VERSION &&
+    (snapshot as { schemaVersion?: unknown }).schemaVersion ===
+      SETTLEMENT_SNAPSHOT_SCHEMA_VERSION &&
     typeof (snapshot as { hash?: unknown }).hash === "string"
   );
 };
 
-export const createSettlementSnapshotPayload = (summary: SettlementSummary): VersionedSettlementSnapshot => {
+export const createSettlementSnapshotPayload = (
+  summary: SettlementSummary,
+): VersionedSettlementSnapshot => {
   const comparable = normalizeSettlementSnapshot(summary);
-  const hash = createHash("sha256").update(JSON.stringify(comparable)).digest("hex");
+  const hash = createHash("sha256")
+    .update(JSON.stringify(comparable))
+    .digest("hex");
 
   return {
     schemaVersion: SETTLEMENT_SNAPSHOT_SCHEMA_VERSION,
@@ -171,24 +210,30 @@ export const createSettlementSnapshotPayload = (summary: SettlementSummary): Ver
       timedRewardYen: summary.timedRewardYen,
       taxExcludedYen: summary.taxExcludedYen,
       taxYen: summary.taxYen,
-      taxIncludedYen: summary.taxIncludedYen
+      taxIncludedYen: summary.taxIncludedYen,
     },
     comparable,
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
   };
 };
 
-export const hasSettlementSnapshotChanges = (snapshot: unknown, summary: SettlementSummary): boolean => {
+export const hasSettlementSnapshotChanges = (
+  snapshot: unknown,
+  summary: SettlementSummary,
+): boolean => {
   if (isVersionedSettlementSnapshot(snapshot)) {
     return snapshot.hash !== hashSettlementSummary(summary);
   }
 
-  return JSON.stringify(normalizeSettlementSnapshot(snapshot)) !== JSON.stringify(normalizeSettlementSnapshot(summary));
+  return (
+    JSON.stringify(normalizeSettlementSnapshot(snapshot)) !==
+    JSON.stringify(normalizeSettlementSnapshot(summary))
+  );
 };
 
 export const settlementSnapshotAmount = (
   snapshot: unknown,
-  key: "taxExcludedYen" | "taxIncludedYen"
+  key: "taxExcludedYen" | "taxIncludedYen",
 ): number | null => {
   if (isVersionedSettlementSnapshot(snapshot)) {
     return snapshot.totals[key];

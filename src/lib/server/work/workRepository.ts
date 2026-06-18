@@ -4,7 +4,7 @@ import {
   workLogChangeRequests,
   workSessions,
   type WorkLogChangeRequest,
-  type WorkSession
+  type WorkSession,
 } from "$lib/server/db/schema";
 
 type IssueRef = {
@@ -23,9 +23,9 @@ const issueRefFilter = (issueRefs: IssueRef[]): SQL | undefined => {
     ...issueRefs.map((issue) =>
       and(
         eq(workSessions.repository, issue.repository),
-        eq(workSessions.issueNumber, issue.issueNumber)
-      )
-    )
+        eq(workSessions.issueNumber, issue.issueNumber),
+      ),
+    ),
   );
 };
 
@@ -35,9 +35,9 @@ const requestIssueRefFilter = (issueRefs: IssueRef[]): SQL | undefined => {
     ...issueRefs.map((issue) =>
       and(
         eq(workLogChangeRequests.repository, issue.repository),
-        eq(workLogChangeRequests.issueNumber, issue.issueNumber)
-      )
-    )
+        eq(workLogChangeRequests.issueNumber, issue.issueNumber),
+      ),
+    ),
   );
 };
 
@@ -47,7 +47,7 @@ export const listWorkSessions = async (): Promise<WorkSession[]> => {
 
 export const listWorkSessionsForSettlementContext = async (
   range: UtcRange,
-  issueRefs: IssueRef[]
+  issueRefs: IssueRef[],
 ): Promise<WorkSession[]> => {
   const issueFilter = issueRefFilter(issueRefs);
   return db
@@ -56,18 +56,31 @@ export const listWorkSessionsForSettlementContext = async (
     .where(
       or(
         ...(issueFilter ? [issueFilter] : []),
-        and(gte(workSessions.startedAt, range.start), lt(workSessions.startedAt, range.end)),
-        and(gte(workSessions.endedAt, range.start), lt(workSessions.endedAt, range.end)),
-        and(isNull(workSessions.endedAt), isNull(workSessions.excludedAt))
-      )
+        and(
+          gte(workSessions.startedAt, range.start),
+          lt(workSessions.startedAt, range.end),
+        ),
+        and(
+          gte(workSessions.endedAt, range.start),
+          lt(workSessions.endedAt, range.end),
+        ),
+        and(isNull(workSessions.endedAt), isNull(workSessions.excludedAt)),
+      ),
     );
 };
 
-export const listWorkSessionsForAssignee = async (assigneeLogin: string): Promise<WorkSession[]> => {
-  return db.select().from(workSessions).where(eq(workSessions.assigneeLogin, assigneeLogin));
+export const listWorkSessionsForAssignee = async (
+  assigneeLogin: string,
+): Promise<WorkSession[]> => {
+  return db
+    .select()
+    .from(workSessions)
+    .where(eq(workSessions.assigneeLogin, assigneeLogin));
 };
 
-export const listOpenWorkSessionsForAssignee = async (assigneeLogin: string): Promise<WorkSession[]> => {
+export const listOpenWorkSessionsForAssignee = async (
+  assigneeLogin: string,
+): Promise<WorkSession[]> => {
   return db
     .select()
     .from(workSessions)
@@ -75,15 +88,15 @@ export const listOpenWorkSessionsForAssignee = async (assigneeLogin: string): Pr
       and(
         eq(workSessions.assigneeLogin, assigneeLogin),
         isNull(workSessions.endedAt),
-        isNull(workSessions.excludedAt)
-      )
+        isNull(workSessions.excludedAt),
+      ),
     );
 };
 
 export const findOpenWorkSession = async (
   assigneeLogin: string,
   repository: string,
-  issueNumber: number
+  issueNumber: number,
 ): Promise<WorkSession | null> => {
   const [session] = await db
     .select()
@@ -94,15 +107,21 @@ export const findOpenWorkSession = async (
         eq(workSessions.repository, repository),
         eq(workSessions.issueNumber, issueNumber),
         isNull(workSessions.endedAt),
-        isNull(workSessions.excludedAt)
-      )
+        isNull(workSessions.excludedAt),
+      ),
     )
     .limit(1);
   return session ?? null;
 };
 
-export const getWorkSessionById = async (sessionId: string): Promise<WorkSession | null> => {
-  const [session] = await db.select().from(workSessions).where(eq(workSessions.id, sessionId)).limit(1);
+export const getWorkSessionById = async (
+  sessionId: string,
+): Promise<WorkSession | null> => {
+  const [session] = await db
+    .select()
+    .from(workSessions)
+    .where(eq(workSessions.id, sessionId))
+    .limit(1);
   return session ?? null;
 };
 
@@ -122,13 +141,16 @@ export const createWorkSession = async (input: {
       issueNumber: input.issueNumber,
       issueTitle: input.issueTitle,
       createdBy: input.createdBy,
-      startedAt: input.startedAt ?? new Date()
+      startedAt: input.startedAt ?? new Date(),
     })
     .returning();
   return session;
 };
 
-export const endWorkSession = async (sessionId: string, userLogin: string): Promise<WorkSession | null> => {
+export const endWorkSession = async (
+  sessionId: string,
+  userLogin: string,
+): Promise<WorkSession | null> => {
   const [session] = await db
     .update(workSessions)
     .set({ endedAt: new Date(), updatedAt: new Date() })
@@ -137,8 +159,8 @@ export const endWorkSession = async (sessionId: string, userLogin: string): Prom
         eq(workSessions.id, sessionId),
         eq(workSessions.assigneeLogin, userLogin),
         isNull(workSessions.endedAt),
-        isNull(workSessions.excludedAt)
-      )
+        isNull(workSessions.excludedAt),
+      ),
     )
     .returning();
   return session ?? null;
@@ -150,7 +172,7 @@ export const listChangeRequests = async (): Promise<WorkLogChangeRequest[]> => {
 
 export const listChangeRequestsForSettlementContext = async (
   range: UtcRange,
-  issueRefs: IssueRef[]
+  issueRefs: IssueRef[],
 ): Promise<WorkLogChangeRequest[]> => {
   const issueFilter = requestIssueRefFilter(issueRefs);
   return db
@@ -159,16 +181,21 @@ export const listChangeRequestsForSettlementContext = async (
     .where(
       or(
         ...(issueFilter ? [issueFilter] : []),
-        and(gte(workLogChangeRequests.createdAt, range.start), lt(workLogChangeRequests.createdAt, range.end)),
+        and(
+          gte(workLogChangeRequests.createdAt, range.start),
+          lt(workLogChangeRequests.createdAt, range.end),
+        ),
         and(
           gte(workLogChangeRequests.requestedStartedAt, range.start),
-          lt(workLogChangeRequests.requestedStartedAt, range.end)
-        )
-      )
+          lt(workLogChangeRequests.requestedStartedAt, range.end),
+        ),
+      ),
     );
 };
 
-export const listPendingChangeRequests = async (): Promise<WorkLogChangeRequest[]> => {
+export const listPendingChangeRequests = async (): Promise<
+  WorkLogChangeRequest[]
+> => {
   return db
     .select()
     .from(workLogChangeRequests)
@@ -199,7 +226,7 @@ export const createChangeRequest = async (input: {
       requestedStartedAt: input.requestedStartedAt,
       requestedEndedAt: input.requestedEndedAt,
       reason: input.reason,
-      requestedBy: input.requestedBy
+      requestedBy: input.requestedBy,
     })
     .returning();
   return request;
@@ -209,19 +236,24 @@ export const reviewChangeRequest = async (
   requestId: string,
   status: "approved" | "rejected",
   reviewedBy: string,
-  note: string | null
+  note: string | null,
 ): Promise<WorkLogChangeRequest | null> => {
   const [request] = await db
     .update(workLogChangeRequests)
     .set({ status, reviewedBy, reviewedAt: new Date(), reviewNote: note })
-    .where(and(eq(workLogChangeRequests.id, requestId), eq(workLogChangeRequests.status, "pending")))
+    .where(
+      and(
+        eq(workLogChangeRequests.id, requestId),
+        eq(workLogChangeRequests.status, "pending"),
+      ),
+    )
     .returning();
   return request ?? null;
 };
 
 export const visibleSessionsWhereIssueIn = (
   sessions: WorkSession[],
-  issueKeys: Set<string>
+  issueKeys: Set<string>,
 ): WorkSession[] => {
   return sessions.filter((session) => {
     const key = `${session.repository}#${session.issueNumber}`;

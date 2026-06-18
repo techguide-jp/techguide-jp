@@ -1,12 +1,15 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
-import { monthlySettlementSnapshots, type MonthlySettlementSnapshot } from "$lib/server/db/schema";
+import {
+  monthlySettlementSnapshots,
+  type MonthlySettlementSnapshot,
+} from "$lib/server/db/schema";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
 export const getSnapshot = async (
   month: string,
-  assigneeLogin: string
+  assigneeLogin: string,
 ): Promise<MonthlySettlementSnapshot | null> => {
   const [snapshot] = await db
     .select()
@@ -14,14 +17,16 @@ export const getSnapshot = async (
     .where(
       and(
         eq(monthlySettlementSnapshots.month, month),
-        eq(monthlySettlementSnapshots.assigneeLogin, assigneeLogin)
-      )
+        eq(monthlySettlementSnapshots.assigneeLogin, assigneeLogin),
+      ),
     )
     .limit(1);
   return snapshot ?? null;
 };
 
-export const listSnapshotsForMonth = async (month: string): Promise<MonthlySettlementSnapshot[]> => {
+export const listSnapshotsForMonth = async (
+  month: string,
+): Promise<MonthlySettlementSnapshot[]> => {
   return db
     .select()
     .from(monthlySettlementSnapshots)
@@ -30,7 +35,7 @@ export const listSnapshotsForMonth = async (month: string): Promise<MonthlySettl
 
 export const upsertSnapshot = async (
   summary: SettlementSummary,
-  approvedBy: string
+  approvedBy: string,
 ): Promise<MonthlySettlementSnapshot> => {
   const payload = createSettlementSnapshotPayload(summary);
   const [snapshot] = await db
@@ -40,15 +45,18 @@ export const upsertSnapshot = async (
       assigneeLogin: summary.assigneeLogin,
       snapshot: payload,
       approvedBy,
-      approvedAt: new Date()
+      approvedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: [monthlySettlementSnapshots.month, monthlySettlementSnapshots.assigneeLogin],
+      target: [
+        monthlySettlementSnapshots.month,
+        monthlySettlementSnapshots.assigneeLogin,
+      ],
       set: {
         snapshot: payload,
         approvedBy,
-        approvedAt: new Date()
-      }
+        approvedAt: new Date(),
+      },
     })
     .returning();
   return snapshot;

@@ -2,9 +2,13 @@ import { error, redirect } from "@sveltejs/kit";
 import {
   exchangeGithubCode,
   fetchGithubUser,
-  githubStateCookieName
+  githubStateCookieName,
 } from "$lib/server/auth/githubOAuth";
-import { createSession, sessionCookieName } from "$lib/server/auth/session";
+import {
+  createSession,
+  isGithubLoginAllowed,
+  sessionCookieName,
+} from "$lib/server/auth/session";
 
 export const GET = async ({ cookies, url }) => {
   const code = url.searchParams.get("code");
@@ -18,10 +22,17 @@ export const GET = async ({ cookies, url }) => {
   cookies.delete(githubStateCookieName, { path: "/" });
   const token = await exchangeGithubCode(code);
   const githubUser = await fetchGithubUser(token);
+  if (!isGithubLoginAllowed(githubUser.login)) {
+    throw error(
+      403,
+      "このアカウントは稼働精算へのログインが許可されていません。",
+    );
+  }
+
   const session = await createSession({
     login: githubUser.login,
     name: githubUser.name,
-    avatarUrl: githubUser.avatar_url
+    avatarUrl: githubUser.avatar_url,
   });
 
   cookies.set(sessionCookieName, session.id, {
@@ -29,7 +40,7 @@ export const GET = async ({ cookies, url }) => {
     httpOnly: true,
     sameSite: "lax",
     secure: url.protocol === "https:",
-    expires: session.expiresAt
+    expires: session.expiresAt,
   });
 
   throw redirect(303, "/work");

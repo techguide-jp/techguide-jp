@@ -1,5 +1,8 @@
 import { redirect } from "@sveltejs/kit";
-import { createGithubAuthorization, githubStateCookieName } from "$lib/server/auth/githubOAuth";
+import {
+  createGithubAuthorization,
+  githubStateCookieName,
+} from "$lib/server/auth/githubOAuth";
 import { env } from "$lib/server/env";
 
 export const GET = async ({ cookies, url: requestUrl }) => {
@@ -14,7 +17,7 @@ export const GET = async ({ cookies, url: requestUrl }) => {
     httpOnly: true,
     sameSite: "lax",
     secure: requestUrl.protocol === "https:",
-    maxAge: 60 * 10
+    maxAge: 60 * 10,
   });
   throw redirect(303, url);
 };

@@ -20,7 +20,7 @@ export const currentJstMonth = (now = new Date()): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
-    month: "2-digit"
+    month: "2-digit",
   }).formatToParts(now);
   const year = parts.find((part) => part.type === "year")?.value;
   const month = parts.find((part) => part.type === "month")?.value;

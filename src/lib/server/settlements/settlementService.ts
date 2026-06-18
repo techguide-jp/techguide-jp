@@ -2,59 +2,96 @@ import { fetchProjectIssues } from "$lib/server/github/projectClient";
 import {
   listChangeRequestsForSettlementContext,
   listWorkSessionsForSettlementContext,
-  reviewChangeRequest
+  reviewChangeRequest,
 } from "$lib/server/work/workRepository";
-import { buildSettlementSummaries, findSummary } from "$lib/server/settlements/settlementCalculator";
+import {
+  buildSettlementSummaries,
+  findSummary,
+} from "$lib/server/settlements/settlementCalculator";
 import {
   getSnapshot,
   listSnapshotsForMonth,
-  upsertSnapshot
+  upsertSnapshot,
 } from "$lib/server/settlements/snapshotRepository";
 import {
   listWorkSubmissionsForMonth,
-  upsertWorkSubmission
+  upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
-import type { MonthlySettlementSnapshot, MonthlyWorkSubmission, WorkSession } from "$lib/server/db/schema";
-import { hasSettlementSnapshotChanges, settlementSnapshotAmount } from "$lib/server/settlements/settlementSnapshot";
+import type {
+  MonthlySettlementSnapshot,
+  MonthlyWorkSubmission,
+  WorkSession,
+} from "$lib/server/db/schema";
+import {
+  hasSettlementSnapshotChanges,
+  settlementSnapshotAmount,
+} from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
 
-const toSnapshotMeta = (snapshot: MonthlySettlementSnapshot, summary: SettlementSummary | undefined) => ({
+const toSnapshotMeta = (
+  snapshot: MonthlySettlementSnapshot,
+  summary: SettlementSummary | undefined,
+) => ({
   assigneeLogin: snapshot.assigneeLogin,
   approvedBy: snapshot.approvedBy,
   approvedAt: snapshot.approvedAt,
   taxExcludedYen: settlementSnapshotAmount(snapshot.snapshot, "taxExcludedYen"),
   taxIncludedYen: settlementSnapshotAmount(snapshot.snapshot, "taxIncludedYen"),
-  hasChanges: summary ? hasSettlementSnapshotChanges(snapshot.snapshot, summary) : true
+  hasChanges: summary
+    ? hasSettlementSnapshotChanges(snapshot.snapshot, summary)
+    : true,
 });
 
-const isOpenSession = (session: WorkSession): boolean => !session.endedAt && !session.excludedAt;
+const isOpenSession = (session: WorkSession): boolean =>
+  !session.endedAt && !session.excludedAt;
 
-export const getWorkSubmissionBlockingReasons = (summary: SettlementSummary): string[] => {
+export const getWorkSubmissionBlockingReasons = (
+  summary: SettlementSummary,
+): string[] => {
   return [
-    ...summary.pendingRequests.map((request) => `未処理の修正申請: ${request.repository}#${request.issueNumber}`),
+    ...summary.pendingRequests.map(
+      (request) =>
+        `未処理の修正申請: ${request.repository}#${request.issueNumber}`,
+    ),
     ...summary.lines.flatMap((line) =>
       line.sessions
         .filter(isOpenSession)
-        .map((session) => `終了していない稼働ログ: ${session.repository}#${session.issueNumber}`)
+        .map(
+          (session) =>
+            `終了していない稼働ログ: ${session.repository}#${session.issueNumber}`,
+        ),
     ),
     ...summary.unsettledProjectIssues.flatMap((line) =>
       line.sessions
         .filter(isOpenSession)
-        .map((session) => `終了していない未精算予定ログ: ${session.repository}#${session.issueNumber}`)
+        .map(
+          (session) =>
+            `終了していない未精算予定ログ: ${session.repository}#${session.issueNumber}`,
+        ),
     ),
     ...summary.unsettledIssueSessions
       .filter(isOpenSession)
-      .map((session) => `終了していない未精算予定ログ: ${session.repository}#${session.issueNumber}`)
+      .map(
+        (session) =>
+          `終了していない未精算予定ログ: ${session.repository}#${session.issueNumber}`,
+      ),
   ];
 };
 
-const toSubmissionMeta = (submission: MonthlyWorkSubmission, summary: SettlementSummary | undefined) => ({
+const toSubmissionMeta = (
+  submission: MonthlyWorkSubmission,
+  summary: SettlementSummary | undefined,
+) => ({
   assigneeLogin: submission.assigneeLogin,
   submittedBy: submission.submittedBy,
   submittedAt: submission.submittedAt,
-  hasChanges: summary ? hasSettlementSnapshotChanges(submission.snapshot, summary) : true,
-  blockingReasons: summary ? getWorkSubmissionBlockingReasons(summary) : ["対象assigneeの精算データがありません。"]
+  hasChanges: summary
+    ? hasSettlementSnapshotChanges(submission.snapshot, summary)
+    : true,
+  blockingReasons: summary
+    ? getWorkSubmissionBlockingReasons(summary)
+    : ["対象assigneeの精算データがありません。"],
 });
 
 export const loadSettlementMonth = async (month: string) => {
@@ -62,16 +99,21 @@ export const loadSettlementMonth = async (month: string) => {
   const range = jstMonthRangeUtc(month);
   const closedIssueRefs = issues
     .filter((issue) => issue.closedAt && toJstMonth(issue.closedAt) === month)
-    .map((issue) => ({ repository: issue.repository, issueNumber: issue.number }));
+    .map((issue) => ({
+      repository: issue.repository,
+      issueNumber: issue.number,
+    }));
   const [sessions, requests, snapshots, submissions] = await Promise.all([
     listWorkSessionsForSettlementContext(range, closedIssueRefs),
     listChangeRequestsForSettlementContext(range, closedIssueRefs),
     listSnapshotsForMonth(month),
-    listWorkSubmissionsForMonth(month)
+    listWorkSubmissionsForMonth(month),
   ]);
 
   const summaries = buildSettlementSummaries(month, issues, sessions, requests);
-  const summaryByAssignee = new Map(summaries.map((summary) => [summary.assigneeLogin, summary]));
+  const summaryByAssignee = new Map(
+    summaries.map((summary) => [summary.assigneeLogin, summary]),
+  );
 
   return {
     health,
@@ -79,31 +121,43 @@ export const loadSettlementMonth = async (month: string) => {
     sessions,
     requests,
     summaries,
-    snapshots: snapshots.map((snapshot) => toSnapshotMeta(snapshot, summaryByAssignee.get(snapshot.assigneeLogin))),
+    snapshots: snapshots.map((snapshot) =>
+      toSnapshotMeta(snapshot, summaryByAssignee.get(snapshot.assigneeLogin)),
+    ),
     submissions: submissions.map((submission) =>
-      toSubmissionMeta(submission, summaryByAssignee.get(submission.assigneeLogin))
-    )
+      toSubmissionMeta(
+        submission,
+        summaryByAssignee.get(submission.assigneeLogin),
+      ),
+    ),
   };
 };
 
-export const loadSettlementAssignee = async (month: string, assigneeLogin: string) => {
+export const loadSettlementAssignee = async (
+  month: string,
+  assigneeLogin: string,
+) => {
   const data = await loadSettlementMonth(month);
   const summary = findSummary(data.summaries, assigneeLogin);
   const snapshot = await getSnapshot(month, assigneeLogin);
-  const submission = data.submissions.find((entry) => entry.assigneeLogin === assigneeLogin) ?? null;
+  const submission =
+    data.submissions.find((entry) => entry.assigneeLogin === assigneeLogin) ??
+    null;
   return {
     ...data,
     summary,
     snapshot,
     submission,
-    submissionBlockingReasons: summary ? getWorkSubmissionBlockingReasons(summary) : []
+    submissionBlockingReasons: summary
+      ? getWorkSubmissionBlockingReasons(summary)
+      : [],
   };
 };
 
 export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
-  submittedBy: string
+  submittedBy: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   if (assigneeLogin !== submittedBy) {
     return { ok: false, message: "本人以外の月次確定申請はできません。" };
@@ -119,7 +173,11 @@ export const submitSettlementWork = async (
 
   const blockingReasons = getWorkSubmissionBlockingReasons(summary);
   if (blockingReasons.length > 0) {
-    return { ok: false, message: "未完了の入力や未処理の修正申請があるため月次確定申請できません。" };
+    return {
+      ok: false,
+      message:
+        "未完了の入力や未処理の修正申請があるため月次確定申請できません。",
+    };
   }
 
   await upsertWorkSubmission(summary, submittedBy);
@@ -129,9 +187,12 @@ export const submitSettlementWork = async (
 export const approveSettlement = async (
   month: string,
   assigneeLogin: string,
-  approvedBy: string
+  approvedBy: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const { summary, submission } = await loadSettlementAssignee(month, assigneeLogin);
+  const { summary, submission } = await loadSettlementAssignee(
+    month,
+    assigneeLogin,
+  );
   if (!summary) {
     return { ok: false, message: "対象assigneeの精算データがありません。" };
   }
@@ -139,13 +200,23 @@ export const approveSettlement = async (
     return { ok: false, message: "精算対象がないため月次承認は不要です。" };
   }
   if (!submission) {
-    return { ok: false, message: "稼働者の月次確定申請がないため月次承認できません。" };
+    return {
+      ok: false,
+      message: "稼働者の月次確定申請がないため月次承認できません。",
+    };
   }
   if (submission.hasChanges) {
-    return { ok: false, message: "稼働者の月次確定申請後に内容が変更されています。再申請が必要です。" };
+    return {
+      ok: false,
+      message:
+        "稼働者の月次確定申請後に内容が変更されています。再申請が必要です。",
+    };
   }
   if (submission.blockingReasons.length > 0) {
-    return { ok: false, message: "未完了の入力や未処理の修正申請があるため月次承認できません。" };
+    return {
+      ok: false,
+      message: "未完了の入力や未処理の修正申請があるため月次承認できません。",
+    };
   }
   if (summary.blockingReasons.length > 0) {
     return { ok: false, message: "未解決の不備があるため月次承認できません。" };
@@ -159,11 +230,19 @@ export const reviewSettlementChangeRequest = async (
   requestId: string,
   status: "approved" | "rejected",
   reviewedBy: string,
-  note: string | null
+  note: string | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const request = await reviewChangeRequest(requestId, status, reviewedBy, note);
+  const request = await reviewChangeRequest(
+    requestId,
+    status,
+    reviewedBy,
+    note,
+  );
   if (!request) {
-    return { ok: false, message: "修正申請が見つからないか、すでに採否決定済みです。" };
+    return {
+      ok: false,
+      message: "修正申請が見つからないか、すでに採否決定済みです。",
+    };
   }
   return { ok: true };
 };

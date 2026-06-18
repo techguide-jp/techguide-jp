@@ -2,9 +2,13 @@
 node_modules
 .svelte-kit
 .vercel
+.playwright-mcp
+playwright-report
+test-results
 .env
 .env.*
 !.env.example
 dist
 build
 coverage
+*.log
