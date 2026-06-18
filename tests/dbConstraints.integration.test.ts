@@ -7,6 +7,7 @@ import {
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   workLogChangeRequests,
+  workerProfiles,
   workSessions,
 } from "../src/lib/server/db/schema";
 
@@ -37,6 +38,7 @@ beforeEach(async () => {
   await db.delete(workSessions);
   await db.delete(githubProjectStatusSyncs);
   await db.delete(authSessions);
+  await db.delete(workerProfiles);
 });
 
 describeDb("DB constraints", () => {

@@ -30,6 +30,10 @@ type ProjectIssuesResult = {
   issues: ProjectIssue[];
 };
 
+type ProjectIssuesPageResult = ProjectIssuesResult & {
+  projectFetchError: string | null;
+};
+
 type ProjectClientRuntimeHealth = {
   cacheTtlMs: number;
   cacheExpiresAt: Date | null;
@@ -49,6 +53,25 @@ let projectIssuesInFlight: Promise<ProjectIssuesResult> | null = null;
 let lastFetchSucceededAt: Date | null = null;
 let lastFetchFailedAt: Date | null = null;
 let lastFetchError: string | null = null;
+
+export const unavailableProjectHealth = (): ProjectFieldHealth => ({
+  title: "外注管理",
+  missingFields: Object.values(requiredProjectFields),
+  invalidFields: [],
+  availableFields: [],
+});
+
+export const projectFetchErrorMessage = (error: unknown): string => {
+  const message =
+    error instanceof Error ? error.message : "Project取得に失敗しました。";
+  if (message === "GITHUB_PROJECT_TOKEN is required") {
+    return "GitHub Projectを取得できません。GITHUB_PROJECT_TOKEN が未設定です。";
+  }
+  if (message.includes("Resource not accessible by personal access token")) {
+    return "GitHub Projectを取得できません。GITHUB_PROJECT_TOKEN にProject v2を読める権限がありません。";
+  }
+  return `GitHub Projectを取得できません。${message}`;
+};
 
 export const clearProjectIssuesCache = (): void => {
   projectIssuesCache = null;
@@ -243,5 +266,18 @@ export const fetchProjectIssues = async (): Promise<ProjectIssuesResult> => {
 
   return projectIssuesInFlight;
 };
+
+export const fetchProjectIssuesForPage =
+  async (): Promise<ProjectIssuesPageResult> => {
+    try {
+      return { ...(await fetchProjectIssues()), projectFetchError: null };
+    } catch (error: unknown) {
+      return {
+        health: unavailableProjectHealth(),
+        issues: [],
+        projectFetchError: projectFetchErrorMessage(error),
+      };
+    }
+  };
 
 export { buildProjectHealth, mapProjectIssues };

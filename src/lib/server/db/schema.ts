@@ -30,6 +30,39 @@ export const githubProjectStatusSyncStatus = pgEnum(
   ["pending", "resolved"],
 );
 
+export const workerProfiles = pgTable(
+  "worker_profiles",
+  {
+    login: text("login").primaryKey(),
+    displayName: text("display_name").notNull(),
+    skills: jsonb("skills")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    specialtyNote: text("specialty_note").notNull().default(""),
+    availabilityNote: text("availability_note").notNull().default(""),
+    selfAssignmentNote: text("self_assignment_note").notNull().default(""),
+    adminNote: text("admin_note").notNull().default(""),
+    adminNoteUpdatedBy: text("admin_note_updated_by"),
+    adminNoteUpdatedAt: timestamp("admin_note_updated_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("worker_profiles_display_name_idx").on(table.displayName),
+    check(
+      "worker_profiles_skills_array_chk",
+      sql`jsonb_typeof(${table.skills}) = 'array'`,
+    ),
+  ],
+);
+
 export const authSessions = pgTable(
   "auth_sessions",
   {
@@ -239,6 +272,7 @@ export const auditLogs = pgTable(
 
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
+export type WorkerProfile = typeof workerProfiles.$inferSelect;
 export type MonthlySettlementSnapshot =
   typeof monthlySettlementSnapshots.$inferSelect;
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;

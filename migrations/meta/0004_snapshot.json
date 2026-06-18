@@ -1,0 +1,960 @@
+{
+  "id": "0190cfcf-cf60-46a7-9d90-48c46bebcb24",
+  "prevId": "b899054d-5a71-4c9f-bc76-8ebb4b76d05c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_logs": {
+      "name": "audit_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "actor_login": {
+          "name": "actor_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_logs_actor_idx": {
+          "name": "audit_logs_actor_idx",
+          "columns": [
+            {
+              "expression": "actor_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_logs_action_idx": {
+          "name": "audit_logs_action_idx",
+          "columns": [
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_logs_created_at_idx": {
+          "name": "audit_logs_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_sessions": {
+      "name": "auth_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "github_login": {
+          "name": "github_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_name": {
+          "name": "github_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "github_avatar_url": {
+          "name": "github_avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_sessions_github_login_idx": {
+          "name": "auth_sessions_github_login_idx",
+          "columns": [
+            {
+              "expression": "github_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.github_project_status_syncs": {
+      "name": "github_project_status_syncs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_item_id": {
+          "name": "project_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repository": {
+          "name": "repository",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_number": {
+          "name": "issue_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_title": {
+          "name": "issue_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignee_login": {
+          "name": "assignee_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_status": {
+          "name": "target_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "github_project_status_sync_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "github_project_status_syncs_status_idx": {
+          "name": "github_project_status_syncs_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "github_project_status_syncs_assignee_idx": {
+          "name": "github_project_status_syncs_assignee_idx",
+          "columns": [
+            {
+              "expression": "assignee_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "github_project_status_syncs_pending_unique_idx": {
+          "name": "github_project_status_syncs_pending_unique_idx",
+          "columns": [
+            {
+              "expression": "project_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"github_project_status_syncs\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.monthly_settlement_snapshots": {
+      "name": "monthly_settlement_snapshots",
+      "schema": "",
+      "columns": {
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignee_login": {
+          "name": "assignee_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "monthly_settlement_snapshots_month_assignee_login_pk": {
+          "name": "monthly_settlement_snapshots_month_assignee_login_pk",
+          "columns": [
+            "month",
+            "assignee_login"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "monthly_settlement_snapshots_month_chk": {
+          "name": "monthly_settlement_snapshots_month_chk",
+          "value": "\"monthly_settlement_snapshots\".\"month\" ~ '^\\d{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.monthly_work_submissions": {
+      "name": "monthly_work_submissions",
+      "schema": "",
+      "columns": {
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignee_login": {
+          "name": "assignee_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_by": {
+          "name": "submitted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "monthly_work_submissions_month_assignee_login_pk": {
+          "name": "monthly_work_submissions_month_assignee_login_pk",
+          "columns": [
+            "month",
+            "assignee_login"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "monthly_work_submissions_month_chk": {
+          "name": "monthly_work_submissions_month_chk",
+          "value": "\"monthly_work_submissions\".\"month\" ~ '^\\d{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_log_change_requests": {
+      "name": "work_log_change_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "request_type": {
+          "name": "request_type",
+          "type": "work_log_change_request_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "work_log_change_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "assignee_login": {
+          "name": "assignee_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repository": {
+          "name": "repository",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_number": {
+          "name": "issue_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_title": {
+          "name": "issue_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_session_id": {
+          "name": "target_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_started_at": {
+          "name": "requested_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_ended_at": {
+          "name": "requested_ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_note": {
+          "name": "review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_log_change_requests_status_idx": {
+          "name": "work_log_change_requests_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_log_change_requests_assignee_idx": {
+          "name": "work_log_change_requests_assignee_idx",
+          "columns": [
+            {
+              "expression": "assignee_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_log_change_requests_issue_idx": {
+          "name": "work_log_change_requests_issue_idx",
+          "columns": [
+            {
+              "expression": "repository",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issue_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_log_change_requests_created_at_idx": {
+          "name": "work_log_change_requests_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_log_change_requests_target_session_id_work_sessions_id_fk": {
+          "name": "work_log_change_requests_target_session_id_work_sessions_id_fk",
+          "tableFrom": "work_log_change_requests",
+          "tableTo": "work_sessions",
+          "columnsFrom": [
+            "target_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_log_change_requests_shape_chk": {
+          "name": "work_log_change_requests_shape_chk",
+          "value": "\n        (\n          \"work_log_change_requests\".\"request_type\" = 'add'\n          AND \"work_log_change_requests\".\"target_session_id\" IS NULL\n          AND \"work_log_change_requests\".\"requested_started_at\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_ended_at\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_ended_at\" > \"work_log_change_requests\".\"requested_started_at\"\n        )\n        OR (\n          \"work_log_change_requests\".\"request_type\" = 'edit'\n          AND \"work_log_change_requests\".\"target_session_id\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_started_at\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_ended_at\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_ended_at\" > \"work_log_change_requests\".\"requested_started_at\"\n        )\n        OR (\n          \"work_log_change_requests\".\"request_type\" = 'exclude'\n          AND \"work_log_change_requests\".\"target_session_id\" IS NOT NULL\n          AND \"work_log_change_requests\".\"requested_started_at\" IS NULL\n          AND \"work_log_change_requests\".\"requested_ended_at\" IS NULL\n        )\n      "
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_sessions": {
+      "name": "work_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "assignee_login": {
+          "name": "assignee_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repository": {
+          "name": "repository",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_number": {
+          "name": "issue_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_title": {
+          "name": "issue_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "excluded_at": {
+          "name": "excluded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exclude_reason": {
+          "name": "exclude_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "work_sessions_assignee_idx": {
+          "name": "work_sessions_assignee_idx",
+          "columns": [
+            {
+              "expression": "assignee_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_sessions_issue_idx": {
+          "name": "work_sessions_issue_idx",
+          "columns": [
+            {
+              "expression": "repository",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issue_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_sessions_started_at_idx": {
+          "name": "work_sessions_started_at_idx",
+          "columns": [
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_sessions_assignee_issue_open_unique_idx": {
+          "name": "work_sessions_assignee_issue_open_unique_idx",
+          "columns": [
+            {
+              "expression": "assignee_login",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "repository",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issue_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"work_sessions\".\"ended_at\" IS NULL AND \"work_sessions\".\"excluded_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_sessions_ended_after_started_chk": {
+          "name": "work_sessions_ended_after_started_chk",
+          "value": "\"work_sessions\".\"ended_at\" IS NULL OR \"work_sessions\".\"ended_at\" > \"work_sessions\".\"started_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.worker_profiles": {
+      "name": "worker_profiles",
+      "schema": "",
+      "columns": {
+        "login": {
+          "name": "login",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skills": {
+          "name": "skills",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "specialty_note": {
+          "name": "specialty_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "availability_note": {
+          "name": "availability_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "self_assignment_note": {
+          "name": "self_assignment_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "admin_note": {
+          "name": "admin_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "admin_note_updated_by": {
+          "name": "admin_note_updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "admin_note_updated_at": {
+          "name": "admin_note_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "worker_profiles_display_name_idx": {
+          "name": "worker_profiles_display_name_idx",
+          "columns": [
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "worker_profiles_skills_array_chk": {
+          "name": "worker_profiles_skills_array_chk",
+          "value": "jsonb_typeof(\"worker_profiles\".\"skills\") = 'array'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.work_log_change_request_status": {
+      "name": "work_log_change_request_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "public.work_log_change_request_type": {
+      "name": "work_log_change_request_type",
+      "schema": "public",
+      "values": [
+        "add",
+        "edit",
+        "exclude"
+      ]
+    },
+    "public.github_project_status_sync_status": {
+      "name": "github_project_status_sync_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "resolved"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
