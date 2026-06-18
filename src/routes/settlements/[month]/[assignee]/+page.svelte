@@ -1,11 +1,28 @@
 <script lang="ts">
-  import type { PageProps } from "./$types";
+  import { enhance } from "$app/forms";
+  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { ActionData, PageProps } from "./$types";
+  import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import { formatDateTime, formatIssueName, formatProjectName, formatYen } from "$lib/format";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
 
-  let { data }: PageProps = $props();
+  let { data, form }: PageProps = $props();
+  let pendingAction = $state<string | null>(null);
+
+  const enhanceAction = (name: string): SubmitFunction =>
+    () => {
+      pendingAction = name;
+      return async ({ update }) => {
+        await update();
+        pendingAction = null;
+      };
+    };
+
   const summary = $derived(data.summary);
   const snapshot = $derived(data.snapshot?.snapshot as { taxExcludedYen?: number } | undefined);
+  const actionMessage = $derived((form as ActionData | undefined)?.message);
+  const submission = $derived(data.submission);
+  const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
     snapshot?.taxExcludedYen === undefined || !summary
       ? null
@@ -76,6 +93,10 @@
 {#if !summary}
   <section class="panel">対象データがありません。</section>
 {:else}
+  {#if actionMessage}
+    <p class="notice" role="status">{actionMessage}</p>
+  {/if}
+
   <section class="summary-grid">
     <div>
       <span>固定報酬</span>
@@ -93,6 +114,62 @@
       <span>確定差分</span>
       <strong>{diff === null ? "-" : formatYen(diff)}</strong>
     </div>
+  </section>
+
+  <section class="panel">
+    <h2>月次確定申請</h2>
+    {#if !summary.approvalRequired}
+      <p class="muted">この月は精算対象がないため、月次確定申請は不要です。</p>
+    {:else}
+      <div class="submission-status">
+        {#if submission}
+          <div>
+            <span>申請状態</span>
+            {#if submission.hasChanges}
+              <strong class="bad">申請後変更あり</strong>
+            {:else}
+              <strong class="ok">申請済み</strong>
+            {/if}
+          </div>
+          <div>
+            <span>申請日時</span>
+            <strong>{formatDateTime(submission.submittedAt)}</strong>
+          </div>
+        {:else}
+          <div>
+            <span>申請状態</span>
+            <strong class="bad">未申請</strong>
+          </div>
+        {/if}
+      </div>
+
+      {#if data.submissionBlockingReasons.length}
+        <div class="inline-alert">
+          <strong>申請前に確認が必要です</strong>
+          <ul>
+            {#each data.submissionBlockingReasons as reason (reason)}
+              <li>{reason}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+
+      {#if !canSubmitWork}
+        <p class="muted">月次確定申請はassignee本人だけが実行できます。</p>
+      {:else if submission && !submission.hasChanges}
+        <p class="ok">この月の稼働は確定申請済みです。申請後に内容が変わった場合は再申請が必要です。</p>
+      {:else}
+        <form method="POST" action="?/submitWork" use:enhance={enhanceAction("submit-work")}>
+          <ActionSubmit
+            actionName="submit-work"
+            {pendingAction}
+            label={submission ? "変更内容で再申請" : "この月の稼働を確定して申請"}
+            pendingLabel={submission ? "再申請中..." : "申請中..."}
+            disabled={data.submissionBlockingReasons.length > 0}
+          />
+        </form>
+      {/if}
+    {/if}
   </section>
 
   {#if summary.blockingReasons.length}
@@ -363,14 +440,66 @@
     font-size: 1.25rem;
   }
 
+  .notice {
+    margin: -0.2rem 0 1rem;
+    border-radius: 6px;
+    background: #ecfdf5;
+    color: #047857;
+    padding: 0.7rem 0.85rem;
+    font-weight: 700;
+  }
+
   .panel {
     margin-bottom: 1rem;
     overflow-x: auto;
   }
 
+  .ok {
+    color: #047857;
+    font-weight: 700;
+  }
+
+  .bad {
+    color: #b91c1c;
+    font-weight: 700;
+  }
+
   .alert {
     background: #fff7ed;
     color: #9a3412;
+  }
+
+  .inline-alert {
+    margin: 0.8rem 0;
+    border-radius: 6px;
+    background: #fff7ed;
+    color: #9a3412;
+    padding: 0.8rem;
+  }
+
+  .inline-alert ul {
+    margin: 0.5rem 0 0;
+  }
+
+  .submission-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .submission-status div {
+    min-width: 11rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.7rem;
+  }
+
+  .submission-status span {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #66736d;
+    font-size: 0.78rem;
   }
 
   table {

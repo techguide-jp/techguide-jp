@@ -15,6 +15,7 @@
   const detailAssignee = $derived(settlementDetailMatch ? decodeURIComponent(settlementDetailMatch[2]) : null);
   const isWorkActive = $derived(pathname === "/work");
   const isLoginActive = $derived(pathname === "/login");
+  const isHelpActive = $derived(pathname === "/help");
   const isSelfSettlementActive = $derived(Boolean(data.user && detailAssignee === data.user.login));
   const isMonthlySettlementActive = $derived(
     Boolean(
@@ -83,10 +84,16 @@
             Project確認
           </a>
         {/if}
+        <a href="/help" class:active={isHelpActive} aria-current={isHelpActive ? "page" : undefined}>
+          ヘルプ
+        </a>
         <a href="/logout">ログアウト</a>
       {:else}
         <a href="/login" class:active={isLoginActive} aria-current={isLoginActive ? "page" : undefined}>
           ログイン
+        </a>
+        <a href="/help" class:active={isHelpActive} aria-current={isHelpActive ? "page" : undefined}>
+          ヘルプ
         </a>
       {/if}
     </nav>

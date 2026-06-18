@@ -99,6 +99,19 @@ export const monthlySettlementSnapshots = pgTable(
   (table) => [primaryKey({ columns: [table.month, table.assigneeLogin] })]
 );
 
+export const monthlyWorkSubmissions = pgTable(
+  "monthly_work_submissions",
+  {
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    submittedBy: text("submitted_by").notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [primaryKey({ columns: [table.month, table.assigneeLogin] })]
+);
+
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
 export type MonthlySettlementSnapshot = typeof monthlySettlementSnapshots.$inferSelect;
+export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;

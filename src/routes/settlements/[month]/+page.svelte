@@ -12,6 +12,9 @@
   const snapshotByAssignee = $derived(
     new Map(data.snapshots.map((snapshot) => [snapshot.assigneeLogin, snapshot]))
   );
+  const submissionByAssignee = $derived(
+    new Map(data.submissions.map((submission) => [submission.assigneeLogin, submission]))
+  );
 
   const enhanceAction = (name: string, clearHashOnSuccess = false): SubmitFunction =>
     () => {
@@ -142,6 +145,7 @@
     <tbody>
       {#each data.summaries as summary (summary.assigneeLogin)}
         {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
+        {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
         <tr>
           <td>
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}>{summary.assigneeLogin}</a>
@@ -153,14 +157,29 @@
           <td>
             {#if !summary.approvalRequired}
               <span class="muted">精算対象なし</span>
+            {:else if snapshot && !snapshot.hasChanges}
+              <span class="status-stack">
+                <strong class="ok">承認済み</strong>
+                <small>{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small>
+              </span>
+            {:else if !submission}
+              <span class="bad">未申請</span>
+            {:else if submission.hasChanges}
+              <span class="status-stack">
+                <strong class="bad">申請後変更あり</strong>
+                <small>{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small>
+              </span>
+            {:else if submission.blockingReasons.length}
+              <span class="status-stack">
+                <strong class="bad">申請済み・要確認</strong>
+                <small>{formatDateTime(submission.submittedAt)} / {submission.submittedBy}</small>
+              </span>
             {:else if snapshot}
               <span class="status-stack">
-                {#if snapshot.hasChanges && summary.blockingReasons.length}
+                {#if summary.blockingReasons.length}
                   <strong class="bad">承認済み・要確認</strong>
-                {:else if snapshot.hasChanges}
-                  <strong class="bad">承認後変更あり</strong>
                 {:else}
-                  <strong class="ok">承認済み</strong>
+                  <strong class="bad">承認後変更あり</strong>
                 {/if}
                 <small>{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small>
               </span>
@@ -175,6 +194,8 @@
               <span class="muted">-</span>
             {:else if snapshot && !snapshot.hasChanges}
               <span class="muted">-</span>
+            {:else if !submission || submission.hasChanges || submission.blockingReasons.length}
+              <button class="button primary" type="button" disabled>{snapshot ? "再承認" : "承認"}</button>
             {:else if summary.blockingReasons.length > 0}
               <button class="button primary" type="button" disabled>{snapshot ? "再承認" : "承認"}</button>
             {:else}
@@ -192,6 +213,7 @@
 {#each data.summaries as summary (summary.assigneeLogin)}
   {#if summary.approvalRequired}
     {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
+    {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
     <div
       id={`approve-${summary.assigneeLogin}`}
       class="modal-backdrop"
@@ -212,6 +234,14 @@
                 前回承認: {formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}
                 {#if snapshot.hasChanges}
                   <span>現在の承認内容に変更があります</span>
+                {/if}
+              </p>
+            {/if}
+            {#if submission}
+              <p class="approval-record">
+                稼働者申請: {formatDateTime(submission.submittedAt)} / {submission.submittedBy}
+                {#if submission.hasChanges}
+                  <span>申請後に承認内容が変更されています</span>
                 {/if}
               </p>
             {/if}
@@ -245,6 +275,22 @@
             <strong>承認不可</strong>
             <ul>
               {#each summary.blockingReasons as reason (reason)}
+                <li>{reason}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if !submission || submission.hasChanges || submission.blockingReasons.length}
+          <div class="modal-alert">
+            <strong>稼働者申請の確認が必要です</strong>
+            <ul>
+              {#if !submission}
+                <li>稼働者の月次確定申請がありません。</li>
+              {:else if submission.hasChanges}
+                <li>稼働者の月次確定申請後に内容が変更されています。</li>
+              {/if}
+              {#each submission?.blockingReasons ?? [] as reason (reason)}
                 <li>{reason}</li>
               {/each}
             </ul>
@@ -347,7 +393,12 @@
               {pendingAction}
               label={snapshot ? "この内容で再承認" : "この内容で承認"}
               pendingLabel={snapshot ? "再承認中..." : "承認中..."}
-              disabled={summary.blockingReasons.length > 0}
+              disabled={
+                summary.blockingReasons.length > 0 ||
+                !submission ||
+                submission.hasChanges ||
+                submission.blockingReasons.length > 0
+              }
             />
           </form>
         </footer>
