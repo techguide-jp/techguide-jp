@@ -3,6 +3,7 @@ import {
   exchangeGithubCode,
   fetchGithubUser,
   githubStateCookieName,
+  resolveOAuthAppOrigin,
 } from "$lib/server/auth/githubOAuth";
 import { createSession, sessionCookieName } from "$lib/server/auth/session";
 
@@ -16,7 +17,7 @@ export const GET = async ({ cookies, url }) => {
   }
 
   cookies.delete(githubStateCookieName, { path: "/" });
-  const token = await exchangeGithubCode(code);
+  const token = await exchangeGithubCode(code, resolveOAuthAppOrigin(url));
   const githubUser = await fetchGithubUser(token);
 
   const session = await createSession({
