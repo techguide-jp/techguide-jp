@@ -18,7 +18,7 @@
   }
 
   .modal-scrim {
-    @apply absolute inset-0 z-0;
+    @apply absolute inset-0 z-0 cursor-default border-0 bg-transparent p-0;
   }
 
   .modal-header,

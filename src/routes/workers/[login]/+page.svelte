@@ -405,6 +405,12 @@
 
 {#if data.canEditSelf && isPreferenceExamplesOpen}
   <div class="modal-backdrop">
+    <button
+      class="modal-scrim"
+      type="button"
+      aria-label="希望例を閉じる"
+      onclick={() => (isPreferenceExamplesOpen = false)}
+    ></button>
     <div
       class="modal preference-example-modal"
       role="dialog"
