@@ -30,7 +30,7 @@ export const env = {
   sessionSecret:
     optional("SESSION_SECRET") ??
     (dev ? "development-session-secret" : undefined),
-  appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
+  appOrigin: optional("APP_ORIGIN") ?? optionalPublic("PUBLIC_APP_ORIGIN"),
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
   e2eTestMode: optional("E2E_TEST_MODE") === "1",
 };
