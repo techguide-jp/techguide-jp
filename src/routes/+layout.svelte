@@ -62,12 +62,14 @@
 </script>
 
 <svelte:head>
-  <title>稼働精算 | techguide-jp</title>
+  <title>TechGuideの稼働精算</title>
 </svelte:head>
 
 <div class="shell">
   <header class="topbar">
-    <a class="brand" href={data.user ? "/work" : "/login"}>稼働精算</a>
+    <a class="brand" href={data.user ? "/work" : "/login"}>
+      TechGuideの稼働精算
+    </a>
     <nav class="topnav" aria-label="主要ナビゲーション">
       {#if data.user}
         <a
