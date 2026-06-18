@@ -3,13 +3,30 @@
     .page-heading,
     .session-row,
     .modal-actions,
-    .section-heading {
+    .section-heading,
+    .profile-panel-heading,
+    .profile-field-header {
       @apply flex-col items-stretch;
     }
 
     .guide-card,
-    .pending-session {
+    .pending-session,
+    .profile-layout,
+    .profile-note-grid,
+    .profile-details > div {
       @apply grid-cols-1;
+    }
+
+    .profile-side-panel {
+      @apply static;
+    }
+
+    .worker-summary-metrics {
+      @apply grid-cols-2;
+    }
+
+    .skill-entry {
+      @apply grid;
     }
 
     .row-actions,

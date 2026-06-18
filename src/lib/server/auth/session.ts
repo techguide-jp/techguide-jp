@@ -3,6 +3,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { db } from "$lib/server/db/client";
 import { authSessions } from "$lib/server/db/schema";
 import { env, requireEnv } from "$lib/server/env";
+import { ensureWorkerProfile } from "$lib/server/workers/workerProfileService";
 
 const SESSION_DAYS = 30;
 
@@ -30,6 +31,10 @@ export const createSession = async (user: {
   const hashedId = sessionIdHash(id);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
+  await ensureWorkerProfile({
+    login: user.login,
+    displayName: user.name,
+  });
   await db.insert(authSessions).values({
     id: hashedId,
     githubLogin: user.login,

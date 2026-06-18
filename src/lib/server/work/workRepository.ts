@@ -93,6 +93,13 @@ export const listOpenWorkSessionsForAssignee = async (
     );
 };
 
+export const listOpenWorkSessions = async (): Promise<WorkSession[]> => {
+  return db
+    .select()
+    .from(workSessions)
+    .where(and(isNull(workSessions.endedAt), isNull(workSessions.excludedAt)));
+};
+
 export const findOpenWorkSession = async (
   assigneeLogin: string,
   repository: string,

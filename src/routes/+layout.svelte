@@ -21,6 +21,9 @@
   const isWorkActive = $derived(pathname === "/work");
   const isLoginActive = $derived(pathname === "/login");
   const isHelpActive = $derived(pathname === "/help");
+  const isProfileActive = $derived(
+    Boolean(data.user && pathname === `/workers/${data.user.login}`),
+  );
   const isSelfSettlementActive = $derived(
     Boolean(data.user && detailAssignee === data.user.login),
   );
@@ -31,6 +34,7 @@
         (settlementDetailMatch && detailAssignee !== data.user.login)),
     ),
   );
+  const isAdminWorkActive = $derived(pathname === "/admin/work");
   const isProjectHealthActive = $derived(pathname === "/admin/project-health");
   const breadcrumbs = $derived(buildBreadcrumbs(pathname, data.user));
 
@@ -84,7 +88,21 @@
         >
           自分の精算
         </a>
+        <a
+          href={`/workers/${data.user.login}`}
+          class:active={isProfileActive}
+          aria-current={isProfileActive ? "page" : undefined}
+        >
+          プロフィール
+        </a>
         {#if data.user.isAdmin}
+          <a
+            href="/admin/work"
+            class:active={isAdminWorkActive}
+            aria-current={isAdminWorkActive ? "page" : undefined}
+          >
+            稼働確認
+          </a>
           <a
             href={`/settlements/${currentMonth}`}
             class:active={isMonthlySettlementActive}
