@@ -4,7 +4,8 @@
     .session-row,
     .modal-actions,
     .section-heading,
-    .profile-panel-heading {
+    .profile-panel-heading,
+    .profile-field-header {
       @apply flex-col items-stretch;
     }
 

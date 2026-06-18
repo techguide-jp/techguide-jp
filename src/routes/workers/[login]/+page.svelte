@@ -30,6 +30,7 @@
   let selfAssignmentNote = $state(initialProfile().selfAssignmentNote);
   let adminNote = $state(initialProfile().adminNote);
   let syncedProfileKey = $state(profileKey(initialProfile()));
+  let isPreferenceExamplesOpen = $state(false);
 
   const profileSyncKey = $derived(profileKey(data.profile));
   const skillsFieldValue = $derived(skills.join("\n"));
@@ -38,6 +39,45 @@
       ? displayName || data.profile.login
       : data.profile.displayName,
   );
+  const preferenceExampleGroups = [
+    {
+      title: "触ってみたい技術",
+      examples: [
+        "SvelteKit / Svelte 5 の画面実装を増やしたい",
+        "AI API / LLM 連携の実装に挑戦したい",
+        "Drizzle / PostgreSQL の設計やクエリ改善を触りたい",
+        "Playwright / Vitest でテスト整備を担当したい",
+        "Vercel / CI/CD 周りの改善を経験したい",
+      ],
+    },
+    {
+      title: "任されたい仕事",
+      examples: [
+        "小さめのUI改善から入り、慣れたら画面全体を任されたい",
+        "仕様が曖昧な箇所を整理しながら実装したい",
+        "既存機能のバグ調査と修正がやりやすい",
+        "管理画面や運用を楽にする機能に関わりたい",
+      ],
+    },
+    {
+      title: "進め方",
+      examples: [
+        "最初に目的・完了条件・確認方法を揃えてから進めたい",
+        "途中で早めにレビューをもらえると進めやすい",
+        "詰まったら早めに相談し、方向性を合わせたい",
+        "まとまった作業時間を確保して一気に進めたい",
+      ],
+    },
+    {
+      title: "稼働条件",
+      examples: [
+        "平日夜を中心に対応しやすい",
+        "短納期より、事前にスコープが見えているタスクがやりやすい",
+        "緊急対応は事前に相談できると動きやすい",
+        "レビュー待ちや仕様待ちの間に別タスクも並行できる",
+      ],
+    },
+  ];
 
   $effect(() => {
     if (syncedProfileKey === profileSyncKey) return;
@@ -88,6 +128,19 @@
     event.preventDefault();
     event.stopPropagation();
     addSkillDraft();
+  };
+
+  const hasPreferenceExample = (example: string): boolean =>
+    selfAssignmentNote
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .includes(example);
+
+  const appendPreferenceExample = (example: string) => {
+    if (hasPreferenceExample(example)) return;
+    selfAssignmentNote = [selfAssignmentNote.trim(), example]
+      .filter(Boolean)
+      .join("\n");
   };
 
   const enhanceAction =
@@ -221,16 +274,31 @@
           </label>
         </div>
 
-        <label class="profile-field profile-field-wide">
-          <span>仕事の進め方・希望</span>
+        <div class="profile-field profile-field-wide">
+          <div class="profile-field-header">
+            <label for="self-assignment-note">仕事の進め方・希望</label>
+            <button
+              class="preference-example-trigger"
+              type="button"
+              onclick={() => (isPreferenceExamplesOpen = true)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 3v18" />
+                <path d="M5 8h14" />
+                <path d="M5 16h14" />
+              </svg>
+              希望例
+            </button>
+          </div>
           <textarea
+            id="self-assignment-note"
             name="selfAssignmentNote"
             rows="5"
             maxlength="2000"
             bind:value={selfAssignmentNote}
             placeholder="集中しやすいタスク、相談したい条件、避けたい進め方など"
           ></textarea>
-        </label>
+        </div>
 
         <div class="form-actions profile-actions">
           <ActionSubmit
@@ -319,3 +387,60 @@
     </aside>
   {/if}
 </div>
+
+{#if data.canEditSelf && isPreferenceExamplesOpen}
+  <div class="modal-backdrop">
+    <div
+      class="modal preference-example-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="preference-examples-title"
+    >
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">preference examples</p>
+          <h2 id="preference-examples-title">希望例</h2>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="希望例を閉じる"
+          onclick={() => (isPreferenceExamplesOpen = false)}
+        >
+          ×
+        </button>
+      </div>
+      <div class="preference-example-grid">
+        {#each preferenceExampleGroups as group (group.title)}
+          <section class="preference-example-group">
+            <h3>{group.title}</h3>
+            <div class="preference-example-list">
+              {#each group.examples as example (example)}
+                <button
+                  class="preference-example-button"
+                  type="button"
+                  data-selected={hasPreferenceExample(example)}
+                  onclick={() => appendPreferenceExample(example)}
+                >
+                  <span>{example}</span>
+                  <strong>
+                    {hasPreferenceExample(example) ? "追加済み" : "追加"}
+                  </strong>
+                </button>
+              {/each}
+            </div>
+          </section>
+        {/each}
+      </div>
+      <footer class="modal-actions">
+        <button
+          class="button secondary ghost"
+          type="button"
+          onclick={() => (isPreferenceExamplesOpen = false)}
+        >
+          閉じる
+        </button>
+      </footer>
+    </div>
+  </div>
+{/if}

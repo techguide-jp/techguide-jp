@@ -226,8 +226,13 @@
   }
 
   .profile-field > span,
+  .profile-field-header > label,
   .profile-field-label {
     @apply text-sm font-bold text-slate-700;
+  }
+
+  .profile-field-header {
+    @apply flex items-center justify-between gap-3;
   }
 
   .profile-field input,
@@ -279,6 +284,65 @@
 
   .skill-chip span:last-child {
     @apply text-teal-700;
+  }
+
+  .preference-example-trigger {
+    @apply inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-900;
+    font: inherit;
+  }
+
+  .preference-example-trigger svg {
+    @apply h-3.5 w-3.5;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .preference-example-trigger:hover,
+  .preference-example-trigger:focus-visible,
+  .preference-example-button:hover,
+  .preference-example-button:focus-visible {
+    @apply border-teal-400 bg-teal-50 outline-2 outline-offset-2 outline-teal-600;
+  }
+
+  .preference-example-modal {
+    width: min(56rem, 100%);
+  }
+
+  .preference-example-grid {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    @apply grid gap-4;
+  }
+
+  .preference-example-group {
+    @apply grid content-start gap-3 rounded-md border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .preference-example-group h3 {
+    @apply m-0 text-base;
+  }
+
+  .preference-example-list {
+    @apply grid gap-2;
+  }
+
+  .preference-example-button {
+    @apply grid cursor-pointer gap-2 rounded-md border border-slate-200 bg-white p-3 text-left text-sm leading-6 text-slate-800;
+    font: inherit;
+  }
+
+  .preference-example-button strong {
+    @apply justify-self-start rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600;
+  }
+
+  .preference-example-button[data-selected="true"] {
+    @apply border-teal-200 bg-teal-50 text-teal-900;
+  }
+
+  .preference-example-button[data-selected="true"] strong {
+    @apply bg-white text-teal-800;
   }
 
   .profile-details {
