@@ -215,6 +215,28 @@ export const githubProjectStatusSyncs = pgTable(
   ],
 );
 
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorLogin: text("actor_login").notNull(),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    details: jsonb("details")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("audit_logs_actor_idx").on(table.actorLogin),
+    index("audit_logs_action_idx").on(table.action),
+    index("audit_logs_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
 export type MonthlySettlementSnapshot =
@@ -222,3 +244,4 @@ export type MonthlySettlementSnapshot =
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;
 export type GithubProjectStatusSync =
   typeof githubProjectStatusSyncs.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;

@@ -1,5 +1,12 @@
 @import "tailwindcss";
-@import "./lib/styles/components.css";
+@import "./lib/styles/layout.css";
+@import "./lib/styles/feedback.css";
+@import "./lib/styles/controls.css";
+@import "./lib/styles/help.css";
+@import "./lib/styles/work.css";
+@import "./lib/styles/modal.css";
+@import "./lib/styles/settlement.css";
+@import "./lib/styles/responsive.css";
 
 @layer base {
   body {

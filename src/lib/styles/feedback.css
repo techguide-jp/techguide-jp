@@ -1,0 +1,65 @@
+@layer components {
+  .panel {
+    @apply mb-4 overflow-x-auto rounded-lg border border-stone-300 bg-white p-4;
+  }
+
+  .alert,
+  .notice,
+  .inline-alert,
+  .modal-alert {
+    @apply rounded-md p-3;
+  }
+
+  .alert,
+  .inline-alert,
+  .modal-alert {
+    @apply bg-orange-50 text-orange-800;
+  }
+
+  .alert {
+    @apply mb-4;
+  }
+
+  .notice {
+    @apply mb-4 bg-emerald-50 text-emerald-700 font-bold;
+  }
+
+  .inline-alert {
+    @apply my-3;
+  }
+
+  .inline-alert ul,
+  .modal-alert ul {
+    @apply mt-2 mb-0;
+  }
+
+  .ok {
+    @apply text-emerald-700 font-bold;
+  }
+
+  .bad {
+    @apply text-red-700 font-bold;
+  }
+
+  .muted,
+  small {
+    @apply text-slate-500;
+  }
+
+  .health-grid {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    @apply grid gap-3;
+  }
+
+  .health-card {
+    @apply grid gap-2 rounded-md border border-slate-200 p-3;
+  }
+
+  .health-card span {
+    @apply text-sm text-slate-500;
+  }
+
+  .health-card strong {
+    @apply text-xl;
+  }
+}

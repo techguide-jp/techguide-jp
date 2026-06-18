@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { browser } from "$app/environment";
+  import { replaceState } from "$app/navigation";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -37,15 +37,13 @@
         await update();
         pendingAction = null;
         if (
-          browser &&
           clearHashOnSuccess &&
           result.type === "success" &&
           globalThis.location.hash
         ) {
-          globalThis.history.replaceState(
-            null,
-            "",
+          replaceState(
             `${globalThis.location.pathname}${globalThis.location.search}`,
+            {},
           );
         }
       };

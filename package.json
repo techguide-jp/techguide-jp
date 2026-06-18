@@ -13,6 +13,8 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:db": "RUN_DB_INTEGRATION=1 vitest run tests/dbConstraints.integration.test.ts",
+    "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^25.9.3",
@@ -41,5 +44,11 @@
     "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
     "vitest": "^4.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "cookie": "^1.1.1",
+      "esbuild": "^0.28.1"
+    }
   }
 }

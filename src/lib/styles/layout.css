@@ -1,0 +1,67 @@
+@layer components {
+  .shell {
+    @apply min-h-screen;
+  }
+
+  .topbar {
+    @apply flex flex-wrap items-center justify-between gap-4 border-b border-stone-300 bg-white px-6 py-4;
+  }
+
+  .brand {
+    @apply font-extrabold no-underline;
+  }
+
+  .topnav {
+    @apply flex flex-wrap gap-3 text-sm;
+  }
+
+  .topnav a {
+    @apply border-b-2 border-transparent py-0.5 text-emerald-900 no-underline;
+  }
+
+  .topnav a.active {
+    @apply border-teal-700 text-teal-700 font-extrabold;
+  }
+
+  .page-main {
+    width: min(1180px, calc(100% - 2rem));
+    @apply mx-auto py-6 pb-12;
+  }
+
+  .breadcrumb {
+    @apply mb-4 text-sm text-slate-500;
+  }
+
+  .breadcrumb ol {
+    @apply m-0 flex list-none flex-wrap gap-1 p-0;
+  }
+
+  .breadcrumb li {
+    @apply flex items-center gap-1;
+  }
+
+  .breadcrumb li:not(:last-child)::after {
+    content: "/";
+    @apply text-stone-400;
+  }
+
+  .breadcrumb a {
+    @apply text-emerald-900 no-underline font-bold;
+  }
+
+  .breadcrumb span {
+    @apply text-slate-900 font-bold;
+  }
+
+  .page-heading {
+    @apply mb-4 flex items-end justify-between gap-4;
+  }
+
+  .page-heading > p {
+    @apply mt-1 text-slate-600;
+  }
+
+  .eyebrow {
+    @apply mb-1 text-xs uppercase text-slate-500;
+  }
+}

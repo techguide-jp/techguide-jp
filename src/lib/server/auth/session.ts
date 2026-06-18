@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, count, eq, gt, lt } from "drizzle-orm";
 import { createHmac, randomBytes } from "node:crypto";
 import { db } from "$lib/server/db/client";
 import { authSessions } from "$lib/server/db/schema";
@@ -74,4 +74,20 @@ export const deleteSession = async (
   await db
     .delete(authSessions)
     .where(eq(authSessions.id, sessionIdHash(sessionId)));
+};
+
+export const countExpiredSessions = async (): Promise<number> => {
+  const [result] = await db
+    .select({ value: count() })
+    .from(authSessions)
+    .where(lt(authSessions.expiresAt, new Date()));
+  return result?.value ?? 0;
+};
+
+export const deleteExpiredSessions = async (): Promise<number> => {
+  const deleted = await db
+    .delete(authSessions)
+    .where(lt(authSessions.expiresAt, new Date()))
+    .returning();
+  return deleted.length;
 };

@@ -1,0 +1,73 @@
+import { expect, test } from "@playwright/test";
+
+const currentJstMonth = (): string => {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  if (!year || !month) throw new Error("Failed to build current JST month");
+  return `${year}-${month}`;
+};
+
+test.beforeEach(async ({ request }) => {
+  const response = await request.post("/__e2e/reset");
+  expect(response.ok()).toBe(true);
+});
+
+test.afterEach(async ({ request }) => {
+  const response = await request.post("/__e2e/reset");
+  expect(response.ok()).toBe(true);
+});
+
+test("稼働開始と終了を記録できる", async ({ page }) => {
+  await page.goto("/__e2e/login");
+
+  await expect(page).toHaveURL(/\/work$/);
+  await expect(
+    page.getByRole("heading", { name: "稼働", exact: true }),
+  ).toBeVisible();
+
+  const issueRow = page.getByRole("row").filter({
+    hasText: "#501 E2E: 稼働開始と終了を確認する",
+  });
+  await issueRow.getByRole("button", { name: "開始" }).click();
+
+  await expect(page.getByText("稼働を開始し").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "稼働中" })).toBeVisible();
+  await page.getByRole("button", { name: "終了" }).click();
+
+  await expect(page.getByText("稼働を終了しました")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "稼働ログ" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "修正" }).first(),
+  ).toBeVisible();
+});
+
+test("本人申請後に管理者が月次承認できる", async ({ page }) => {
+  const month = currentJstMonth();
+  await page.goto("/__e2e/login");
+  await page.goto(`/settlements/${month}/tashua314`);
+
+  await expect(
+    page.getByText("#502 E2E: 月次申請と承認を確認する"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "この月の稼働を確定して申請" })
+    .click();
+  await expect(
+    page.getByText(`${month} の稼働を確定して申請しました。`),
+  ).toBeVisible();
+
+  await page.goto(`/settlements/${month}`);
+  await page.getByRole("link", { name: "承認" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "この内容で承認" }).click();
+
+  await expect(
+    page.getByText("tashua314 の月次精算を承認しました。"),
+  ).toBeVisible();
+  await expect(page.getByText("承認済み")).toBeVisible();
+});

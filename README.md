@@ -12,6 +12,7 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 - assignee別の月次精算表示
 - 管理者による月次承認スナップショット保存
 - Projectフィールドのヘルスチェック
+- 管理者向け運用ヘルス、監査ログ、期限切れセッション削除
 
 ## 必要なGitHub Projectフィールド
 
@@ -49,7 +50,17 @@ pnpm dev
 ## 検証
 
 ```bash
+pnpm format:check
 pnpm check
 pnpm lint
 pnpm test
+pnpm build
+```
+
+DB制約テストとE2Eは実DBを使います。テスト用DBへ migration を適用してから実行します。
+
+```bash
+pnpm db:migrate
+RUN_DB_INTEGRATION=1 pnpm test:db
+E2E_TEST_MODE=1 ADMIN_GITHUB_LOGINS=tashua314 pnpm e2e
 ```

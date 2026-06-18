@@ -1,3 +1,4 @@
+import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssues } from "$lib/server/github/projectClient";
 import {
   listChangeRequestsForSettlementContext,
@@ -181,6 +182,18 @@ export const submitSettlementWork = async (
   }
 
   await upsertWorkSubmission(summary, submittedBy);
+  await createAuditLog({
+    actorLogin: submittedBy,
+    action: "monthly_work_submitted",
+    targetType: "monthly_work_submission",
+    targetId: `${month}:${assigneeLogin}`,
+    details: {
+      month,
+      assigneeLogin,
+      taxExcludedYen: summary.taxExcludedYen,
+      taxIncludedYen: summary.taxIncludedYen,
+    },
+  });
   return { ok: true };
 };
 
@@ -223,6 +236,18 @@ export const approveSettlement = async (
   }
 
   await upsertSnapshot(summary, approvedBy);
+  await createAuditLog({
+    actorLogin: approvedBy,
+    action: "monthly_settlement_approved",
+    targetType: "monthly_settlement_snapshot",
+    targetId: `${month}:${assigneeLogin}`,
+    details: {
+      month,
+      assigneeLogin,
+      taxExcludedYen: summary.taxExcludedYen,
+      taxIncludedYen: summary.taxIncludedYen,
+    },
+  });
   return { ok: true };
 };
 
@@ -244,5 +269,18 @@ export const reviewSettlementChangeRequest = async (
       message: "修正申請が見つからないか、すでに採否決定済みです。",
     };
   }
+  await createAuditLog({
+    actorLogin: reviewedBy,
+    action: "work_log_change_reviewed",
+    targetType: "work_log_change_request",
+    targetId: request.id,
+    details: {
+      status,
+      assigneeLogin: request.assigneeLogin,
+      repository: request.repository,
+      issueNumber: request.issueNumber,
+      note,
+    },
+  });
   return { ok: true };
 };

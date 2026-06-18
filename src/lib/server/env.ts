@@ -32,6 +32,7 @@ export const env = {
     (dev ? "development-session-secret" : undefined),
   appOrigin: optionalPublic("PUBLIC_APP_ORIGIN") ?? "http://localhost:5173",
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
+  e2eTestMode: optional("E2E_TEST_MODE") === "1",
 };
 
 export const requireEnv = (value: string | undefined, name: string): string => {
