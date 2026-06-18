@@ -50,6 +50,8 @@ export const load = async (event) => {
         const warnings: string[] = [];
         if (issue.assignees.length !== 1)
           warnings.push("assigneeが単一ではありません");
+        if (issue.rewardMode !== "固定" && issue.rewardMode !== "ハイブリッド")
+          warnings.push("報酬方式が未入力または不正です");
         if (issue.status === "Done" && issue.fixedRewardYen === null)
           warnings.push("固定報酬額が未入力です");
         if (

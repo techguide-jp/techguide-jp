@@ -45,6 +45,12 @@
 
   const issueKey = (issue: Issue): string =>
     `${issue.repository}#${issue.number}`;
+  const canStartIssue = (issue: Issue): boolean =>
+    issue.state !== "CLOSED" && issue.status !== "Done";
+  const issueWorkState = (issue: Issue, key: string): string => {
+    if (openKeySet.has(key)) return "稼働中";
+    return canStartIssue(issue) ? "待機" : "完了済み";
+  };
   const issueLabel = (issue: Issue): string =>
     `${formatProjectName(issue.repository)} / ${formatIssueName(issue.number, issue.title)}`;
   const sessionIssueKey = (session: WorkSession): string =>
@@ -189,6 +195,7 @@
       <tbody>
         {#each data.issues as issue (`${issue.repository}#${issue.number}`)}
           {@const key = `${issue.repository}#${issue.number}`}
+          {@const canStart = canStartIssue(issue)}
           <tr>
             <td>{formatProjectName(issue.repository)}</td>
             <td>
@@ -203,7 +210,7 @@
                 ? `${issue.hourlyRateYen.toLocaleString()}円`
                 : "-"}</td
             >
-            <td>{openKeySet.has(key) ? "稼働中" : "待機"}</td>
+            <td>{issueWorkState(issue, key)}</td>
             <td>
               <div class="row-actions">
                 <form
@@ -226,7 +233,7 @@
                     {pendingAction}
                     label="開始"
                     pendingLabel="開始中..."
-                    disabled={openKeySet.has(key)}
+                    disabled={openKeySet.has(key) || !canStart}
                   />
                 </form>
                 <button

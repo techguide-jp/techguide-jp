@@ -129,6 +129,25 @@ describe("startIssueWork", () => {
     expect(setProjectItemStatus).not.toHaveBeenCalled();
   });
 
+  it("完了済みIssueの通常稼働開始を拒否する", async () => {
+    const result = await startIssueWork(
+      issueFormData(),
+      [
+        issue({
+          state: "CLOSED",
+          closedAt: "2026-06-18T01:00:00Z",
+          status: "Done",
+        }),
+      ],
+      "tashua314",
+    );
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.message).toContain("完了済みのIssue");
+    expect(createWorkSession).not.toHaveBeenCalled();
+    expect(setProjectItemStatus).not.toHaveBeenCalled();
+  });
+
   it("Status更新が失敗しても稼働開始は成功として扱う", async () => {
     vi.mocked(setProjectItemStatus).mockRejectedValue(
       new Error("GitHub error"),

@@ -102,6 +102,17 @@ describe("buildSettlementSummaries", () => {
     expect(summaries[0].taxExcludedYen).toBe(1000);
   });
 
+  it("報酬方式が未入力の精算対象Issueを承認ブロックにする", () => {
+    const summaries = buildSettlementSummaries(
+      "2026-07",
+      [issue({ rewardMode: null })],
+      [session()],
+      requests,
+    );
+
+    expect(summaries[0].blockingReasons[0]).toContain("報酬方式");
+  });
+
   it("未終了ログを集計対象外にして警告する", () => {
     const summaries = buildSettlementSummaries(
       "2026-07",
@@ -152,6 +163,38 @@ describe("buildSettlementSummaries", () => {
     );
 
     expect(effective[0].excludedAt).toBeInstanceOf(Date);
+  });
+
+  it("承認済み変更申請をreviewedAt順で安定適用する", () => {
+    const baseSession = session({
+      id: "00000000-0000-4000-8000-000000000001",
+    });
+    const earlierEdit = request({
+      id: "00000000-0000-4000-8000-000000000002",
+      requestType: "edit",
+      targetSessionId: baseSession.id,
+      requestedStartedAt: new Date("2026-06-10T01:05:00Z"),
+      requestedEndedAt: new Date("2026-06-10T01:35:00Z"),
+      reviewedAt: new Date("2026-06-11T00:00:00Z"),
+      createdAt: new Date("2026-06-10T03:00:00Z"),
+    });
+    const laterEdit = request({
+      id: "00000000-0000-4000-8000-000000000003",
+      requestType: "edit",
+      targetSessionId: baseSession.id,
+      requestedStartedAt: new Date("2026-06-10T01:10:00Z"),
+      requestedEndedAt: new Date("2026-06-10T01:50:00Z"),
+      reviewedAt: new Date("2026-06-11T00:10:00Z"),
+      createdAt: new Date("2026-06-10T03:05:00Z"),
+    });
+
+    const effective = applyApprovedChangeRequests(
+      [baseSession],
+      [laterEdit, earlierEdit],
+    );
+
+    expect(effective[0].startedAt).toEqual(new Date("2026-06-10T01:10:00Z"));
+    expect(effective[0].endedAt).toEqual(new Date("2026-06-10T01:50:00Z"));
   });
 
   it("作業中の未close Project Issueをログなしでも未精算予定に出す", () => {

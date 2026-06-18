@@ -71,6 +71,9 @@ const isUniqueViolation = (error: unknown): boolean => {
   );
 };
 
+const isClosedForNormalWork = (issue: ProjectIssue): boolean =>
+  issue.state === "CLOSED" || issue.status === "Done";
+
 export const startIssueWork = async (
   formData: FormData,
   issues: ProjectIssue[],
@@ -84,6 +87,13 @@ export const startIssueWork = async (
       input.issueNumber,
       userLogin,
     );
+    if (isClosedForNormalWork(issue)) {
+      return {
+        ok: false,
+        message:
+          "完了済みのIssueは稼働開始できません。必要な場合は追加申請を使ってください。",
+      };
+    }
     const existing = await findOpenWorkSession(
       userLogin,
       issue.repository,

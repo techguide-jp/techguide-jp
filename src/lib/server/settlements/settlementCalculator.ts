@@ -57,6 +57,23 @@ const sessionMinutes = (session: WorkSession): number => {
   return minutesBetween(session.startedAt, session.endedAt);
 };
 
+const changeRequestOrderTime = (request: WorkLogChangeRequest): number =>
+  (request.reviewedAt ?? request.createdAt).getTime();
+
+const compareChangeRequests = (
+  left: WorkLogChangeRequest,
+  right: WorkLogChangeRequest,
+): number => {
+  const orderTime =
+    changeRequestOrderTime(left) - changeRequestOrderTime(right);
+  if (orderTime !== 0) return orderTime;
+
+  const createdAt = left.createdAt.getTime() - right.createdAt.getTime();
+  if (createdAt !== 0) return createdAt;
+
+  return left.id.localeCompare(right.id);
+};
+
 export const applyApprovedChangeRequests = (
   sessions: WorkSession[],
   changeRequests: WorkLogChangeRequest[],
@@ -66,9 +83,11 @@ export const applyApprovedChangeRequests = (
     effectiveSessions.set(session.id, session);
   }
 
-  for (const request of changeRequests) {
-    if (request.status !== "approved") continue;
+  const approvedRequests = changeRequests
+    .filter((request) => request.status === "approved")
+    .sort(compareChangeRequests);
 
+  for (const request of approvedRequests) {
     if (
       request.requestType === "add" &&
       request.requestedStartedAt &&
@@ -146,6 +165,9 @@ const buildLine = (
   if (issue.assignees.length !== 1)
     warnings.push("assigneeが単一ではありません。");
   if (issue.fixedRewardYen === null) warnings.push("固定報酬額が未入力です。");
+  if (issue.rewardMode !== "固定" && issue.rewardMode !== "ハイブリッド") {
+    warnings.push("報酬方式が未入力または不正です。");
+  }
   if (issue.rewardMode === "ハイブリッド" && issue.hourlyRateYen === null) {
     warnings.push("ハイブリッドIssueの時間単価が未入力です。");
   }
