@@ -88,11 +88,15 @@ const readStdin = () => {
 
 const envFilePath = resolve(process.cwd(), options.envFile);
 const fileEnv = parseEnvFile(envFilePath);
-const databaseUrl =
-  fileEnv.DATABASE_URL ??
-  fileEnv.PRODUCTION_DATABASE_URL ??
-  process.env.DATABASE_URL ??
-  process.env.PRODUCTION_DATABASE_URL;
+const firstNonEmpty = (...values) =>
+  values.find((value) => typeof value === "string" && value.trim().length > 0);
+
+const databaseUrl = firstNonEmpty(
+  fileEnv.DATABASE_URL,
+  fileEnv.PRODUCTION_DATABASE_URL,
+  process.env.DATABASE_URL,
+  process.env.PRODUCTION_DATABASE_URL,
+);
 
 const query = sqlParts.join(" ").trim() || readStdin();
 
