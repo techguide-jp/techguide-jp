@@ -118,7 +118,12 @@
   {/if}
 </section>
 
-{#if data.health.missingFields.length || data.health.invalidFields.length}
+{#if data.projectFetchError}
+  <section class="panel alert">
+    <h2>GitHub Projectを取得できません</h2>
+    <p>{data.projectFetchError}</p>
+  </section>
+{:else if data.health.missingFields.length || data.health.invalidFields.length}
   <section class="alert">
     Projectフィールドに不足があります。管理者に確認してください。
   </section>
@@ -179,77 +184,81 @@
 
 <section class="panel">
   <h2>Project内Issue</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Project</th>
-          <th>Issue</th>
-          <th>Status</th>
-          <th>報酬方式</th>
-          <th>単価</th>
-          <th>状態</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each data.issues as issue (`${issue.repository}#${issue.number}`)}
-          {@const key = `${issue.repository}#${issue.number}`}
-          {@const canStart = canStartIssue(issue)}
+  {#if data.projectFetchError}
+    <p class="muted">Issue一覧を表示できません。</p>
+  {:else}
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
-            <td>{formatProjectName(issue.repository)}</td>
-            <td>
-              <a href={issue.url} target="_blank" rel="noreferrer">
-                {formatIssueName(issue.number, issue.title)}
-              </a>
-            </td>
-            <td>{issue.status ?? "-"}</td>
-            <td>{issue.rewardMode ?? "-"}</td>
-            <td
-              >{issue.hourlyRateYen
-                ? `${issue.hourlyRateYen.toLocaleString()}円`
-                : "-"}</td
-            >
-            <td>{issueWorkState(issue, key)}</td>
-            <td>
-              <div class="row-actions">
-                <form
-                  method="POST"
-                  action="?/start"
-                  use:enhance={enhanceAction(`start-${key}`)}
-                >
-                  <input
-                    type="hidden"
-                    name="repository"
-                    value={issue.repository}
-                  />
-                  <input
-                    type="hidden"
-                    name="issueNumber"
-                    value={issue.number}
-                  />
-                  <ActionSubmit
-                    actionName={`start-${key}`}
-                    {pendingAction}
-                    label="開始"
-                    pendingLabel="開始中..."
-                    disabled={openKeySet.has(key) || !canStart}
-                  />
-                </form>
-                <button
-                  class="button secondary"
-                  type="button"
-                  onclick={() => openAddDialog(issue)}
-                >
-                  追加申請
-                </button>
-              </div>
-            </td>
+            <th>Project</th>
+            <th>Issue</th>
+            <th>Status</th>
+            <th>報酬方式</th>
+            <th>単価</th>
+            <th>状態</th>
+            <th>操作</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          {#each data.issues as issue (`${issue.repository}#${issue.number}`)}
+            {@const key = `${issue.repository}#${issue.number}`}
+            {@const canStart = canStartIssue(issue)}
+            <tr>
+              <td>{formatProjectName(issue.repository)}</td>
+              <td>
+                <a href={issue.url} target="_blank" rel="noreferrer">
+                  {formatIssueName(issue.number, issue.title)}
+                </a>
+              </td>
+              <td>{issue.status ?? "-"}</td>
+              <td>{issue.rewardMode ?? "-"}</td>
+              <td
+                >{issue.hourlyRateYen
+                  ? `${issue.hourlyRateYen.toLocaleString()}円`
+                  : "-"}</td
+              >
+              <td>{issueWorkState(issue, key)}</td>
+              <td>
+                <div class="row-actions">
+                  <form
+                    method="POST"
+                    action="?/start"
+                    use:enhance={enhanceAction(`start-${key}`)}
+                  >
+                    <input
+                      type="hidden"
+                      name="repository"
+                      value={issue.repository}
+                    />
+                    <input
+                      type="hidden"
+                      name="issueNumber"
+                      value={issue.number}
+                    />
+                    <ActionSubmit
+                      actionName={`start-${key}`}
+                      {pendingAction}
+                      label="開始"
+                      pendingLabel="開始中..."
+                      disabled={openKeySet.has(key) || !canStart}
+                    />
+                  </form>
+                  <button
+                    class="button secondary"
+                    type="button"
+                    onclick={() => openAddDialog(issue)}
+                  >
+                    追加申請
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
 </section>
 
 <section class="panel">
@@ -293,6 +302,7 @@
                     <button
                       class="button secondary"
                       type="button"
+                      disabled={Boolean(data.projectFetchError)}
                       onclick={() => openEditDialog(session)}
                     >
                       修正
@@ -300,6 +310,7 @@
                     <button
                       class="button danger ghost"
                       type="button"
+                      disabled={Boolean(data.projectFetchError)}
                       onclick={() => openExcludeDialog(session)}
                     >
                       除外

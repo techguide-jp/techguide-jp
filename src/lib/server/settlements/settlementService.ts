@@ -1,5 +1,5 @@
 import { createAuditLog } from "$lib/server/audit/auditRepository";
-import { fetchProjectIssues } from "$lib/server/github/projectClient";
+import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import {
   listChangeRequestsForSettlementContext,
   listWorkSessionsForSettlementContext,
@@ -29,6 +29,9 @@ import {
 } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
+
+const PROJECT_FETCH_BLOCKING_REASON =
+  "GitHub Projectを取得できないため、精算額を確定できません。";
 
 const toSnapshotMeta = (
   snapshot: MonthlySettlementSnapshot,
@@ -96,7 +99,8 @@ const toSubmissionMeta = (
 });
 
 export const loadSettlementMonth = async (month: string) => {
-  const { health, issues } = await fetchProjectIssues();
+  const { health, issues, projectFetchError } =
+    await fetchProjectIssuesForPage();
   const range = jstMonthRangeUtc(month);
   const closedIssueRefs = issues
     .filter((issue) => issue.closedAt && toJstMonth(issue.closedAt) === month)
@@ -122,6 +126,7 @@ export const loadSettlementMonth = async (month: string) => {
     sessions,
     requests,
     summaries,
+    projectFetchError,
     snapshots: snapshots.map((snapshot) =>
       toSnapshotMeta(snapshot, summaryByAssignee.get(snapshot.assigneeLogin)),
     ),
@@ -144,14 +149,20 @@ export const loadSettlementAssignee = async (
   const submission =
     data.submissions.find((entry) => entry.assigneeLogin === assigneeLogin) ??
     null;
+  const projectFetchBlockingReasons = data.projectFetchError
+    ? [PROJECT_FETCH_BLOCKING_REASON]
+    : [];
   return {
     ...data,
     summary,
     snapshot,
     submission,
     submissionBlockingReasons: summary
-      ? getWorkSubmissionBlockingReasons(summary)
-      : [],
+      ? [
+          ...projectFetchBlockingReasons,
+          ...getWorkSubmissionBlockingReasons(summary),
+        ]
+      : projectFetchBlockingReasons,
   };
 };
 
@@ -164,7 +175,11 @@ export const submitSettlementWork = async (
     return { ok: false, message: "本人以外の月次確定申請はできません。" };
   }
 
-  const { summary } = await loadSettlementAssignee(month, assigneeLogin);
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  if (data.projectFetchError) {
+    return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
+  }
+  const { summary } = data;
   if (!summary) {
     return { ok: false, message: "対象assigneeの精算データがありません。" };
   }
@@ -202,10 +217,11 @@ export const approveSettlement = async (
   assigneeLogin: string,
   approvedBy: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const { summary, submission } = await loadSettlementAssignee(
-    month,
-    assigneeLogin,
-  );
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  if (data.projectFetchError) {
+    return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
+  }
+  const { summary, submission } = data;
   if (!summary) {
     return { ok: false, message: "対象assigneeの精算データがありません。" };
   }

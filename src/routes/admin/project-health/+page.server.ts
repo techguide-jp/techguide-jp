@@ -1,8 +1,7 @@
 import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
 import { listRecentAuditLogs } from "$lib/server/audit/auditRepository";
-import { fetchProjectIssues } from "$lib/server/github/projectClient";
-import { requiredProjectFields } from "$lib/server/github/projectTypes";
+import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import { listPendingProjectStatusSyncs } from "$lib/server/github/statusSyncRepository";
 import { retryProjectStatusSync } from "$lib/server/github/statusSyncService";
 import {
@@ -14,28 +13,12 @@ export const load = async (event) => {
   const user = requireAdmin(event);
   const [projectResult, statusSyncs, operationalHealth, auditLogs] =
     await Promise.all([
-      fetchProjectIssues()
-        .then((result) => ({ ok: true as const, result }))
-        .catch((error: unknown) => ({
-          ok: false as const,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Project取得に失敗しました。",
-        })),
+      fetchProjectIssuesForPage(),
       listPendingProjectStatusSyncs(),
       loadOperationalHealth(),
       listRecentAuditLogs(),
     ]);
-  const health = projectResult.ok
-    ? projectResult.result.health
-    : {
-        title: "外注管理",
-        missingFields: Object.values(requiredProjectFields),
-        invalidFields: [],
-        availableFields: [],
-      };
-  const issues = projectResult.ok ? projectResult.result.issues : [];
+  const { health, issues, projectFetchError } = projectResult;
 
   return {
     user,
@@ -44,7 +27,7 @@ export const load = async (event) => {
     statusSyncs,
     operationalHealth,
     auditLogs,
-    projectFetchError: projectResult.ok ? null : projectResult.error,
+    projectFetchError,
     issueWarnings: issues
       .map((issue) => {
         const warnings: string[] = [];

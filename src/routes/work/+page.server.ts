@@ -1,6 +1,10 @@
 import { fail } from "@sveltejs/kit";
 import { requireUser } from "$lib/server/auth/guards";
-import { fetchProjectIssues } from "$lib/server/github/projectClient";
+import {
+  fetchProjectIssues,
+  fetchProjectIssuesForPage,
+  projectFetchErrorMessage,
+} from "$lib/server/github/projectClient";
 import { listPendingProjectStatusSyncsForAssignee } from "$lib/server/github/statusSyncRepository";
 import { retryProjectStatusSync } from "$lib/server/github/statusSyncService";
 import {
@@ -16,17 +20,23 @@ import {
 
 export const load = async (event) => {
   const user = requireUser(event);
-  const [{ health, issues }, openSessions, sessions, requests, statusSyncs] =
-    await Promise.all([
-      fetchProjectIssues(),
-      listOpenWorkSessionsForAssignee(user.login),
-      listWorkSessionsForAssignee(user.login),
-      listChangeRequests(),
-      listPendingProjectStatusSyncsForAssignee(user.login),
-    ]);
+  const [
+    { health, issues, projectFetchError },
+    openSessions,
+    sessions,
+    requests,
+    statusSyncs,
+  ] = await Promise.all([
+    fetchProjectIssuesForPage(),
+    listOpenWorkSessionsForAssignee(user.login),
+    listWorkSessionsForAssignee(user.login),
+    listChangeRequests(),
+    listPendingProjectStatusSyncsForAssignee(user.login),
+  ]);
 
   return {
     health,
+    projectFetchError,
     issues: issues.filter((issue) => issue.assignees.includes(user.login)),
     openSessions,
     sessions,
@@ -40,10 +50,16 @@ export const load = async (event) => {
 export const actions = {
   start: async (event) => {
     const user = requireUser(event);
-    const { issues } = await fetchProjectIssues();
+    const projectResult = await fetchProjectIssues()
+      .then((result) => ({ ok: true as const, result }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        message: projectFetchErrorMessage(error),
+      }));
+    if (!projectResult.ok) return fail(503, { message: projectResult.message });
     const result = await startIssueWork(
       await event.request.formData(),
-      issues,
+      projectResult.result.issues,
       user.login,
     );
     if (!result.ok) return fail(400, { message: result.message });
@@ -60,10 +76,16 @@ export const actions = {
   },
   requestChange: async (event) => {
     const user = requireUser(event);
-    const { issues } = await fetchProjectIssues();
+    const projectResult = await fetchProjectIssues()
+      .then((result) => ({ ok: true as const, result }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        message: projectFetchErrorMessage(error),
+      }));
+    if (!projectResult.ok) return fail(503, { message: projectResult.message });
     const result = await requestWorkLogChange(
       await event.request.formData(),
-      issues,
+      projectResult.result.issues,
       user.login,
     );
     if (!result.ok) return fail(400, { message: result.message });

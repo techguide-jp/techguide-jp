@@ -73,10 +73,29 @@
 </section>
 
 {#if !summary}
+  {#if data.projectFetchError}
+    <section class="panel alert">
+      <h2>GitHub Projectを取得できません</h2>
+      <p>{data.projectFetchError}</p>
+      <p class="muted">
+        Issue由来の報酬情報が取得できないため、月次確定申請はできません。
+      </p>
+    </section>
+  {/if}
   <section class="panel">対象データがありません。</section>
 {:else}
   {#if actionMessage}
     <p class="notice" role="status">{actionMessage}</p>
+  {/if}
+
+  {#if data.projectFetchError}
+    <section class="panel alert">
+      <h2>GitHub Projectを取得できません</h2>
+      <p>{data.projectFetchError}</p>
+      <p class="muted">
+        Issue由来の報酬情報が取得できないため、月次確定申請はできません。
+      </p>
+    </section>
   {/if}
 
   <section class="summary-grid">
