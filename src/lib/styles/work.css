@@ -17,6 +17,10 @@
     @apply border-emerald-200 bg-emerald-50;
   }
 
+  .standby-worker-card {
+    @apply border-cyan-200 bg-cyan-50;
+  }
+
   .active-worker-card .session-row {
     @apply border-emerald-200 bg-white;
   }
@@ -265,6 +269,10 @@
     @apply border-l-violet-400;
   }
 
+  .admin-work-section[data-tone="standby"] {
+    @apply border-l-cyan-400;
+  }
+
   .admin-work-section[data-tone="todo"] {
     @apply border-l-amber-400;
   }
@@ -295,6 +303,10 @@
 
   .admin-metric-card[data-tone="unassigned"] {
     @apply border-rose-200 border-l-rose-500 bg-rose-50 text-rose-950;
+  }
+
+  .admin-metric-card[data-tone="standby"] {
+    @apply border-cyan-200 border-l-cyan-500 bg-cyan-50 text-cyan-950;
   }
 
   .request-type-badge {

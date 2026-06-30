@@ -13,6 +13,18 @@
 
   let { data }: PageProps = $props();
 
+  const pendingRequestLogins = $derived(
+    new Set(data.pendingRequests.map((request) => request.assigneeLogin)),
+  );
+  const standbyWorkers = $derived(
+    data.workers.filter(
+      (worker) =>
+        worker.openSessions.length === 0 &&
+        worker.issueSummary.total === 0 &&
+        !pendingRequestLogins.has(worker.login),
+    ),
+  );
+
   const requestHref = (request: Request): string =>
     `https://github.com/${request.repository}/issues/${request.issueNumber}`;
   const requestTypeLabel = (type: Request["requestType"]): string =>
@@ -93,6 +105,10 @@
       <span>未担当</span>
       <strong>{countLabel(data.unassignedIssueSummary.total)}</strong>
     </div>
+    <div class="health-card admin-metric-card" data-tone="standby">
+      <span>登録済み・未割り当て</span>
+      <strong>{countLabel(standbyWorkers.length)}</strong>
+    </div>
   </div>
 </section>
 
@@ -141,6 +157,56 @@
               </div>
             {/each}
           </div>
+        </article>
+      {/each}
+    </div>
+  {/if}
+</section>
+
+<section class="panel admin-work-section" data-tone="standby">
+  <h2>登録済み・未割り当て</h2>
+  {#if standbyWorkers.length === 0}
+    <p class="muted">登録済みで未割り当ての作業者はいません。</p>
+  {:else}
+    <div class="worker-card-grid">
+      {#each standbyWorkers as worker (worker.login)}
+        <article class="worker-card standby-worker-card">
+          <div class="worker-card-heading">
+            <div>
+              <h3>
+                <a href={`/workers/${worker.login}`}>{worker.displayName}</a>
+              </h3>
+              <code>{worker.login}</code>
+            </div>
+            <CopyLoginButton login={worker.login} />
+          </div>
+          <div class="summary-chip-list">
+            <span class="summary-chip" data-tone="muted">稼働中: 0件</span>
+            <span class="summary-chip" data-tone="muted">担当Issue: 0件</span>
+          </div>
+          <div class="summary-group">
+            <span class="summary-label">Skills</span>
+            {#if worker.skills.length}
+              <div class="chip-list">
+                {#each worker.skills as skill (skill)}
+                  <span class="chip">{skill}</span>
+                {/each}
+              </div>
+            {:else}
+              <span class="muted">未登録</span>
+            {/if}
+          </div>
+          {#if worker.availabilityNote || worker.selfAssignmentNote}
+            <div class="summary-group">
+              <span class="summary-label">稼働・希望</span>
+              {#if worker.availabilityNote}
+                <p class="summary-text">{worker.availabilityNote}</p>
+              {/if}
+              {#if worker.selfAssignmentNote}
+                <p class="summary-text">{worker.selfAssignmentNote}</p>
+              {/if}
+            </div>
+          {/if}
         </article>
       {/each}
     </div>
