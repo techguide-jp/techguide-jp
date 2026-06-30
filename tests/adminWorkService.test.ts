@@ -151,4 +151,33 @@ describe("buildAdminWorkDashboard", () => {
       }),
     });
   });
+
+  it("ログイン済みでまだ作業していない作業者も表示する", () => {
+    const dashboard = buildAdminWorkDashboard({
+      health,
+      projectFetchError: null,
+      issues: [],
+      openSessions: [],
+      pendingRequests: [],
+      profiles: [
+        profile({
+          login: "new-worker",
+          displayName: "新規作業者",
+          skills: ["UI"],
+        }),
+      ],
+    });
+
+    expect(dashboard.workers).toHaveLength(1);
+    expect(dashboard.activeWorkers).toHaveLength(0);
+    expect(dashboard.workers[0]).toMatchObject({
+      login: "new-worker",
+      displayName: "新規作業者",
+      skills: ["UI"],
+      issueSummary: expect.objectContaining({
+        total: 0,
+      }),
+      openSessions: [],
+    });
+  });
 });

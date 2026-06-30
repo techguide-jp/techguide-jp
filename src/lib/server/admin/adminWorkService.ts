@@ -12,7 +12,7 @@ import {
   listOpenWorkSessions,
   listPendingChangeRequests,
 } from "$lib/server/work/workRepository";
-import { listWorkerProfiles } from "$lib/server/workers/workerProfileRepository";
+import { listAllWorkerProfiles } from "$lib/server/workers/workerProfileRepository";
 import {
   toWorkerProfileView,
   type WorkerProfileView,
@@ -117,8 +117,10 @@ const collectLogins = (
   issues: ProjectIssue[],
   openSessions: WorkSession[],
   pendingRequests: WorkLogChangeRequest[],
+  profiles: WorkerProfile[],
 ): string[] => {
   const logins = new Set<string>();
+  for (const profile of profiles) logins.add(profile.login);
   for (const issue of issues) {
     for (const login of issue.assignees) logins.add(login);
   }
@@ -140,6 +142,7 @@ export const buildAdminWorkDashboard = (
     input.issues,
     input.openSessions,
     input.pendingRequests,
+    input.profiles,
   );
 
   for (const issue of input.issues) {
@@ -208,17 +211,13 @@ export const buildAdminWorkDashboard = (
 };
 
 export const loadAdminWorkDashboard = async (): Promise<AdminWorkDashboard> => {
-  const [projectResult, openSessions, pendingRequests] = await Promise.all([
-    fetchProjectIssuesForPage(),
-    listOpenWorkSessions(),
-    listPendingChangeRequests(),
-  ]);
-  const logins = collectLogins(
-    projectResult.issues,
-    openSessions,
-    pendingRequests,
-  );
-  const profiles = await listWorkerProfiles(logins);
+  const [projectResult, openSessions, pendingRequests, profiles] =
+    await Promise.all([
+      fetchProjectIssuesForPage(),
+      listOpenWorkSessions(),
+      listPendingChangeRequests(),
+      listAllWorkerProfiles(),
+    ]);
 
   return buildAdminWorkDashboard({
     health: projectResult.health,

@@ -25,6 +25,10 @@ export const listWorkerProfiles = async (
     .where(inArray(workerProfiles.login, uniqueLogins));
 };
 
+export const listAllWorkerProfiles = async (): Promise<WorkerProfile[]> => {
+  return db.select().from(workerProfiles);
+};
+
 export const ensureWorkerProfile = async (input: {
   login: string;
   displayName: string;
