@@ -3,6 +3,10 @@ import type {
   WorkerProfile,
   WorkSession,
 } from "$lib/server/db/schema";
+import {
+  listActiveSessionUsers,
+  type ActiveSessionUser,
+} from "$lib/server/auth/session";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import type {
   ProjectFieldHealth,
@@ -56,6 +60,7 @@ type BuildAdminWorkDashboardInput = {
   openSessions: WorkSession[];
   pendingRequests: WorkLogChangeRequest[];
   profiles: WorkerProfile[];
+  activeSessionUsers: ActiveSessionUser[];
 };
 
 const issueKey = (issue: {
@@ -118,9 +123,11 @@ const collectLogins = (
   openSessions: WorkSession[],
   pendingRequests: WorkLogChangeRequest[],
   profiles: WorkerProfile[],
+  activeSessionUsers: ActiveSessionUser[],
 ): string[] => {
   const logins = new Set<string>();
   for (const profile of profiles) logins.add(profile.login);
+  for (const sessionUser of activeSessionUsers) logins.add(sessionUser.login);
   for (const issue of issues) {
     for (const login of issue.assignees) logins.add(login);
   }
@@ -135,6 +142,12 @@ export const buildAdminWorkDashboard = (
   const profileByLogin = new Map(
     input.profiles.map((profile) => [profile.login, profile]),
   );
+  const activeSessionUserByLogin = new Map(
+    input.activeSessionUsers.map((sessionUser) => [
+      sessionUser.login,
+      sessionUser,
+    ]),
+  );
   const issuesByLogin = new Map<string, ProjectIssue[]>();
   const sessionsByLogin = new Map<string, WorkSession[]>();
   const openIssueKeys = new Set(input.openSessions.map(issueKey));
@@ -143,6 +156,7 @@ export const buildAdminWorkDashboard = (
     input.openSessions,
     input.pendingRequests,
     input.profiles,
+    input.activeSessionUsers,
   );
 
   for (const issue of input.issues) {
@@ -159,10 +173,9 @@ export const buildAdminWorkDashboard = (
   }
 
   const workers = logins.map((login): AdminWorkerSummary => {
-    const profile = toWorkerProfileView(
-      login,
-      profileByLogin.get(login) ?? null,
-    );
+    const profileRow = profileByLogin.get(login) ?? null;
+    const profile = toWorkerProfileView(login, profileRow);
+    const sessionUser = activeSessionUserByLogin.get(login);
     const issues = [...(issuesByLogin.get(login) ?? [])].sort(compareIssues);
     const openSessions = [...(sessionsByLogin.get(login) ?? [])].sort(
       compareSessions,
@@ -170,6 +183,9 @@ export const buildAdminWorkDashboard = (
 
     return {
       ...profile,
+      displayName: profileRow
+        ? profile.displayName
+        : (sessionUser?.displayName ?? profile.displayName),
       openSessions,
       issueSummary: summarizeIssues(issues),
     };
@@ -211,13 +227,19 @@ export const buildAdminWorkDashboard = (
 };
 
 export const loadAdminWorkDashboard = async (): Promise<AdminWorkDashboard> => {
-  const [projectResult, openSessions, pendingRequests, profiles] =
-    await Promise.all([
-      fetchProjectIssuesForPage(),
-      listOpenWorkSessions(),
-      listPendingChangeRequests(),
-      listAllWorkerProfiles(),
-    ]);
+  const [
+    projectResult,
+    openSessions,
+    pendingRequests,
+    profiles,
+    activeSessionUsers,
+  ] = await Promise.all([
+    fetchProjectIssuesForPage(),
+    listOpenWorkSessions(),
+    listPendingChangeRequests(),
+    listAllWorkerProfiles(),
+    listActiveSessionUsers(),
+  ]);
 
   return buildAdminWorkDashboard({
     health: projectResult.health,
@@ -226,5 +248,6 @@ export const loadAdminWorkDashboard = async (): Promise<AdminWorkDashboard> => {
     openSessions,
     pendingRequests,
     profiles,
+    activeSessionUsers,
   });
 };

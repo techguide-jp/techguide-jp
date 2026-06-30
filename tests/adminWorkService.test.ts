@@ -108,6 +108,7 @@ describe("buildAdminWorkDashboard", () => {
       openSessions: [session({ issueNumber: 501, issueTitle: "稼働中" })],
       pendingRequests: [request({ assigneeLogin: "pending-user" })],
       profiles: [profile({ login: "tashua314", displayName: "たしゅあ" })],
+      activeSessionUsers: [],
     });
 
     expect(dashboard.activeWorkers.map((worker) => worker.login)).toEqual([
@@ -139,6 +140,7 @@ describe("buildAdminWorkDashboard", () => {
       openSessions: [],
       pendingRequests: [],
       profiles: [profile({ skills: ["SvelteKit", "Drizzle"] })],
+      activeSessionUsers: [],
     });
 
     expect(dashboard.workers[0]).toMatchObject({
@@ -166,6 +168,7 @@ describe("buildAdminWorkDashboard", () => {
           skills: ["UI"],
         }),
       ],
+      activeSessionUsers: [],
     });
 
     expect(dashboard.workers).toHaveLength(1);
@@ -174,6 +177,34 @@ describe("buildAdminWorkDashboard", () => {
       login: "new-worker",
       displayName: "新規作業者",
       skills: ["UI"],
+      issueSummary: expect.objectContaining({
+        total: 0,
+      }),
+      openSessions: [],
+    });
+  });
+
+  it("有効なログインセッションだけの作業者も表示する", () => {
+    const dashboard = buildAdminWorkDashboard({
+      health,
+      projectFetchError: null,
+      issues: [],
+      openSessions: [],
+      pendingRequests: [],
+      profiles: [],
+      activeSessionUsers: [
+        {
+          login: "session-worker",
+          displayName: "セッション作業者",
+        },
+      ],
+    });
+
+    expect(dashboard.workers).toHaveLength(1);
+    expect(dashboard.workers[0]).toMatchObject({
+      login: "session-worker",
+      displayName: "セッション作業者",
+      exists: false,
       issueSummary: expect.objectContaining({
         total: 0,
       }),

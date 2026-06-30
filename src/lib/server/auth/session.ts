@@ -16,6 +16,11 @@ export type SessionUser = {
   isAdmin: boolean;
 };
 
+export type ActiveSessionUser = {
+  login: string;
+  displayName: string;
+};
+
 const sessionIdHash = (sessionId: string): string => {
   return createHmac("sha256", requireEnv(env.sessionSecret, "SESSION_SECRET"))
     .update(sessionId)
@@ -79,6 +84,32 @@ export const deleteSession = async (
   await db
     .delete(authSessions)
     .where(eq(authSessions.id, sessionIdHash(sessionId)));
+};
+
+export const listActiveSessionUsers = async (): Promise<
+  ActiveSessionUser[]
+> => {
+  const rows = await db
+    .select({
+      login: authSessions.githubLogin,
+      name: authSessions.githubName,
+      createdAt: authSessions.createdAt,
+    })
+    .from(authSessions)
+    .where(gt(authSessions.expiresAt, new Date()));
+
+  const latestByLogin = new Map<string, ActiveSessionUser>();
+  for (const row of rows.sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  )) {
+    if (latestByLogin.has(row.login)) continue;
+    latestByLogin.set(row.login, {
+      login: row.login,
+      displayName: row.name?.trim() || row.login,
+    });
+  }
+
+  return [...latestByLogin.values()];
 };
 
 export const countExpiredSessions = async (): Promise<number> => {
