@@ -16,7 +16,9 @@
     "test:db": "RUN_DB_INTEGRATION=1 vitest run tests/dbConstraints.integration.test.ts",
     "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:query": "node scripts/db-query.mjs",
+    "db:query:prod": "node scripts/db-query.mjs --dotenv .env.production --read-only"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
