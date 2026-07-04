@@ -11,6 +11,7 @@
     formatProjectName,
     formatYen,
   } from "$lib/format";
+  import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
 
   let { data, form }: PageProps = $props();
@@ -76,8 +77,8 @@
   <section class="panel alert">
     <h2>振込先情報が未登録です</h2>
     <p>
-      支払い前に振込先の登録が必要です。<a href={`/workers/${data.assignee}`}
-        >プロフィール</a
+      支払い前に振込先の登録が必要です。<a
+        href={workerPayoutAccountHref(data.assignee)}>振込先情報</a
       >から登録してください。
     </p>
   </section>
@@ -109,7 +110,7 @@
     <div>
       <dt>確認</dt>
       <dd>
-        <a href={`/workers/${data.assignee}`}>振込先を確認・登録</a>
+        <a href={workerPayoutAccountHref(data.assignee)}>振込先を確認・登録</a>
       </dd>
     </div>
   </dl>

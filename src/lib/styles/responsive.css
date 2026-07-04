@@ -5,7 +5,8 @@
     .modal-actions,
     .section-heading,
     .profile-panel-heading,
-    .profile-field-header {
+    .profile-field-header,
+    .payout-panel-meta {
       @apply flex-col items-stretch;
     }
 
@@ -13,6 +14,7 @@
     .pending-session,
     .profile-layout,
     .profile-note-grid,
+    .payout-section-grid,
     .profile-details > div {
       @apply grid-cols-1;
     }

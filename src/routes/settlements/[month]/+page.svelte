@@ -12,6 +12,7 @@
     formatYen,
   } from "$lib/format";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
+  import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
@@ -217,7 +218,9 @@
               <span class="bad">未登録</span>
             {/if}
             <div>
-              <a href={`/workers/${summary.assigneeLogin}`}>プロフィール</a>
+              <a href={workerPayoutAccountHref(summary.assigneeLogin)}
+                >振込先を確認</a
+              >
             </div>
           </td>
           <td>

@@ -1,12 +1,16 @@
 <script lang="ts">
   import type { PageProps } from "./$types";
   import { currentJstMonth } from "$lib/month";
+  import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
 
   let { data }: PageProps = $props();
   const currentMonth = $derived(currentJstMonth());
   const workHref = $derived(data.user ? "/work" : "/login");
   const selfSettlementHref = $derived(
     data.user ? `/settlements/${currentMonth}/${data.user.login}` : "/login",
+  );
+  const payoutAccountHref = $derived(
+    data.user ? workerPayoutAccountHref(data.user.login) : "/login",
   );
 </script>
 
@@ -89,9 +93,7 @@
       <div>
         <h2>振込先情報を登録する</h2>
         <p>
-          <a href={data.user ? `/workers/${data.user.login}` : "/login"}
-            >プロフィール</a
-          >
+          <a href={payoutAccountHref}>振込先情報</a>
           から金融機関名、支店名、口座種別、7桁の口座番号、口座名義を登録します。支払い前に未登録だと精算画面で警告が表示されます。
         </p>
       </div>

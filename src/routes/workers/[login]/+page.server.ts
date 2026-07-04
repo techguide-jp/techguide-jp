@@ -47,7 +47,10 @@ export const actions = {
     if (!result.ok) {
       return fail(400, { message: result.message, outcome: "error" as const });
     }
-    return { message: "プロフィールを保存しました。", outcome: "success" as const };
+    return {
+      message: "プロフィールを保存しました。",
+      outcome: "success" as const,
+    };
   },
   savePayoutAccount: async (event) => {
     const user = requireUser(event);
@@ -75,6 +78,9 @@ export const actions = {
     if (!result.ok) {
       return fail(400, { message: result.message, outcome: "error" as const });
     }
-    return { message: "管理者メモを保存しました。", outcome: "success" as const };
+    return {
+      message: "管理者メモを保存しました。",
+      outcome: "success" as const,
+    };
   },
 };
