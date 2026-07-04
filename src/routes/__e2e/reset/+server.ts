@@ -6,6 +6,7 @@ import {
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   workLogChangeRequests,
+  workerPayoutAccounts,
   workerProfiles,
   workSessions,
 } from "$lib/server/db/schema";
@@ -24,6 +25,7 @@ export const POST = async () => {
   await db.delete(workSessions);
   await db.delete(githubProjectStatusSyncs);
   await db.delete(authSessions);
+  await db.delete(workerPayoutAccounts);
   await db.delete(workerProfiles);
 
   return json({ ok: true });

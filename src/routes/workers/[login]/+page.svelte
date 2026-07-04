@@ -32,6 +32,46 @@
   let syncedProfileKey = $state(profileKey(initialProfile()));
   let isPreferenceExamplesOpen = $state(false);
 
+  type PayoutAccount = NonNullable<PageProps["data"]["payoutAccount"]>;
+  const initialPayoutAccount = (): PayoutAccount =>
+    data.payoutAccount ?? {
+      registered: false,
+      bankName: "",
+      branchName: "",
+      accountType: "ordinary",
+      accountTypeLabel: "普通",
+      accountNumber: "",
+      accountHolderName: "",
+      note: "",
+      updatedBy: null,
+      updatedAt: null,
+      version: 0,
+    };
+  const payoutAccountKey = (account: PayoutAccount): string =>
+    [
+      account.registered ? "1" : "0",
+      account.version,
+      dateKey(account.updatedAt),
+      account.bankName,
+      account.branchName,
+      account.accountType,
+      account.accountNumber,
+      account.accountHolderName,
+      account.note,
+    ].join(":");
+  let bankName = $state(initialPayoutAccount().bankName);
+  let branchName = $state(initialPayoutAccount().branchName);
+  let accountType = $state(initialPayoutAccount().accountType);
+  let accountNumber = $state(initialPayoutAccount().accountNumber);
+  let accountHolderName = $state(initialPayoutAccount().accountHolderName);
+  let payoutNote = $state(initialPayoutAccount().note);
+  let payoutVersion = $state(initialPayoutAccount().version);
+  let syncedPayoutAccountKey = $state(payoutAccountKey(initialPayoutAccount()));
+
+  const payoutAccountSyncKey = $derived(
+    data.payoutAccount ? payoutAccountKey(data.payoutAccount) : "",
+  );
+
   const profileSyncKey = $derived(profileKey(data.profile));
   const skillsFieldValue = $derived(skills.join("\n"));
   const headingDisplayName = $derived(
@@ -106,6 +146,23 @@
     adminNote = data.profile.adminNote;
   });
 
+  $effect(() => {
+    if (
+      !data.payoutAccount ||
+      syncedPayoutAccountKey === payoutAccountSyncKey
+    ) {
+      return;
+    }
+    syncedPayoutAccountKey = payoutAccountSyncKey;
+    bankName = data.payoutAccount.bankName;
+    branchName = data.payoutAccount.branchName;
+    accountType = data.payoutAccount.accountType;
+    accountNumber = data.payoutAccount.accountNumber;
+    accountHolderName = data.payoutAccount.accountHolderName;
+    payoutNote = data.payoutAccount.note;
+    payoutVersion = data.payoutAccount.version;
+  });
+
   const mergeSkills = (currentSkills: string[], value: string): string[] => {
     const next = [...currentSkills];
     for (const rawSkill of value.split(/[\n,]/)) {
@@ -158,6 +215,12 @@
       .join("\n");
   };
 
+  const sanitizeAccountNumberInput = (value: string): string =>
+    value
+      .normalize("NFKC")
+      .replace(/\D/g, "")
+      .slice(0, 7);
+
   const enhanceAction =
     (name: string): SubmitFunction =>
     ({ formData }) => {
@@ -167,6 +230,11 @@
         skillDraft = "";
         formData.set("skills", nextSkills.join("\n"));
       }
+      if (name === "save-payout-account") {
+        const normalizedAccountNumber = sanitizeAccountNumberInput(accountNumber);
+        accountNumber = normalizedAccountNumber;
+        formData.set("accountNumber", normalizedAccountNumber);
+      }
       pendingAction = name;
       return async ({ update }) => {
         await update();
@@ -175,6 +243,9 @@
     };
 
   const actionMessage = $derived((form as ActionData | undefined)?.message);
+  const actionIsError = $derived(
+    (form as ActionData | undefined)?.outcome === "error",
+  );
 </script>
 
 <section class="page-heading profile-heading">
@@ -198,7 +269,12 @@
 </section>
 
 {#if actionMessage}
-  <p class="notice" role="status">{actionMessage}</p>
+  <p
+    class={actionIsError ? "form-error" : "notice"}
+    role={actionIsError ? "alert" : "status"}
+  >
+    {actionMessage}
+  </p>
 {/if}
 
 <div class="profile-layout">
@@ -359,6 +435,151 @@
       </dl>
     {/if}
   </section>
+
+  {#if data.payoutAccount}
+    <section class="profile-panel">
+      <div class="profile-panel-heading">
+        <div>
+          <p class="eyebrow">payout account</p>
+          <h2>振込先情報</h2>
+        </div>
+        {#if data.payoutAccount.updatedAt}
+          <p class="muted">
+            更新 {formatDateTime(data.payoutAccount.updatedAt)}
+            {#if data.payoutAccount.updatedBy}
+              / {data.payoutAccount.updatedBy}
+            {/if}
+          </p>
+        {/if}
+      </div>
+
+      {#if data.canEditPayoutAccount}
+        <form
+          method="POST"
+          action="?/savePayoutAccount"
+          use:enhance={enhanceAction("save-payout-account")}
+          class="profile-editor"
+        >
+          <input type="hidden" name="version" value={payoutVersion} />
+          <div class="profile-note-grid">
+            <label class="profile-field">
+              <span>金融機関名</span>
+              <input
+                name="bankName"
+                bind:value={bankName}
+                maxlength="100"
+                required
+                autocomplete="organization"
+              />
+            </label>
+            <label class="profile-field">
+              <span>支店名</span>
+              <input
+                name="branchName"
+                bind:value={branchName}
+                maxlength="100"
+                required
+              />
+            </label>
+          </div>
+          <div class="profile-note-grid">
+            <label class="profile-field">
+              <span>口座種別</span>
+              <select name="accountType" bind:value={accountType} required>
+                <option value="ordinary">普通</option>
+                <option value="checking">当座</option>
+                <option value="savings">貯蓄</option>
+              </select>
+            </label>
+            <label class="profile-field">
+              <span>口座番号</span>
+              <input
+                name="accountNumber"
+                bind:value={accountNumber}
+                maxlength="7"
+                inputmode="numeric"
+                required
+                autocomplete="off"
+                placeholder="0123456"
+                oninput={(event) => {
+                  accountNumber = sanitizeAccountNumberInput(
+                    event.currentTarget.value,
+                  );
+                }}
+              />
+              <span class="muted">半角数字7桁。先頭ゼロあり。</span>
+            </label>
+          </div>
+          <label class="profile-field profile-field-wide">
+            <span>口座名義</span>
+            <input
+              name="accountHolderName"
+              bind:value={accountHolderName}
+              maxlength="100"
+              required
+              autocomplete="off"
+              placeholder="ヤマダ タロウ"
+            />
+          </label>
+          <label class="profile-field profile-field-wide">
+            <span>補足メモ</span>
+            <textarea
+              name="note"
+              rows="3"
+              maxlength="2000"
+              bind:value={payoutNote}
+              placeholder="ゆうちょから他行振込用に変換した口座など"></textarea>
+          </label>
+          <p class="muted">
+            {#if data.payoutAccount.registered}
+              登録済み
+            {:else}
+              未登録
+            {/if}
+          </p>
+          <div class="form-actions profile-actions">
+            <ActionSubmit
+              actionName="save-payout-account"
+              {pendingAction}
+              label="振込先情報を保存"
+              pendingLabel="保存中..."
+            />
+          </div>
+        </form>
+      {:else}
+        {#if data.payoutAccount.registered}
+          <dl class="profile-details profile-details-clean">
+            <div>
+              <dt>金融機関名</dt>
+              <dd>{data.payoutAccount.bankName}</dd>
+            </div>
+            <div>
+              <dt>支店名</dt>
+              <dd>{data.payoutAccount.branchName}</dd>
+            </div>
+            <div>
+              <dt>口座種別</dt>
+              <dd>{data.payoutAccount.accountTypeLabel}</dd>
+            </div>
+            <div>
+              <dt>口座番号</dt>
+              <dd>{data.payoutAccount.accountNumber}</dd>
+            </div>
+            <div>
+              <dt>口座名義</dt>
+              <dd>{data.payoutAccount.accountHolderName}</dd>
+            </div>
+            <div>
+              <dt>補足メモ</dt>
+              <dd>{data.payoutAccount.note || "-"}</dd>
+            </div>
+          </dl>
+        {:else}
+          <p class="muted">振込先情報は未登録です。</p>
+        {/if}
+      {/if}
+    </section>
+  {/if}
 
   {#if data.canEditAdminNote}
     <aside class="profile-panel profile-side-panel">

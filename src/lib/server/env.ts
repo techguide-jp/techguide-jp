@@ -32,6 +32,9 @@ export const env = {
     (dev ? "development-session-secret" : undefined),
   appOrigin: optional("APP_ORIGIN") ?? optionalPublic("PUBLIC_APP_ORIGIN"),
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
+  payoutAccountEncryptionKey:
+    optional("PAYOUT_ACCOUNT_ENCRYPTION_KEY") ??
+    (dev ? "ZGV2ZWxvcG1lbnQtcGF5b3V0LWFjY291bnQta2V5LTMyYiE=" : undefined),
   e2eTestMode: optional("E2E_TEST_MODE") === "1",
 };
 

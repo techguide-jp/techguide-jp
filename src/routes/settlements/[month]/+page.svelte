@@ -28,6 +28,9 @@
       ]),
     ),
   );
+  const payoutStatusByAssignee = $derived(
+    new Map(data.payoutAccountStatuses.map((status) => [status.login, status])),
+  );
 
   const enhanceAction =
     (name: string, clearHashOnSuccess = false): SubmitFunction =>
@@ -180,6 +183,7 @@
         <th>時間</th>
         <th>税抜</th>
         <th>税込</th>
+        <th>振込先</th>
         <th>状態</th>
         <th>操作</th>
       </tr>
@@ -188,6 +192,9 @@
       {#each data.summaries as summary (summary.assigneeLogin)}
         {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
         {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
+        {@const payoutStatus = payoutStatusByAssignee.get(
+          summary.assigneeLogin,
+        )}
         <tr>
           <td>
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
@@ -198,6 +205,21 @@
           <td>{formatYen(summary.timedRewardYen)}</td>
           <td>{formatYen(summary.taxExcludedYen)}</td>
           <td>{formatYen(summary.taxIncludedYen)}</td>
+          <td>
+            {#if payoutStatus?.registered}
+              <span class="status-stack">
+                <strong class="ok">登録済み</strong>
+                {#if payoutStatus.updatedAt}
+                  <small>{formatDateTime(payoutStatus.updatedAt)}</small>
+                {/if}
+              </span>
+            {:else}
+              <span class="bad">未登録</span>
+            {/if}
+            <div>
+              <a href={`/workers/${summary.assigneeLogin}`}>プロフィール</a>
+            </div>
+          </td>
           <td>
             {#if !summary.approvalRequired}
               <span class="muted">精算対象なし</span>

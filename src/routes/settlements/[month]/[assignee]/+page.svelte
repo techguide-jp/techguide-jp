@@ -72,6 +72,49 @@
   </nav>
 </section>
 
+{#if !data.payoutAccountStatus.registered}
+  <section class="panel alert">
+    <h2>振込先情報が未登録です</h2>
+    <p>
+      支払い前に振込先の登録が必要です。<a href={`/workers/${data.assignee}`}
+        >プロフィール</a
+      >から登録してください。
+    </p>
+  </section>
+{/if}
+
+<section class="panel">
+  <h2>振込先</h2>
+  <dl class="profile-details profile-details-clean">
+    <div>
+      <dt>状態</dt>
+      <dd>
+        {#if data.payoutAccountStatus.registered}
+          <span class="ok">登録済み</span>
+        {:else}
+          <span class="bad">未登録</span>
+        {/if}
+      </dd>
+    </div>
+    <div>
+      <dt>最終更新</dt>
+      <dd>
+        {#if data.payoutAccountStatus.updatedAt}
+          {formatDateTime(data.payoutAccountStatus.updatedAt)}
+        {:else}
+          -
+        {/if}
+      </dd>
+    </div>
+    <div>
+      <dt>確認</dt>
+      <dd>
+        <a href={`/workers/${data.assignee}`}>振込先を確認・登録</a>
+      </dd>
+    </div>
+  </dl>
+</section>
+
 {#if !summary}
   {#if data.projectFetchError}
     <section class="panel alert">

@@ -84,6 +84,18 @@
         </p>
       </div>
     </article>
+    <article class="guide-card">
+      <span class="step">3</span>
+      <div>
+        <h2>振込先情報を登録する</h2>
+        <p>
+          <a href={data.user ? `/workers/${data.user.login}` : "/login"}
+            >プロフィール</a
+          >
+          から金融機関名、支店名、口座種別、7桁の口座番号、口座名義を登録します。支払い前に未登録だと精算画面で警告が表示されます。
+        </p>
+      </div>
+    </article>
   </div>
 </section>
 
