@@ -94,6 +94,23 @@ describe("payoutAccountService", () => {
     expect(result).toBeNull();
   });
 
+  it("復号に失敗した登録済み振込先を編集不能なエラー状態で返す", async () => {
+    vi.mocked(getPayoutAccountRow).mockResolvedValue(
+      payoutRow({ encryptedPayload: '{"v":1,"data":"AAAA"}', version: 3 }),
+    );
+
+    const result = await loadPayoutAccountForViewer("tashua314", {
+      login: "tashua314",
+      isAdmin: false,
+    });
+
+    expect(result).toMatchObject({
+      registered: true,
+      loadError: true,
+      version: 3,
+    });
+  });
+
   it("不正な口座番号を拒否する", async () => {
     const result = await updateOwnPayoutAccount(
       payoutFormData({ accountNumber: "12345" }),
@@ -117,6 +134,24 @@ describe("payoutAccountService", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.message).toContain("郵便番号");
+    expect(upsertPayoutAccount).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["recipientName", "ア".repeat(101)],
+    ["address", "ア".repeat(501)],
+    ["bankName", "ア".repeat(101)],
+    ["branchName", "ア".repeat(101)],
+    ["accountHolderName", "ア".repeat(101)],
+    ["note", "ア".repeat(2001)],
+  ])("上限を超えた%sを切り捨てず拒否する", async (field, value) => {
+    const result = await updateOwnPayoutAccount(
+      payoutFormData({ [field]: value }),
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result.ok).toBe(false);
     expect(upsertPayoutAccount).not.toHaveBeenCalled();
   });
 

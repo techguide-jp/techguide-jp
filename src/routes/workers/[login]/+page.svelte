@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { page } from "$app/state";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
@@ -38,6 +37,7 @@
   const initialPayoutAccount = (): PayoutAccount =>
     data.payoutAccount ?? {
       registered: false,
+      loadError: false,
       recipientName: "",
       postalCode: "",
       address: "",
@@ -55,6 +55,7 @@
   const payoutAccountKey = (account: PayoutAccount): string =>
     [
       account.registered ? "1" : "0",
+      account.loadError ? "1" : "0",
       account.version,
       dateKey(account.updatedAt),
       account.recipientName,
@@ -264,16 +265,6 @@
   const actionIsError = $derived(
     (form as ActionData | undefined)?.outcome === "error",
   );
-
-  $effect(() => {
-    if (page.url.hash !== `#${WORKER_PAYOUT_ACCOUNT_ANCHOR}`) return;
-    if (!data.payoutAccount) return;
-    queueMicrotask(() => {
-      document
-        .getElementById(WORKER_PAYOUT_ACCOUNT_ANCHOR)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
 </script>
 
 <section class="page-heading profile-heading">
@@ -521,8 +512,13 @@
         <span
           class="payout-status-badge"
           data-registered={data.payoutAccount.registered}
+          data-load-error={data.payoutAccount.loadError}
         >
-          {data.payoutAccount.registered ? "登録済み" : "未登録"}
+          {data.payoutAccount.loadError
+            ? "読込エラー"
+            : data.payoutAccount.registered
+              ? "登録済み"
+              : "未登録"}
         </span>
         {#if data.payoutAccount.updatedAt}
           <p class="muted">
@@ -535,7 +531,11 @@
       </div>
     </div>
 
-    {#if data.canEditPayoutAccount}
+    {#if data.payoutAccount.loadError}
+      <p class="form-error" role="alert">
+        振込先情報を読み込めませんでした。管理者にお問い合わせください。
+      </p>
+    {:else if data.canEditPayoutAccount}
       <form
         method="POST"
         action="?/savePayoutAccount"
@@ -587,7 +587,7 @@
               required
               bind:value={address}
               autocomplete="street-address"
-              placeholder={"例: 東京都渋谷区\n1-2-3 テックビル 4F"}></textarea>
+              placeholder="例: 東京都渋谷区 1-2-3 テックビル 4F"></textarea>
           </label>
           <span class="field-hint"
             >複数行可。建物名・部屋番号まで入力してください。</span

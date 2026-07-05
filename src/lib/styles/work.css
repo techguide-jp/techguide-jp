@@ -382,6 +382,10 @@
     @apply bg-red-50 text-red-700;
   }
 
+  .payout-status-badge[data-load-error="true"] {
+    @apply bg-amber-50 text-amber-800;
+  }
+
   .payout-form {
     @apply grid gap-6;
   }

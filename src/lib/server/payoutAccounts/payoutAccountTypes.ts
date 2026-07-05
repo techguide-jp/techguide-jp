@@ -14,6 +14,7 @@ export type WorkerPayoutAccountPayload = {
 
 export type WorkerPayoutAccountView = {
   registered: boolean;
+  loadError: boolean;
   recipientName: string;
   postalCode: string;
   address: string;

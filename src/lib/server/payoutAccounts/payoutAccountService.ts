@@ -26,6 +26,7 @@ const ACCOUNT_HOLDER_NAME_PATTERN =
 
 const emptyPayoutAccountView = (version = 0): WorkerPayoutAccountView => ({
   registered: false,
+  loadError: false,
   recipientName: "",
   postalCode: "",
   address: "",
@@ -63,6 +64,7 @@ const toPayoutAccountView = (
   );
   return {
     registered: true,
+    loadError: false,
     recipientName: payload.recipientName,
     postalCode: payload.postalCode,
     address: payload.address,
@@ -116,30 +118,30 @@ const parsePayoutAccountPayload = (
     return { ok: false, message: "振込先情報の入力内容を確認してください。" };
   }
 
-  const recipientName = normalizeTextField(parsed.data.recipientName, 100);
+  const recipientName = normalizeTextField(parsed.data.recipientName);
   const postalCode = normalizePostalCode(parsed.data.postalCode);
   const address = normalizeAddress(parsed.data.address);
-  const bankName = normalizeTextField(parsed.data.bankName, 100);
-  const branchName = normalizeTextField(parsed.data.branchName, 100);
+  const bankName = normalizeTextField(parsed.data.bankName);
+  const branchName = normalizeTextField(parsed.data.branchName);
   const accountNumber = normalizeAccountNumber(parsed.data.accountNumber);
   const accountHolderName = normalizeAccountHolderName(
     parsed.data.accountHolderName,
   );
-  const note = normalizeTextField(parsed.data.note ?? "", 2000);
+  const note = normalizeTextField(parsed.data.note ?? "");
 
-  if (!recipientName) {
+  if (!recipientName || recipientName.length > 100) {
     return { ok: false, message: fieldErrorMessages.recipientName };
   }
   if (!postalCode) {
     return { ok: false, message: fieldErrorMessages.postalCode };
   }
-  if (!address) {
+  if (!address || address.length > 500) {
     return { ok: false, message: fieldErrorMessages.address };
   }
-  if (!bankName) {
+  if (!bankName || bankName.length > 100) {
     return { ok: false, message: fieldErrorMessages.bankName };
   }
-  if (!branchName) {
+  if (!branchName || branchName.length > 100) {
     return { ok: false, message: fieldErrorMessages.branchName };
   }
   if (!isPayoutAccountType(parsed.data.accountType)) {
@@ -150,11 +152,12 @@ const parsePayoutAccountPayload = (
   }
   if (
     !accountHolderName ||
+    accountHolderName.length > 100 ||
     !ACCOUNT_HOLDER_NAME_PATTERN.test(accountHolderName)
   ) {
     return { ok: false, message: fieldErrorMessages.accountHolderName };
   }
-  if ((parsed.data.note ?? "").length > 0 && note.length === 0) {
+  if (note.length > 2000) {
     return { ok: false, message: fieldErrorMessages.note };
   }
 
@@ -196,7 +199,13 @@ export const loadPayoutAccountForViewer = async (
   try {
     return toPayoutAccountView(row);
   } catch {
-    return emptyPayoutAccountView();
+    return {
+      ...emptyPayoutAccountView(row.version),
+      registered: true,
+      loadError: true,
+      updatedBy: row.updatedBy,
+      updatedAt: row.updatedAt,
+    };
   }
 };
 

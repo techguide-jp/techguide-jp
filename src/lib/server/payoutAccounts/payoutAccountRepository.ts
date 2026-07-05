@@ -64,7 +64,11 @@ export const upsertPayoutAccount = async (input: {
         updatedBy: input.updatedBy,
         version: 1,
       })
+      .onConflictDoNothing({ target: workerPayoutAccounts.login })
       .returning();
+    if (!row) {
+      return { ok: false, reason: "conflict" };
+    }
     return { ok: true, row };
   }
 

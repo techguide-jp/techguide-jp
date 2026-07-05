@@ -26,11 +26,11 @@ export const normalizeAccountHolderName = (value: string): string => {
     }
     return char;
   });
-  return normalized.replace(/\s+/g, " ").slice(0, 100);
+  return normalized.replace(/\s+/g, " ");
 };
 
-export const normalizeTextField = (value: string, maxLength: number): string =>
-  value.normalize("NFKC").trim().slice(0, maxLength);
+export const normalizeTextField = (value: string): string =>
+  value.normalize("NFKC").trim();
 
 export const normalizePostalCode = (value: string): string => {
   const digits = normalizeDigits(value);
@@ -44,8 +44,7 @@ export const normalizeAddress = (value: string): string =>
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .join("\n")
-    .slice(0, 500);
+    .join("\n");
 
 export const isPayoutAccountType = (
   value: string,
