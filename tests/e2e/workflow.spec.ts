@@ -148,6 +148,13 @@ test("本人が振込先を登録し管理者が確認できる", async ({ page 
 
   await page.goto("/__e2e/login?login=worker-user");
   await page.goto("/workers/worker-user");
+  await page
+    .getByRole("textbox", { name: "宛名（名前・屋号・会社名）" })
+    .fill("山田 太郎");
+  await page.getByRole("textbox", { name: "郵便番号" }).fill("1500001");
+  await page
+    .getByRole("textbox", { name: "住所" })
+    .fill("東京都渋谷区神南1-2-3");
   await page.getByRole("textbox", { name: "金融機関名" }).fill("テスト銀行");
   await page.getByRole("textbox", { name: "支店名" }).fill("本店");
   await page.getByLabel("口座種別").selectOption("ordinary");

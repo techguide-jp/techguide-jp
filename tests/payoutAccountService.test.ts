@@ -54,18 +54,27 @@ beforeEach(() => {
   vi.mocked(getPayoutAccountRow).mockResolvedValue(null);
 });
 
+const payoutFormData = (overrides: Record<string, string> = {}): FormData => {
+  const data = new FormData();
+  data.set("recipientName", "山田 太郎");
+  data.set("postalCode", "1500001");
+  data.set("address", "東京都渋谷区神南1-2-3");
+  data.set("bankName", "テスト銀行");
+  data.set("branchName", "本店");
+  data.set("accountType", "ordinary");
+  data.set("accountNumber", "0123456");
+  data.set("accountHolderName", "ヤマダ タロウ");
+  data.set("version", "0");
+  for (const [key, value] of Object.entries(overrides)) {
+    data.set(key, value);
+  }
+  return data;
+};
+
 describe("payoutAccountService", () => {
   it("本人以外の振込先更新を拒否する", async () => {
-    const data = new FormData();
-    data.set("bankName", "テスト銀行");
-    data.set("branchName", "本店");
-    data.set("accountType", "ordinary");
-    data.set("accountNumber", "0123456");
-    data.set("accountHolderName", "ヤマダ タロウ");
-    data.set("version", "0");
-
     const result = await updateOwnPayoutAccount(
-      data,
+      payoutFormData(),
       "worker-user",
       "tashua314",
     );
@@ -86,19 +95,28 @@ describe("payoutAccountService", () => {
   });
 
   it("不正な口座番号を拒否する", async () => {
-    const data = new FormData();
-    data.set("bankName", "テスト銀行");
-    data.set("branchName", "本店");
-    data.set("accountType", "ordinary");
-    data.set("accountNumber", "12345");
-    data.set("accountHolderName", "ヤマダ タロウ");
-    data.set("version", "0");
-
-    const result = await updateOwnPayoutAccount(data, "tashua314", "tashua314");
+    const result = await updateOwnPayoutAccount(
+      payoutFormData({ accountNumber: "12345" }),
+      "tashua314",
+      "tashua314",
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.message).toContain("口座番号");
+    expect(upsertPayoutAccount).not.toHaveBeenCalled();
+  });
+
+  it("不正な郵便番号を拒否する", async () => {
+    const result = await updateOwnPayoutAccount(
+      payoutFormData({ postalCode: "15000" }),
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("郵便番号");
     expect(upsertPayoutAccount).not.toHaveBeenCalled();
   });
 
@@ -110,16 +128,11 @@ describe("payoutAccountService", () => {
       }),
     });
 
-    const data = new FormData();
-    data.set("bankName", "テスト銀行");
-    data.set("branchName", "本店");
-    data.set("accountType", "ordinary");
-    data.set("accountNumber", "0123456");
-    data.set("accountHolderName", "ヤマダ タロウ");
-    data.set("note", "メモ");
-    data.set("version", "0");
-
-    const result = await updateOwnPayoutAccount(data, "tashua314", "tashua314");
+    const result = await updateOwnPayoutAccount(
+      payoutFormData({ note: "メモ" }),
+      "tashua314",
+      "tashua314",
+    );
 
     expect(result.ok).toBe(true);
     expect(upsertPayoutAccount).toHaveBeenCalledWith(
@@ -134,6 +147,9 @@ describe("payoutAccountService", () => {
 
 const encryptFixture = (): string =>
   encryptPayload({
+    recipientName: "山田 太郎",
+    postalCode: "150-0001",
+    address: "東京都渋谷区神南1-2-3",
     bankName: "テスト銀行",
     branchName: "本店",
     accountType: "ordinary",

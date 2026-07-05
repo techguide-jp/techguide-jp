@@ -1,6 +1,9 @@
 export type PayoutAccountType = "ordinary" | "checking" | "savings";
 
 export type WorkerPayoutAccountPayload = {
+  recipientName: string;
+  postalCode: string;
+  address: string;
   bankName: string;
   branchName: string;
   accountType: PayoutAccountType;
@@ -11,6 +14,9 @@ export type WorkerPayoutAccountPayload = {
 
 export type WorkerPayoutAccountView = {
   registered: boolean;
+  recipientName: string;
+  postalCode: string;
+  address: string;
   bankName: string;
   branchName: string;
   accountType: PayoutAccountType;

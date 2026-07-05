@@ -469,6 +469,14 @@
     @apply grid gap-2;
   }
 
+  .payout-postal-field {
+    max-width: 12rem;
+  }
+
+  .payout-address-value {
+    @apply whitespace-pre-wrap;
+  }
+
   .payout-section-grid .profile-field select,
   .payout-section-grid .profile-field input {
     @apply min-h-12;

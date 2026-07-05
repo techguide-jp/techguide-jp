@@ -38,6 +38,9 @@
   const initialPayoutAccount = (): PayoutAccount =>
     data.payoutAccount ?? {
       registered: false,
+      recipientName: "",
+      postalCode: "",
+      address: "",
       bankName: "",
       branchName: "",
       accountType: "ordinary",
@@ -54,6 +57,9 @@
       account.registered ? "1" : "0",
       account.version,
       dateKey(account.updatedAt),
+      account.recipientName,
+      account.postalCode,
+      account.address,
       account.bankName,
       account.branchName,
       account.accountType,
@@ -61,6 +67,9 @@
       account.accountHolderName,
       account.note,
     ].join(":");
+  let recipientName = $state(initialPayoutAccount().recipientName);
+  let postalCode = $state(initialPayoutAccount().postalCode);
+  let address = $state(initialPayoutAccount().address);
   let bankName = $state(initialPayoutAccount().bankName);
   let branchName = $state(initialPayoutAccount().branchName);
   let accountType = $state(initialPayoutAccount().accountType);
@@ -156,6 +165,9 @@
       return;
     }
     syncedPayoutAccountKey = payoutAccountSyncKey;
+    recipientName = data.payoutAccount.recipientName;
+    postalCode = data.payoutAccount.postalCode;
+    address = data.payoutAccount.address;
     bankName = data.payoutAccount.bankName;
     branchName = data.payoutAccount.branchName;
     accountType = data.payoutAccount.accountType;
@@ -220,6 +232,9 @@
   const sanitizeAccountNumberInput = (value: string): string =>
     value.normalize("NFKC").replace(/\D/g, "").slice(0, 7);
 
+  const sanitizePostalCodeInput = (value: string): string =>
+    value.normalize("NFKC").replace(/\D/g, "").slice(0, 7);
+
   const enhanceAction =
     (name: string): SubmitFunction =>
     ({ formData }) => {
@@ -230,6 +245,9 @@
         formData.set("skills", nextSkills.join("\n"));
       }
       if (name === "save-payout-account") {
+        const normalizedPostalCode = sanitizePostalCodeInput(postalCode);
+        postalCode = normalizedPostalCode;
+        formData.set("postalCode", normalizedPostalCode);
         const normalizedAccountNumber =
           sanitizeAccountNumberInput(accountNumber);
         accountNumber = normalizedAccountNumber;
@@ -496,7 +514,7 @@
         <p class="eyebrow">payout account</p>
         <h2>振込先情報</h2>
         <p class="payout-panel-lead">
-          支払い振込に使用する口座です。通帳またはネットバンキングの振込先表示どおりに入力してください。
+          支払い振込に使用する宛先と口座です。通帳またはネットバンキングの表示どおりに入力してください。
         </p>
       </div>
       <div class="payout-panel-meta">
@@ -526,9 +544,59 @@
       >
         <input type="hidden" name="version" value={payoutVersion} />
 
+        <section
+          class="payout-section"
+          aria-labelledby="payout-recipient-heading"
+        >
+          <h3 id="payout-recipient-heading" class="payout-section-title">
+            1. 振込先の宛先
+          </h3>
+          <label class="profile-field">
+            <span>宛名（名前・屋号・会社名）</span>
+            <input
+              name="recipientName"
+              bind:value={recipientName}
+              maxlength="100"
+              required
+              autocomplete="name"
+              placeholder="例: 山田 太郎 / 株式会社テックガイド"
+            />
+          </label>
+          <label class="profile-field payout-postal-field">
+            <span>郵便番号</span>
+            <input
+              name="postalCode"
+              bind:value={postalCode}
+              maxlength="8"
+              inputmode="numeric"
+              required
+              autocomplete="postal-code"
+              placeholder="1234567"
+              oninput={(event) => {
+                postalCode = sanitizePostalCodeInput(event.currentTarget.value);
+              }}
+            />
+          </label>
+          <span class="field-hint">半角数字7桁。ハイフンは不要です。</span>
+          <label class="profile-field">
+            <span>住所</span>
+            <textarea
+              name="address"
+              rows="3"
+              maxlength="500"
+              required
+              bind:value={address}
+              autocomplete="street-address"
+              placeholder={"例: 東京都渋谷区\n1-2-3 テックビル 4F"}></textarea>
+          </label>
+          <span class="field-hint"
+            >複数行可。建物名・部屋番号まで入力してください。</span
+          >
+        </section>
+
         <section class="payout-section" aria-labelledby="payout-bank-heading">
           <h3 id="payout-bank-heading" class="payout-section-title">
-            1. 銀行・支店
+            2. 銀行・支店
           </h3>
           <div class="payout-section-grid">
             <label class="profile-field">
@@ -560,7 +628,7 @@
           aria-labelledby="payout-account-heading"
         >
           <h3 id="payout-account-heading" class="payout-section-title">
-            2. 口座
+            3. 口座
           </h3>
           <div class="payout-section-grid">
             <label class="profile-field">
@@ -613,7 +681,7 @@
 
         <section class="payout-section" aria-labelledby="payout-note-heading">
           <h3 id="payout-note-heading" class="payout-section-title">
-            3. 補足（任意）
+            4. 補足（任意）
           </h3>
           <label class="profile-field">
             <span>補足メモ</span>
@@ -638,6 +706,18 @@
     {:else if data.payoutAccount.registered}
       <div class="payout-section">
         <dl class="profile-details profile-details-clean">
+          <div>
+            <dt>宛名</dt>
+            <dd>{data.payoutAccount.recipientName}</dd>
+          </div>
+          <div>
+            <dt>郵便番号</dt>
+            <dd>{data.payoutAccount.postalCode}</dd>
+          </div>
+          <div>
+            <dt>住所</dt>
+            <dd class="payout-address-value">{data.payoutAccount.address}</dd>
+          </div>
           <div>
             <dt>金融機関名</dt>
             <dd>{data.payoutAccount.bankName}</dd>

@@ -6,6 +6,9 @@ import {
 import type { WorkerPayoutAccountPayload } from "$lib/server/payoutAccounts/payoutAccountTypes";
 
 const payload = (): WorkerPayoutAccountPayload => ({
+  recipientName: "山田 太郎",
+  postalCode: "150-0001",
+  address: "東京都渋谷区神南1-2-3",
   bankName: "テスト銀行",
   branchName: "本店",
   accountType: "ordinary",

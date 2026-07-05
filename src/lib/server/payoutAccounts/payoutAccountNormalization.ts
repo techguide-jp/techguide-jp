@@ -32,6 +32,21 @@ export const normalizeAccountHolderName = (value: string): string => {
 export const normalizeTextField = (value: string, maxLength: number): string =>
   value.normalize("NFKC").trim().slice(0, maxLength);
 
+export const normalizePostalCode = (value: string): string => {
+  const digits = normalizeDigits(value);
+  if (digits.length !== 7) return "";
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
+
+export const normalizeAddress = (value: string): string =>
+  value
+    .normalize("NFKC")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 500);
+
 export const isPayoutAccountType = (
   value: string,
 ): value is PayoutAccountType =>

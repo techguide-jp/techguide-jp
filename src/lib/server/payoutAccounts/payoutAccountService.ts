@@ -5,6 +5,8 @@ import {
   isPayoutAccountType,
   normalizeAccountHolderName,
   normalizeAccountNumber,
+  normalizeAddress,
+  normalizePostalCode,
   normalizeTextField,
 } from "$lib/server/payoutAccounts/payoutAccountNormalization";
 import {
@@ -24,6 +26,9 @@ const ACCOUNT_HOLDER_NAME_PATTERN =
 
 const emptyPayoutAccountView = (version = 0): WorkerPayoutAccountView => ({
   registered: false,
+  recipientName: "",
+  postalCode: "",
+  address: "",
   bankName: "",
   branchName: "",
   accountType: "ordinary",
@@ -36,12 +41,31 @@ const emptyPayoutAccountView = (version = 0): WorkerPayoutAccountView => ({
   version,
 });
 
+const toPayload = (
+  raw: Partial<WorkerPayoutAccountPayload>,
+): WorkerPayoutAccountPayload => ({
+  recipientName: raw.recipientName ?? "",
+  postalCode: raw.postalCode ?? "",
+  address: raw.address ?? "",
+  bankName: raw.bankName ?? "",
+  branchName: raw.branchName ?? "",
+  accountType: raw.accountType ?? "ordinary",
+  accountNumber: raw.accountNumber ?? "",
+  accountHolderName: raw.accountHolderName ?? "",
+  note: raw.note ?? "",
+});
+
 const toPayoutAccountView = (
   row: NonNullable<Awaited<ReturnType<typeof getPayoutAccountRow>>>,
 ): WorkerPayoutAccountView => {
-  const payload = decryptPayload(row.encryptedPayload);
+  const payload = toPayload(
+    decryptPayload(row.encryptedPayload) as Partial<WorkerPayoutAccountPayload>,
+  );
   return {
     registered: true,
+    recipientName: payload.recipientName,
+    postalCode: payload.postalCode,
+    address: payload.address,
     bankName: payload.bankName,
     branchName: payload.branchName,
     accountType: payload.accountType,
@@ -56,6 +80,9 @@ const toPayoutAccountView = (
 };
 
 const payoutAccountFormSchema = z.object({
+  recipientName: z.string(),
+  postalCode: z.string(),
+  address: z.string(),
   bankName: z.string(),
   branchName: z.string(),
   accountType: z.string(),
@@ -66,6 +93,9 @@ const payoutAccountFormSchema = z.object({
 });
 
 const fieldErrorMessages = {
+  recipientName: "宛名（名前・屋号・会社名）を確認してください。",
+  postalCode: "郵便番号は7桁の数字で入力してください。",
+  address: "住所を確認してください。",
   bankName: "金融機関名を確認してください。",
   branchName: "支店名を確認してください。",
   accountType: "口座種別を確認してください。",
@@ -86,6 +116,9 @@ const parsePayoutAccountPayload = (
     return { ok: false, message: "振込先情報の入力内容を確認してください。" };
   }
 
+  const recipientName = normalizeTextField(parsed.data.recipientName, 100);
+  const postalCode = normalizePostalCode(parsed.data.postalCode);
+  const address = normalizeAddress(parsed.data.address);
   const bankName = normalizeTextField(parsed.data.bankName, 100);
   const branchName = normalizeTextField(parsed.data.branchName, 100);
   const accountNumber = normalizeAccountNumber(parsed.data.accountNumber);
@@ -94,6 +127,15 @@ const parsePayoutAccountPayload = (
   );
   const note = normalizeTextField(parsed.data.note ?? "", 2000);
 
+  if (!recipientName) {
+    return { ok: false, message: fieldErrorMessages.recipientName };
+  }
+  if (!postalCode) {
+    return { ok: false, message: fieldErrorMessages.postalCode };
+  }
+  if (!address) {
+    return { ok: false, message: fieldErrorMessages.address };
+  }
   if (!bankName) {
     return { ok: false, message: fieldErrorMessages.bankName };
   }
@@ -120,6 +162,9 @@ const parsePayoutAccountPayload = (
     ok: true,
     expectedVersion: parsed.data.version,
     payload: {
+      recipientName,
+      postalCode,
+      address,
       bankName,
       branchName,
       accountType: parsed.data.accountType,
