@@ -81,7 +81,7 @@ describe("payoutAccountService", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.message).toContain("本人以外");
+    expect(result.messages[0]).toContain("本人以外");
     expect(upsertPayoutAccount).not.toHaveBeenCalled();
   });
 
@@ -120,7 +120,7 @@ describe("payoutAccountService", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.message).toContain("口座番号");
+    expect(result.messages[0]).toContain("口座番号");
     expect(upsertPayoutAccount).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,28 @@ describe("payoutAccountService", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.message).toContain("郵便番号");
+    expect(result.messages[0]).toContain("郵便番号");
+    expect(upsertPayoutAccount).not.toHaveBeenCalled();
+  });
+
+  it("複数の入力エラーを一括で返す", async () => {
+    const result = await updateOwnPayoutAccount(
+      payoutFormData({
+        recipientName: "",
+        postalCode: "15000",
+        accountNumber: "12345",
+      }),
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.messages).toEqual([
+      "宛名（名前・屋号・会社名）を確認してください。",
+      "郵便番号は7桁の数字で入力してください。",
+      "口座番号は7桁の数字で入力してください。",
+    ]);
     expect(upsertPayoutAccount).not.toHaveBeenCalled();
   });
 

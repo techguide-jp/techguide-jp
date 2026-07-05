@@ -110,12 +110,15 @@ const parsePayoutAccountPayload = (
   formData: FormData,
 ):
   | { ok: true; payload: WorkerPayoutAccountPayload; expectedVersion: number }
-  | { ok: false; message: string } => {
+  | { ok: false; messages: string[] } => {
   const parsed = payoutAccountFormSchema.safeParse(
     Object.fromEntries(formData),
   );
   if (!parsed.success) {
-    return { ok: false, message: "振込先情報の入力内容を確認してください。" };
+    return {
+      ok: false,
+      messages: ["振込先情報の入力内容を確認してください。"],
+    };
   }
 
   const recipientName = normalizeTextField(parsed.data.recipientName);
@@ -128,37 +131,42 @@ const parsePayoutAccountPayload = (
     parsed.data.accountHolderName,
   );
   const note = normalizeTextField(parsed.data.note ?? "");
+  const errors: string[] = [];
 
   if (!recipientName || recipientName.length > 100) {
-    return { ok: false, message: fieldErrorMessages.recipientName };
+    errors.push(fieldErrorMessages.recipientName);
   }
   if (!postalCode) {
-    return { ok: false, message: fieldErrorMessages.postalCode };
+    errors.push(fieldErrorMessages.postalCode);
   }
   if (!address || address.length > 500) {
-    return { ok: false, message: fieldErrorMessages.address };
+    errors.push(fieldErrorMessages.address);
   }
   if (!bankName || bankName.length > 100) {
-    return { ok: false, message: fieldErrorMessages.bankName };
+    errors.push(fieldErrorMessages.bankName);
   }
   if (!branchName || branchName.length > 100) {
-    return { ok: false, message: fieldErrorMessages.branchName };
+    errors.push(fieldErrorMessages.branchName);
   }
   if (!isPayoutAccountType(parsed.data.accountType)) {
-    return { ok: false, message: fieldErrorMessages.accountType };
+    errors.push(fieldErrorMessages.accountType);
   }
   if (!/^\d{7}$/.test(accountNumber)) {
-    return { ok: false, message: fieldErrorMessages.accountNumber };
+    errors.push(fieldErrorMessages.accountNumber);
   }
   if (
     !accountHolderName ||
     accountHolderName.length > 100 ||
     !ACCOUNT_HOLDER_NAME_PATTERN.test(accountHolderName)
   ) {
-    return { ok: false, message: fieldErrorMessages.accountHolderName };
+    errors.push(fieldErrorMessages.accountHolderName);
   }
   if (note.length > 2000) {
-    return { ok: false, message: fieldErrorMessages.note };
+    errors.push(fieldErrorMessages.note);
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, messages: errors };
   }
 
   return {
@@ -170,7 +178,8 @@ const parsePayoutAccountPayload = (
       address,
       bankName,
       branchName,
-      accountType: parsed.data.accountType,
+      accountType: parsed.data
+        .accountType as WorkerPayoutAccountPayload["accountType"],
       accountNumber,
       accountHolderName,
       note,
@@ -243,15 +252,18 @@ export const updateOwnPayoutAccount = async (
   targetLogin: string,
 ): Promise<
   | { ok: true; payoutAccount: WorkerPayoutAccountView }
-  | { ok: false; message: string }
+  | { ok: false; messages: string[] }
 > => {
   if (actorLogin !== targetLogin) {
-    return { ok: false, message: "本人以外の振込先情報は更新できません。" };
+    return {
+      ok: false,
+      messages: ["本人以外の振込先情報は更新できません。"],
+    };
   }
 
   const profile = await getWorkerProfile(targetLogin);
   if (!profile) {
-    return { ok: false, message: "プロフィールが見つかりません。" };
+    return { ok: false, messages: ["プロフィールが見つかりません。"] };
   }
 
   const parsed = parsePayoutAccountPayload(formData);
@@ -270,11 +282,12 @@ export const updateOwnPayoutAccount = async (
     if (result.reason === "conflict") {
       return {
         ok: false,
-        message:
+        messages: [
           "他の画面で更新された可能性があります。再読み込みしてから保存してください。",
+        ],
       };
     }
-    return { ok: false, message: "振込先情報を保存できませんでした。" };
+    return { ok: false, messages: ["振込先情報を保存できませんでした。"] };
   }
 
   try {
@@ -283,7 +296,7 @@ export const updateOwnPayoutAccount = async (
       payoutAccount: toPayoutAccountView(result.row),
     };
   } catch {
-    return { ok: false, message: "振込先情報を保存できませんでした。" };
+    return { ok: false, messages: ["振込先情報を保存できませんでした。"] };
   }
 };
 

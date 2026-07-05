@@ -45,11 +45,16 @@ export const actions = {
       event.params.login,
     );
     if (!result.ok) {
-      return fail(400, { message: result.message, outcome: "error" as const });
+      return fail(400, {
+        message: result.message,
+        outcome: "error" as const,
+        actionName: "saveSelfProfile" as const,
+      });
     }
     return {
       message: "プロフィールを保存しました。",
       outcome: "success" as const,
+      actionName: "saveSelfProfile" as const,
     };
   },
   savePayoutAccount: async (event) => {
@@ -60,11 +65,16 @@ export const actions = {
       event.params.login,
     );
     if (!result.ok) {
-      return fail(400, { message: result.message, outcome: "error" as const });
+      return fail(400, {
+        messages: result.messages,
+        outcome: "error" as const,
+        actionName: "savePayoutAccount" as const,
+      });
     }
     return {
       message: "振込先情報を保存しました。",
       outcome: "success" as const,
+      actionName: "savePayoutAccount" as const,
     };
   },
   saveAdminNote: async (event) => {
@@ -76,11 +86,16 @@ export const actions = {
       event.params.login,
     );
     if (!result.ok) {
-      return fail(400, { message: result.message, outcome: "error" as const });
+      return fail(400, {
+        message: result.message,
+        outcome: "error" as const,
+        actionName: "saveAdminNote" as const,
+      });
     }
     return {
       message: "管理者メモを保存しました。",
       outcome: "success" as const,
+      actionName: "saveAdminNote" as const,
     };
   },
 };

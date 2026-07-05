@@ -4,6 +4,7 @@
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import CopyLoginButton from "$lib/components/CopyLoginButton.svelte";
+  import FormFeedback from "$lib/components/FormFeedback.svelte";
   import { formatDateTime } from "$lib/format";
   import { WORKER_PAYOUT_ACCOUNT_ANCHOR } from "$lib/workerProfileRoute";
 
@@ -261,10 +262,39 @@
       };
     };
 
-  const actionMessage = $derived((form as ActionData | undefined)?.message);
-  const actionIsError = $derived(
-    (form as ActionData | undefined)?.outcome === "error",
-  );
+  const feedbackFor = (
+    actionName: NonNullable<ActionData>["actionName"],
+  ): { messages: string[]; isError: boolean } | null => {
+    const data = form as ActionData | undefined;
+    if (data?.actionName !== actionName) return null;
+    const messages =
+      data.messages ??
+      ("message" in data && data.message ? [data.message] : []);
+    if (messages.length === 0) return null;
+    return { messages, isError: data.outcome === "error" };
+  };
+
+  const profileFeedback = $derived(feedbackFor("saveSelfProfile"));
+  const adminFeedback = $derived(feedbackFor("saveAdminNote"));
+  const payoutFeedback = $derived(feedbackFor("savePayoutAccount"));
+
+  let profileFeedbackEl = $state<HTMLElement | null>(null);
+  let adminFeedbackEl = $state<HTMLElement | null>(null);
+  let payoutFeedbackEl = $state<HTMLElement | null>(null);
+
+  const scrollFeedbackIntoView = (element: HTMLElement | null) => {
+    element?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
+  $effect(() => {
+    if (profileFeedback) scrollFeedbackIntoView(profileFeedbackEl);
+  });
+  $effect(() => {
+    if (adminFeedback) scrollFeedbackIntoView(adminFeedbackEl);
+  });
+  $effect(() => {
+    if (payoutFeedback) scrollFeedbackIntoView(payoutFeedbackEl);
+  });
 </script>
 
 <section class="page-heading profile-heading">
@@ -287,15 +317,6 @@
   </div>
 </section>
 
-{#if actionMessage}
-  <p
-    class={actionIsError ? "form-error" : "notice"}
-    role={actionIsError ? "alert" : "status"}
-  >
-    {actionMessage}
-  </p>
-{/if}
-
 <div class="profile-layout">
   <section class="profile-panel">
     <div class="profile-panel-heading">
@@ -307,6 +328,8 @@
         <p class="muted">更新 {formatDateTime(data.profile.updatedAt)}</p>
       {/if}
     </div>
+
+    <FormFeedback feedback={profileFeedback} bind:element={profileFeedbackEl} />
 
     {#if data.canEditSelf}
       <form
@@ -463,6 +486,7 @@
           <h2>管理者メモ</h2>
         </div>
       </div>
+      <FormFeedback feedback={adminFeedback} bind:element={adminFeedbackEl} />
       <form
         method="POST"
         action="?/saveAdminNote"
@@ -530,6 +554,8 @@
         {/if}
       </div>
     </div>
+
+    <FormFeedback feedback={payoutFeedback} bind:element={payoutFeedbackEl} />
 
     {#if data.payoutAccount.loadError}
       <p class="form-error" role="alert">
