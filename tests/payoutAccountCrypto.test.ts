@@ -19,7 +19,7 @@ const payload = (): WorkerPayoutAccountPayload => ({
 
 beforeEach(() => {
   process.env.PAYOUT_ACCOUNT_ENCRYPTION_KEY =
-    "ZGV2ZWxvcG1lbnQtcGF5b3V0LWFjY291bnQta2V5LTMyYiE=";
+    "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
 });
 
 describe("payoutAccountCrypto", () => {

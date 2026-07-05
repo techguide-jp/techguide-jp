@@ -34,7 +34,7 @@ export const env = {
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
   payoutAccountEncryptionKey:
     optional("PAYOUT_ACCOUNT_ENCRYPTION_KEY") ??
-    (dev ? "ZGV2ZWxvcG1lbnQtcGF5b3V0LWFjY291bnQta2V5LTMyYiE=" : undefined),
+    (dev ? "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=" : undefined),
   e2eTestMode: optional("E2E_TEST_MODE") === "1",
 };
 

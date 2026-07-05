@@ -37,7 +37,7 @@ const payoutRow = (
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.PAYOUT_ACCOUNT_ENCRYPTION_KEY =
-    "ZGV2ZWxvcG1lbnQtcGF5b3V0LWFjY291bnQta2V5LTMyYiE=";
+    "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
   vi.mocked(getWorkerProfile).mockResolvedValue({
     login: "tashua314",
     displayName: "たしゅあ",

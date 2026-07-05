@@ -30,6 +30,7 @@ jobs:
       GITHUB_CLIENT_ID: ci-client-id
       GITHUB_CLIENT_SECRET: ci-client-secret
       GITHUB_PROJECT_TOKEN: ci-project-token
+      PAYOUT_ACCOUNT_ENCRYPTION_KEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
     steps:
       - name: Checkout
         uses: actions/checkout@v4
