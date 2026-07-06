@@ -49,8 +49,9 @@ export const actions = {
       event.params.assignee,
       paidOn,
     );
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: "支払い済みとして登録しました。" };
+    if (!result.ok)
+      return fail(400, { scope: "payment", message: result.message });
+    return { scope: "payment", message: "支払い済みとして登録しました。" };
   },
   revertPayment: async (event) => {
     requireAdmin(event);
@@ -58,8 +59,12 @@ export const actions = {
       event.params.month,
       event.params.assignee,
     );
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: "支払い済み登録を取り消して未処理に戻しました。" };
+    if (!result.ok)
+      return fail(400, { scope: "payment", message: result.message });
+    return {
+      scope: "payment",
+      message: "支払い済み登録を取り消して未処理に戻しました。",
+    };
   },
   updatePaymentSchedule: async (event) => {
     requireAdmin(event);
@@ -70,7 +75,8 @@ export const actions = {
       event.params.assignee,
       scheduledDate,
     );
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: "支払い予定日を更新しました。" };
+    if (!result.ok)
+      return fail(400, { scope: "payment", message: result.message });
+    return { scope: "payment", message: "支払い予定日を更新しました。" };
   },
 };

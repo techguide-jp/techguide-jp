@@ -44,7 +44,15 @@
   const approvedTaxExcludedYen = $derived(
     snapshotTaxExcludedYen(data.snapshot?.snapshot),
   );
-  const actionMessage = $derived((form as ActionData | undefined)?.message);
+  const formResult = $derived(
+    form as (ActionData & { scope?: string }) | undefined,
+  );
+  const paymentMessage = $derived(
+    formResult?.scope === "payment" ? formResult.message : undefined,
+  );
+  const actionMessage = $derived(
+    formResult?.scope === "payment" ? undefined : formResult?.message,
+  );
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
@@ -121,6 +129,7 @@
   <SettlementPaymentPanel
     payment={data.payment}
     isAdmin={Boolean(data.user?.isAdmin)}
+    message={paymentMessage}
     {pendingAction}
     {enhanceAction}
   />

@@ -8,11 +8,13 @@
   type Props = {
     payment: MonthlyPaymentView;
     isAdmin: boolean;
+    message?: string;
     pendingAction: string | null;
     enhanceAction: (name: string) => SubmitFunction;
   };
 
-  let { payment, isAdmin, pendingAction, enhanceAction }: Props = $props();
+  let { payment, isAdmin, message, pendingAction, enhanceAction }: Props =
+    $props();
 
   const isPaid = $derived(payment.status === "paid");
 
@@ -37,6 +39,10 @@
 
 <section class="panel">
   <h2>支払い</h2>
+
+  {#if message}
+    <p class="notice" role="status">{message}</p>
+  {/if}
 
   <div class="payment-summary">
     <span class="payment-badge {isPaid ? 'paid' : 'unpaid'}">
