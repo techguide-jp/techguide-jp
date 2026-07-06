@@ -50,8 +50,6 @@
         {formatDate(payment.scheduledDate)}
         {#if payment.scheduledDateIsDefault}
           <small class="muted">自動設定（対象月の翌月14日）</small>
-        {:else}
-          <small class="muted">個別設定</small>
         {/if}
       </dd>
     </div>
