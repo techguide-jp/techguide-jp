@@ -38,26 +38,16 @@
 </script>
 
 <section class="panel">
-  <h2>支払い</h2>
+  <div class="payment-heading">
+    <h2>支払い</h2>
+    <span class="payment-badge {isPaid ? 'paid' : 'unpaid'}">
+      {isPaid ? "支払い済み" : "未処理"}
+    </span>
+  </div>
 
   {#if message}
     <p class="notice" role="status">{message}</p>
   {/if}
-
-  <div class="payment-summary">
-    <span class="payment-badge {isPaid ? 'paid' : 'unpaid'}">
-      {isPaid ? "支払い済み" : "未処理"}
-    </span>
-    <p class="payment-summary-text">
-      {#if isPaid}
-        {formatDate(payment.paidOn)} に支払い済みです。
-      {:else}
-        まだ支払われていません。支払い予定日は {formatDate(
-          payment.scheduledDate,
-        )} です。
-      {/if}
-    </p>
-  </div>
 
   <dl class="profile-details profile-details-clean">
     <div>
