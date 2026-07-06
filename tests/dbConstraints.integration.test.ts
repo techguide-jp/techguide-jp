@@ -5,6 +5,7 @@ import {
   auditLogs,
   authSessions,
   githubProjectStatusSyncs,
+  monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   workLogChangeRequests,
@@ -34,6 +35,7 @@ const errorCode = (error: unknown): string | undefined => {
 beforeEach(async () => {
   if (process.env.RUN_DB_INTEGRATION !== "1") return;
   await db.delete(auditLogs);
+  await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
   await db.delete(workLogChangeRequests);
@@ -80,6 +82,45 @@ describeDb("DB constraints", () => {
         requestedBy: "tashua314",
       });
       throw new Error("shape constraint did not fail");
+    } catch (error) {
+      expect(errorCode(error)).toBe("23514");
+    }
+  });
+
+  it("支払い済みは支払日が必須", async () => {
+    try {
+      await db.insert(monthlyPayments).values({
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        status: "paid",
+      });
+      throw new Error("paid check constraint did not fail");
+    } catch (error) {
+      expect(errorCode(error)).toBe("23514");
+    }
+  });
+
+  it("未処理は支払日を持てない", async () => {
+    try {
+      await db.insert(monthlyPayments).values({
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        status: "unpaid",
+        paidOn: "2026-07-14",
+      });
+      throw new Error("unpaid check constraint did not fail");
+    } catch (error) {
+      expect(errorCode(error)).toBe("23514");
+    }
+  });
+
+  it("不正な月フォーマットの支払いは保存できない", async () => {
+    try {
+      await db.insert(monthlyPayments).values({
+        month: "2026-13",
+        assigneeLogin: "tashua314",
+      });
+      throw new Error("month check constraint did not fail");
     } catch (error) {
       expect(errorCode(error)).toBe("23514");
     }

@@ -3,6 +3,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import SettlementPaymentPanel from "$lib/components/SettlementPaymentPanel.svelte";
   import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
   import UnsettledSettlementPanel from "$lib/components/UnsettledSettlementPanel.svelte";
   import {
@@ -115,6 +116,15 @@
     </div>
   </dl>
 </section>
+
+{#if data.payment}
+  <SettlementPaymentPanel
+    payment={data.payment}
+    isAdmin={Boolean(data.user?.isAdmin)}
+    {pendingAction}
+    {enhanceAction}
+  />
+{/if}
 
 {#if !summary}
   {#if data.projectFetchError}

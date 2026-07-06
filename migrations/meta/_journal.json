@@ -43,6 +43,13 @@
       "when": 1783149335318,
       "tag": "0005_big_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783346130568,
+      "tag": "0006_add_monthly_payments",
+      "breakpoints": true
     }
   ]
 }

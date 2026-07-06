@@ -1,5 +1,6 @@
 import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
+import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
 import {
   approveSettlement,
@@ -11,13 +12,15 @@ export const load = async (event) => {
   requireAdmin(event);
   const month = event.params.month;
   const settlement = await loadSettlementMonth(month);
+  const assigneeLogins = settlement.summaries.map(
+    (summary) => summary.assigneeLogin,
+  );
 
   return {
     month,
     ...settlement,
-    payoutAccountStatuses: await listPayoutAccountStatuses(
-      settlement.summaries.map((summary) => summary.assigneeLogin),
-    ),
+    payoutAccountStatuses: await listPayoutAccountStatuses(assigneeLogins),
+    payments: await listPaymentViewsForMonth(month, assigneeLogins),
   };
 };
 

@@ -6,6 +6,7 @@
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
   import {
+    formatDate,
     formatDateTime,
     formatIssueName,
     formatProjectName,
@@ -31,6 +32,9 @@
   );
   const payoutStatusByAssignee = $derived(
     new Map(data.payoutAccountStatuses.map((status) => [status.login, status])),
+  );
+  const paymentByAssignee = $derived(
+    new Map(data.payments.map((payment) => [payment.assigneeLogin, payment])),
   );
 
   const enhanceAction =
@@ -185,7 +189,9 @@
         <th>税抜</th>
         <th>税込</th>
         <th>振込先</th>
-        <th>状態</th>
+        <th>支払い予定日</th>
+        <th>支払い状態</th>
+        <th>承認状態</th>
         <th>操作</th>
       </tr>
     </thead>
@@ -196,6 +202,7 @@
         {@const payoutStatus = payoutStatusByAssignee.get(
           summary.assigneeLogin,
         )}
+        {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
         <tr>
           <td>
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
@@ -222,6 +229,28 @@
                 >振込先を確認</a
               >
             </div>
+          </td>
+          <td>
+            {#if payment}
+              {formatDate(payment.scheduledDate)}
+              {#if payment.scheduledDateIsDefault}
+                <small class="muted">（既定）</small>
+              {/if}
+            {:else}
+              -
+            {/if}
+          </td>
+          <td>
+            {#if payment?.status === "paid"}
+              <span class="status-stack">
+                <strong class="ok">支払い済み</strong>
+                {#if payment.paidOn}
+                  <small>{formatDate(payment.paidOn)}</small>
+                {/if}
+              </span>
+            {:else}
+              <span class="muted">未処理</span>
+            {/if}
           </td>
           <td>
             {#if !summary.approvalRequired}
