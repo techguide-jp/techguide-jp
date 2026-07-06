@@ -81,7 +81,6 @@
             />
           </form>
         {:else}
-          <p class="muted">支払いが完了したら、支払日を入力して登録します。</p>
           <form
             method="POST"
             action="?/markPaid"
