@@ -35,6 +35,9 @@ export default tseslint.config(
       "svelte/no-navigation-without-resolve": "off",
     },
     languageOptions: {
+      globals: {
+        HTMLElement: "readonly",
+      },
       parserOptions: {
         parser: tseslint.parser,
       },
