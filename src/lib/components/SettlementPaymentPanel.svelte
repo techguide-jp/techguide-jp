@@ -16,6 +16,16 @@
 
   const isPaid = $derived(payment.status === "paid");
 
+  let showRevertConfirm = $state(false);
+
+  const enhanceRevert: SubmitFunction = (input) => {
+    const handleResult = enhanceAction("revert-payment")(input);
+    return async (opts) => {
+      if (typeof handleResult === "function") await handleResult(opts);
+      if (opts.result.type === "success") showRevertConfirm = false;
+    };
+  };
+
   const jstToday = (): string =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Tokyo",
@@ -66,20 +76,61 @@
       <div class="payment-action-group">
         <h3>支払い状態</h3>
         {#if isPaid}
-          <p class="muted">誤って登録した場合は、未処理に戻せます。</p>
-          <form
-            method="POST"
-            action="?/revertPayment"
-            use:enhance={enhanceAction("revert-payment")}
+          <button
+            type="button"
+            class="button danger"
+            onclick={() => (showRevertConfirm = true)}
           >
-            <ActionSubmit
-              actionName="revert-payment"
-              {pendingAction}
-              label="未処理に戻す"
-              pendingLabel="取り消し中..."
-              variant="danger"
-            />
-          </form>
+            未処理に戻す
+          </button>
+          {#if showRevertConfirm}
+            <div class="modal-backdrop">
+              <div
+                class="modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="revert-confirm-title"
+                style="width: min(28rem, 100%);"
+              >
+                <div class="modal-header">
+                  <h2 id="revert-confirm-title">未処理に戻す</h2>
+                  <button
+                    class="icon-button"
+                    type="button"
+                    aria-label="閉じる"
+                    onclick={() => (showRevertConfirm = false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <p>
+                  {formatDate(payment.paidOn)} の支払い済み登録を取り消し、未処理に戻します。記録済みの支払日は削除されます。よろしいですか？
+                </p>
+                <form
+                  method="POST"
+                  action="?/revertPayment"
+                  use:enhance={enhanceRevert}
+                >
+                  <div class="modal-actions">
+                    <button
+                      class="button secondary ghost"
+                      type="button"
+                      onclick={() => (showRevertConfirm = false)}
+                    >
+                      キャンセル
+                    </button>
+                    <ActionSubmit
+                      actionName="revert-payment"
+                      {pendingAction}
+                      label="未処理に戻す"
+                      pendingLabel="取り消し中..."
+                      variant="danger"
+                    />
+                  </div>
+                </form>
+              </div>
+            </div>
+          {/if}
         {:else}
           <form
             method="POST"
