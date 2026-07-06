@@ -72,8 +72,13 @@
     @apply flex flex-col gap-1 text-xs font-bold text-slate-600;
   }
 
+  .payment-form input,
+  .payment-form .button {
+    @apply h-11;
+  }
+
   .payment-form input {
-    @apply rounded-md border border-stone-300 px-3 py-2 font-normal;
+    @apply rounded-md border border-stone-300 px-3 text-base font-normal;
   }
 
   .payment-form small {
