@@ -1,0 +1,36 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  decryptPayload,
+  encryptPayload,
+} from "$lib/server/payoutAccounts/payoutAccountCrypto";
+import type { WorkerPayoutAccountPayload } from "$lib/server/payoutAccounts/payoutAccountTypes";
+
+const payload = (): WorkerPayoutAccountPayload => ({
+  recipientName: "山田 太郎",
+  postalCode: "150-0001",
+  address: "東京都渋谷区神南1-2-3",
+  bankName: "テスト銀行",
+  branchName: "本店",
+  accountType: "ordinary",
+  accountNumber: "0123456",
+  accountHolderName: "ヤマダ タロウ",
+  note: "テストメモ",
+});
+
+beforeEach(() => {
+  process.env.PAYOUT_ACCOUNT_ENCRYPTION_KEY =
+    "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
+});
+
+describe("payoutAccountCrypto", () => {
+  it("暗号化と復号で元の値へ戻る", () => {
+    const original = payload();
+    const encrypted = encryptPayload(original);
+    expect(encrypted).not.toContain(original.accountNumber);
+    expect(decryptPayload(encrypted)).toEqual(original);
+  });
+
+  it("不正な暗号文は安全に失敗する", () => {
+    expect(() => decryptPayload('{"v":1,"data":"AAAA"}')).toThrow();
+  });
+});

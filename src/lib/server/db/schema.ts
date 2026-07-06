@@ -63,6 +63,22 @@ export const workerProfiles = pgTable(
   ],
 );
 
+export const workerPayoutAccounts = pgTable("worker_payout_accounts", {
+  login: text("login")
+    .primaryKey()
+    .references(() => workerProfiles.login, { onDelete: "cascade" }),
+  encryptedPayload: text("encrypted_payload").notNull(),
+  encryptionKeyVersion: integer("encryption_key_version").notNull().default(1),
+  updatedBy: text("updated_by").notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const authSessions = pgTable(
   "auth_sessions",
   {
@@ -273,6 +289,7 @@ export const auditLogs = pgTable(
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
 export type WorkerProfile = typeof workerProfiles.$inferSelect;
+export type WorkerPayoutAccount = typeof workerPayoutAccounts.$inferSelect;
 export type MonthlySettlementSnapshot =
   typeof monthlySettlementSnapshots.$inferSelect;
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;

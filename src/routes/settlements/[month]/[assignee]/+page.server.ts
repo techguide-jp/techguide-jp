@@ -1,5 +1,6 @@
 import { fail } from "@sveltejs/kit";
 import { requireSelfOrAdmin } from "$lib/server/auth/guards";
+import { getPayoutAccountStatus } from "$lib/server/payoutAccounts/payoutAccountService";
 import {
   loadSettlementAssignee,
   submitSettlementWork,
@@ -7,13 +8,13 @@ import {
 
 export const load = async (event) => {
   requireSelfOrAdmin(event, event.params.assignee);
+  const assignee = event.params.assignee;
+
   return {
     month: event.params.month,
-    assignee: event.params.assignee,
-    ...(await loadSettlementAssignee(
-      event.params.month,
-      event.params.assignee,
-    )),
+    assignee,
+    payoutAccountStatus: await getPayoutAccountStatus(assignee),
+    ...(await loadSettlementAssignee(event.params.month, assignee)),
   };
 };
 

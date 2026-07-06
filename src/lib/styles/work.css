@@ -354,6 +354,58 @@
     grid-column: 1 / -1;
   }
 
+  .profile-panel-full {
+    grid-column: 1 / -1;
+  }
+
+  .payout-panel {
+    scroll-margin-top: 1.5rem;
+  }
+
+  .payout-panel-lead {
+    @apply mt-2 max-w-3xl text-sm leading-6;
+  }
+
+  .payout-panel-meta {
+    @apply flex shrink-0 flex-col items-end gap-2 text-right;
+  }
+
+  .payout-status-badge {
+    @apply inline-flex rounded-full px-3 py-1 text-xs font-bold;
+  }
+
+  .payout-status-badge[data-registered="true"] {
+    @apply bg-emerald-50 text-emerald-800;
+  }
+
+  .payout-status-badge[data-registered="false"] {
+    @apply bg-red-50 text-red-700;
+  }
+
+  .payout-status-badge[data-load-error="true"] {
+    @apply bg-amber-50 text-amber-800;
+  }
+
+  .payout-form {
+    @apply grid gap-6;
+  }
+
+  .payout-section {
+    @apply grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .payout-section-title {
+    @apply m-0 text-sm font-bold text-slate-700;
+  }
+
+  .payout-section-note {
+    @apply m-0 text-sm leading-6 text-slate-600;
+  }
+
+  .field-hint {
+    @apply text-xs leading-5 text-slate-500;
+  }
+
   .profile-panel {
     @apply mb-4 rounded-lg border border-stone-300 bg-white p-5;
   }
@@ -390,13 +442,15 @@
   }
 
   .profile-field input,
-  .profile-field textarea {
+  .profile-field textarea,
+  .profile-field select {
     @apply w-full rounded-md border border-stone-300 bg-white p-3;
     font: inherit;
   }
 
   .profile-field input:focus,
   .profile-field textarea:focus,
+  .profile-field select:focus,
   .skill-chip:focus-visible {
     @apply border-teal-700 outline-2 outline-offset-2 outline-teal-600;
   }
@@ -408,6 +462,28 @@
   .profile-note-grid {
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
     @apply grid gap-4;
+  }
+
+  .payout-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    @apply grid items-start gap-x-4 gap-y-2;
+  }
+
+  .payout-field-column {
+    @apply grid gap-2;
+  }
+
+  .payout-postal-field {
+    max-width: 12rem;
+  }
+
+  .payout-address-value {
+    @apply whitespace-pre-wrap;
+  }
+
+  .payout-section-grid .profile-field select,
+  .payout-section-grid .profile-field input {
+    @apply min-h-12;
   }
 
   .profile-field-wide,

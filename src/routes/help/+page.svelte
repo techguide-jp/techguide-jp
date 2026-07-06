@@ -1,12 +1,16 @@
 <script lang="ts">
   import type { PageProps } from "./$types";
   import { currentJstMonth } from "$lib/month";
+  import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
 
   let { data }: PageProps = $props();
   const currentMonth = $derived(currentJstMonth());
   const workHref = $derived(data.user ? "/work" : "/login");
   const selfSettlementHref = $derived(
     data.user ? `/settlements/${currentMonth}/${data.user.login}` : "/login",
+  );
+  const payoutAccountHref = $derived(
+    data.user ? workerPayoutAccountHref(data.user.login) : "/login",
   );
 </script>
 
@@ -81,6 +85,16 @@
         <h2>月次を確定申請する</h2>
         <p>
           その月の稼働入力が終わったら、自分の精算ページで月次確定申請を出します。申請後にログや修正申請の状態が変わった場合は再申請が必要です。
+        </p>
+      </div>
+    </article>
+    <article class="guide-card">
+      <span class="step">3</span>
+      <div>
+        <h2>振込先情報を登録する</h2>
+        <p>
+          <a href={payoutAccountHref}>振込先情報</a>
+          から宛名、郵便番号、住所、金融機関名、支店名、口座種別、7桁の口座番号、口座名義を登録します。支払い前に未登録だと精算画面で警告が表示されます。
         </p>
       </div>
     </article>

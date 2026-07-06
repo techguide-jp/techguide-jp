@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { db } from "../src/lib/server/db/client";
 import {
   auditLogs,
@@ -7,6 +8,7 @@ import {
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   workLogChangeRequests,
+  workerPayoutAccounts,
   workerProfiles,
   workSessions,
 } from "../src/lib/server/db/schema";
@@ -38,6 +40,7 @@ beforeEach(async () => {
   await db.delete(workSessions);
   await db.delete(githubProjectStatusSyncs);
   await db.delete(authSessions);
+  await db.delete(workerPayoutAccounts);
   await db.delete(workerProfiles);
 });
 
@@ -80,5 +83,27 @@ describeDb("DB constraints", () => {
     } catch (error) {
       expect(errorCode(error)).toBe("23514");
     }
+  });
+
+  it("worker_profiles削除時に振込先も削除される", async () => {
+    await db.insert(workerProfiles).values({
+      login: "payout-user",
+      displayName: "Payout User",
+    });
+    await db.insert(workerPayoutAccounts).values({
+      login: "payout-user",
+      encryptedPayload: '{"v":1,"data":"AAAA"}',
+      updatedBy: "payout-user",
+    });
+
+    await db
+      .delete(workerProfiles)
+      .where(eq(workerProfiles.login, "payout-user"));
+
+    const rows = await db
+      .select()
+      .from(workerPayoutAccounts)
+      .where(eq(workerPayoutAccounts.login, "payout-user"));
+    expect(rows).toHaveLength(0);
   });
 });
