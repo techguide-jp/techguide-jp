@@ -16,6 +16,7 @@ import {
   revertSettlementPayment,
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
+import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
@@ -23,6 +24,10 @@ vi.mock("$lib/server/payments/paymentRepository", () => ({
   upsertPaymentPaid: vi.fn(),
   upsertPaymentUnpaid: vi.fn(),
   upsertPaymentScheduledDate: vi.fn(),
+}));
+
+vi.mock("$lib/server/settlements/settlementService", () => ({
+  validateSettlementPaymentEligibility: vi.fn(),
 }));
 
 const paymentRow = (
@@ -45,6 +50,9 @@ const other = { login: "someoneelse", isAdmin: false };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getPaymentRow).mockResolvedValue(null);
+  vi.mocked(validateSettlementPaymentEligibility).mockResolvedValue({
+    ok: true,
+  });
   vi.mocked(listPaymentRowsForMonth).mockResolvedValue([]);
   vi.mocked(upsertPaymentPaid).mockImplementation(async (input) =>
     paymentRow({ ...input, status: "paid" }),
@@ -160,16 +168,42 @@ describe("markSettlementPaid", () => {
     expect(result).toMatchObject({ ok: false });
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
   });
+
+  it("未承認の精算は支払い済みにできない", async () => {
+    vi.mocked(validateSettlementPaymentEligibility).mockResolvedValue({
+      ok: false,
+      message: "未承認の月次精算は支払い情報を更新できません。",
+    });
+
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect(upsertPaymentPaid).not.toHaveBeenCalled();
+  });
 });
 
 describe("revertSettlementPayment", () => {
   it("未処理に戻す", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(
+      paymentRow({ status: "paid", paidOn: "2026-07-14" }),
+    );
     const result = await revertSettlementPayment("2026-06", "tashua314");
     expect(result).toMatchObject({ ok: true });
     expect(upsertPaymentUnpaid).toHaveBeenCalledWith({
       month: "2026-06",
       assigneeLogin: "tashua314",
     });
+  });
+
+  it("支払い済みレコードがなければ未処理レコードを作らない", async () => {
+    const result = await revertSettlementPayment("2026-06", "tashua314");
+
+    expect(result).toMatchObject({ ok: false });
+    expect(upsertPaymentUnpaid).not.toHaveBeenCalled();
   });
 });
 
@@ -204,6 +238,22 @@ describe("updatePaymentScheduledDate", () => {
       "tashua314",
       "2026-99-99",
     );
+    expect(result).toMatchObject({ ok: false });
+    expect(upsertPaymentScheduledDate).not.toHaveBeenCalled();
+  });
+
+  it("未承認の精算は予定日を保存できない", async () => {
+    vi.mocked(validateSettlementPaymentEligibility).mockResolvedValue({
+      ok: false,
+      message: "未承認の月次精算は支払い情報を更新できません。",
+    });
+
+    const result = await updatePaymentScheduledDate(
+      "2026-06",
+      "tashua314",
+      "2026-07-20",
+    );
+
     expect(result).toMatchObject({ ok: false });
     expect(upsertPaymentScheduledDate).not.toHaveBeenCalled();
   });

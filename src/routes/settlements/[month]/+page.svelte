@@ -231,7 +231,7 @@
             </div>
           </td>
           <td>
-            {#if payment}
+            {#if payment && snapshot}
               {formatDate(payment.scheduledDate)}
               {#if payment.scheduledDateIsDefault}
                 <small class="muted">（既定）</small>
@@ -248,8 +248,10 @@
                   <small>{formatDate(payment.paidOn)}</small>
                 {/if}
               </span>
-            {:else}
+            {:else if snapshot}
               <span class="muted">未処理</span>
+            {:else}
+              <span class="muted">-</span>
             {/if}
           </td>
           <td>

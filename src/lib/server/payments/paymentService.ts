@@ -11,6 +11,7 @@ import {
   PAYMENT_STATUS_LABELS,
   type MonthlyPaymentView,
 } from "$lib/server/payments/paymentTypes";
+import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -104,6 +105,11 @@ export const markSettlementPaid = async (
   if (!paidOn) {
     return { ok: false, message: "支払日はYYYY-MM-DD形式で入力してください。" };
   }
+  const eligibility = await validateSettlementPaymentEligibility(
+    month,
+    assigneeLogin,
+  );
+  if (!eligibility.ok) return eligibility;
   const row = await upsertPaymentPaid({ month, assigneeLogin, paidOn });
   return { ok: true, payment: toPaymentView(month, assigneeLogin, row) };
 };
@@ -117,6 +123,10 @@ export const revertSettlementPayment = async (
 > => {
   if (!isMonthString(month)) {
     return { ok: false, message: "対象月が不正です。" };
+  }
+  const current = await getPaymentRow(month, assigneeLogin);
+  if (current?.status !== "paid") {
+    return { ok: false, message: "支払い済みの精算ではありません。" };
   }
   const row = await upsertPaymentUnpaid({ month, assigneeLogin });
   return { ok: true, payment: toPaymentView(month, assigneeLogin, row) };
@@ -147,6 +157,11 @@ export const updatePaymentScheduledDate = async (
       };
     }
   }
+  const eligibility = await validateSettlementPaymentEligibility(
+    month,
+    assigneeLogin,
+  );
+  if (!eligibility.ok) return eligibility;
   const row = await upsertPaymentScheduledDate({
     month,
     assigneeLogin,

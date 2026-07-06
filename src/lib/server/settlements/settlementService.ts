@@ -18,6 +18,7 @@ import {
   listWorkSubmissionsForMonth,
   upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
+import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import type {
   MonthlySettlementSnapshot,
   MonthlyWorkSubmission,
@@ -166,6 +167,40 @@ export const loadSettlementAssignee = async (
   };
 };
 
+/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
+export const validateSettlementPaymentEligibility = async (
+  month: string,
+  assigneeLogin: string,
+): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  if (data.projectFetchError) {
+    return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
+  }
+  if (!data.summary) {
+    return { ok: false, message: "対象assigneeの精算データがありません。" };
+  }
+  if (!data.summary.approvalRequired) {
+    return {
+      ok: false,
+      message: "精算対象がないため支払い情報を更新できません。",
+    };
+  }
+  if (!data.snapshot) {
+    return {
+      ok: false,
+      message: "未承認の月次精算は支払い情報を更新できません。",
+    };
+  }
+  if (hasSettlementSnapshotChanges(data.snapshot.snapshot, data.summary)) {
+    return {
+      ok: false,
+      message:
+        "承認後に内容が変更されています。再承認後に支払い情報を更新してください。",
+    };
+  }
+  return { ok: true };
+};
+
 export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
@@ -249,6 +284,15 @@ export const approveSettlement = async (
   }
   if (summary.blockingReasons.length > 0) {
     return { ok: false, message: "未解決の不備があるため月次承認できません。" };
+  }
+
+  const payment = await getPaymentRow(month, assigneeLogin);
+  if (payment?.status === "paid") {
+    return {
+      ok: false,
+      message:
+        "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
+    };
   }
 
   await upsertSnapshot(summary, approvedBy);

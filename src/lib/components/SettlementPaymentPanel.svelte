@@ -7,14 +7,21 @@
 
   type Props = {
     payment: MonthlyPaymentView;
+    paymentEditable: boolean;
     isAdmin: boolean;
     message?: string;
     pendingAction: string | null;
     enhanceAction: (name: string) => SubmitFunction;
   };
 
-  let { payment, isAdmin, message, pendingAction, enhanceAction }: Props =
-    $props();
+  let {
+    payment,
+    paymentEditable,
+    isAdmin,
+    message,
+    pendingAction,
+    enhanceAction,
+  }: Props = $props();
 
   const isPaid = $derived(payment.status === "paid");
 
@@ -127,7 +134,7 @@
               </div>
             </div>
           {/if}
-        {:else}
+        {:else if paymentEditable}
           <form
             method="POST"
             action="?/markPaid"
@@ -145,38 +152,44 @@
               pendingLabel="登録中..."
             />
           </form>
+        {:else}
+          <p class="muted">
+            承認後に内容が変更されています。再承認後に支払い状態を更新できます。
+          </p>
         {/if}
       </div>
 
-      <div class="payment-action-group">
-        <h3>支払い予定日</h3>
-        <form
-          method="POST"
-          action="?/updatePaymentSchedule"
-          use:enhance={enhanceAction("update-payment-schedule")}
-          class="payment-form"
-        >
-          <label>
-            予定日
-            <input
-              type="date"
-              name="scheduledDate"
-              value={payment.customScheduledDate ?? ""}
-              placeholder={payment.scheduledDate}
-            />
-          </label>
-          <ActionSubmit
-            actionName="update-payment-schedule"
-            {pendingAction}
-            label="予定日を保存"
-            pendingLabel="保存中..."
-            variant="secondary"
-          />
-          <small class="muted"
-            >空欄で保存すると、自動設定（翌月14日）に戻ります。</small
+      {#if paymentEditable}
+        <div class="payment-action-group">
+          <h3>支払い予定日</h3>
+          <form
+            method="POST"
+            action="?/updatePaymentSchedule"
+            use:enhance={enhanceAction("update-payment-schedule")}
+            class="payment-form"
           >
-        </form>
-      </div>
+            <label>
+              予定日
+              <input
+                type="date"
+                name="scheduledDate"
+                value={payment.customScheduledDate ?? ""}
+                placeholder={payment.scheduledDate}
+              />
+            </label>
+            <ActionSubmit
+              actionName="update-payment-schedule"
+              {pendingAction}
+              label="予定日を保存"
+              pendingLabel="保存中..."
+              variant="secondary"
+            />
+            <small class="muted"
+              >空欄で保存すると、自動設定（翌月14日）に戻ります。</small
+            >
+          </form>
+        </div>
+      {/if}
     </div>
   {/if}
 </section>

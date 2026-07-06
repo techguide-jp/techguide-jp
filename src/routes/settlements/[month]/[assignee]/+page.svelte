@@ -125,9 +125,10 @@
   </dl>
 </section>
 
-{#if data.payment}
+{#if data.payment && data.snapshot}
   <SettlementPaymentPanel
     payment={data.payment}
+    paymentEditable={data.paymentEditable}
     isAdmin={Boolean(data.user?.isAdmin)}
     message={paymentMessage}
     {pendingAction}

@@ -7,6 +7,7 @@ import {
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
 import { getPayoutAccountStatus } from "$lib/server/payoutAccounts/payoutAccountService";
+import { hasSettlementSnapshotChanges } from "$lib/server/settlements/settlementSnapshot";
 import {
   loadSettlementAssignee,
   submitSettlementWork,
@@ -15,6 +16,15 @@ import {
 export const load = async (event) => {
   requireSelfOrAdmin(event, event.params.assignee);
   const assignee = event.params.assignee;
+  const settlement = await loadSettlementAssignee(event.params.month, assignee);
+  const paymentEditable = Boolean(
+    settlement.summary &&
+    settlement.snapshot &&
+    !hasSettlementSnapshotChanges(
+      settlement.snapshot.snapshot,
+      settlement.summary,
+    ),
+  );
 
   return {
     month: event.params.month,
@@ -25,7 +35,8 @@ export const load = async (event) => {
       assignee,
       event.locals.user,
     ),
-    ...(await loadSettlementAssignee(event.params.month, assignee)),
+    paymentEditable,
+    ...settlement,
   };
 };
 

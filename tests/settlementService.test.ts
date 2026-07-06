@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
+import type { ProjectIssue } from "$lib/server/github/projectTypes";
+import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import {
   approveSettlement,
   loadSettlementMonth,
   submitSettlementWork,
+  validateSettlementPaymentEligibility,
 } from "$lib/server/settlements/settlementService";
+import { buildSettlementSummaries } from "$lib/server/settlements/settlementCalculator";
+import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import {
   getSnapshot,
   listSnapshotsForMonth,
@@ -29,6 +34,10 @@ vi.mock("$lib/server/github/projectClient", () => ({
   fetchProjectIssuesForPage: vi.fn(),
 }));
 
+vi.mock("$lib/server/payments/paymentRepository", () => ({
+  getPaymentRow: vi.fn(),
+}));
+
 vi.mock("$lib/server/settlements/snapshotRepository", () => ({
   getSnapshot: vi.fn(),
   listSnapshotsForMonth: vi.fn(),
@@ -49,6 +58,36 @@ vi.mock("$lib/server/work/workRepository", () => ({
 const projectFetchError =
   "GitHub Projectを取得できません。GITHUB_PROJECT_TOKEN にProject v2を読める権限がありません。";
 
+const approvedIssue: ProjectIssue = {
+  projectItemId: "item-1",
+  repository: "techguide-jp/example",
+  number: 1,
+  title: "Issue",
+  state: "CLOSED",
+  url: "https://github.com/techguide-jp/example/issues/1",
+  createdAt: "2026-06-01T00:00:00Z",
+  closedAt: "2026-06-20T00:00:00Z",
+  assignees: ["tashua314"],
+  status: "Done",
+  rewardMode: "固定",
+  fixedRewardYen: 1000,
+  extraCapYen: null,
+  hourlyRateYen: null,
+};
+
+const mockSuccessfulProjectFetch = () => {
+  vi.mocked(fetchProjectIssuesForPage).mockResolvedValue({
+    health: {
+      title: "外注管理",
+      missingFields: [],
+      invalidFields: [],
+      availableFields: [],
+    },
+    issues: [approvedIssue],
+    projectFetchError: null,
+  });
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchProjectIssuesForPage).mockResolvedValue({
@@ -66,6 +105,7 @@ beforeEach(() => {
   vi.mocked(listSnapshotsForMonth).mockResolvedValue([]);
   vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([]);
   vi.mocked(getSnapshot).mockResolvedValue(null);
+  vi.mocked(getPaymentRow).mockResolvedValue(null);
   vi.mocked(upsertWorkSubmission).mockResolvedValue(
     {} as Awaited<ReturnType<typeof upsertWorkSubmission>>,
   );
@@ -111,6 +151,58 @@ describe("monthly settlement actions", () => {
     expect(result).toEqual({
       ok: false,
       message: "GitHub Projectを取得できないため、精算額を確定できません。",
+    });
+    expect(upsertSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("未承認の精算は支払い情報を更新できない", async () => {
+    mockSuccessfulProjectFetch();
+
+    const result = await validateSettlementPaymentEligibility(
+      "2026-06",
+      "tashua314",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "未承認の月次精算は支払い情報を更新できません。",
+    });
+  });
+
+  it("支払い済みの精算は再承認できない", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot,
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+    vi.mocked(getPaymentRow).mockResolvedValue({
+      month: "2026-06",
+      assigneeLogin: "tashua314",
+      status: "paid",
+      scheduledDate: null,
+      paidOn: "2026-07-14",
+      createdAt: new Date("2026-07-14T00:00:00Z"),
+      updatedAt: new Date("2026-07-14T00:00:00Z"),
+    });
+
+    const result = await approveSettlement("2026-06", "tashua314", "admin");
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
     });
     expect(upsertSnapshot).not.toHaveBeenCalled();
   });
