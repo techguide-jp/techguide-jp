@@ -38,16 +38,16 @@
 </script>
 
 <section class="panel">
+  {#if message}
+    <p class="notice" role="status">{message}</p>
+  {/if}
+
   <div class="payment-heading">
     <h2>支払い</h2>
     <span class="payment-badge {isPaid ? 'paid' : 'unpaid'}">
       {isPaid ? "支払い済み" : "未処理"}
     </span>
   </div>
-
-  {#if message}
-    <p class="notice" role="status">{message}</p>
-  {/if}
 
   <dl class="profile-details profile-details-clean">
     <div>
