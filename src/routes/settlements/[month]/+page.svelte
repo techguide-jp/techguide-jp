@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { replaceState } from "$app/navigation";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -46,10 +47,9 @@
         pendingAction = null;
         if (clearHashOnSuccess && result.type === "success") {
           closedApprovalLogin = name.replace(/^approve-/, "");
-          globalThis.history.replaceState(
-            {},
-            "",
+          replaceState(
             `${globalThis.location.pathname}${globalThis.location.search}`,
+            {},
           );
         }
       };

@@ -1,6 +1,5 @@
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
-import { upsertPaymentScheduledDate } from "$lib/server/payments/paymentRepository";
 import { normalizeDateInput } from "$lib/server/payments/paymentDate";
 import {
   listChangeRequestsForSettlementContext,
@@ -14,7 +13,6 @@ import {
 import {
   getSnapshot,
   listSnapshotsForMonth,
-  upsertSnapshot,
 } from "$lib/server/settlements/snapshotRepository";
 import {
   listWorkSubmissionsForMonth,
@@ -30,6 +28,7 @@ import {
   hasSettlementSnapshotChanges,
   settlementSnapshotAmount,
 } from "$lib/server/settlements/settlementSnapshot";
+import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
 
@@ -322,28 +321,12 @@ export const approveSettlement = async (
     };
   }
 
-  await upsertSnapshot(summary, approvedBy);
-  if (scheduledDate.shouldUpdate) {
-    await upsertPaymentScheduledDate({
-      month,
-      assigneeLogin,
-      scheduledDate: scheduledDate.scheduledDate,
-    });
-  }
-  await createAuditLog({
-    actorLogin: approvedBy,
-    action: "monthly_settlement_approved",
-    targetType: "monthly_settlement_snapshot",
-    targetId: `${month}:${assigneeLogin}`,
-    details: {
-      month,
-      assigneeLogin,
-      taxExcludedYen: summary.taxExcludedYen,
-      taxIncludedYen: summary.taxIncludedYen,
-      ...(scheduledDate.shouldUpdate
-        ? { scheduledDate: scheduledDate.scheduledDate }
-        : {}),
-    },
+  await recordSettlementApproval({
+    summary,
+    approvedBy,
+    ...(scheduledDate.shouldUpdate
+      ? { scheduledDate: scheduledDate.scheduledDate }
+      : {}),
   });
   return { ok: true };
 };

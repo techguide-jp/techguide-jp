@@ -17,8 +17,15 @@ const isLocalPostgresUrl = (url: string): boolean => {
   );
 };
 
-export const db = isLocalPostgresUrl(databaseUrl)
-  ? drizzlePostgres(postgres(databaseUrl), { schema })
-  : drizzleNeon(neon(databaseUrl), { schema });
+export const usesLocalPostgres = isLocalPostgresUrl(databaseUrl);
+
+export const postgresClient = usesLocalPostgres ? postgres(databaseUrl) : null;
+export const neonClient = usesLocalPostgres ? null : neon(databaseUrl);
+
+export const db = usesLocalPostgres
+  ? drizzlePostgres(postgresClient as NonNullable<typeof postgresClient>, {
+      schema,
+    })
+  : drizzleNeon(neonClient as NonNullable<typeof neonClient>, { schema });
 
 export const isDatabaseConfigured = (): boolean => Boolean(env.databaseUrl);

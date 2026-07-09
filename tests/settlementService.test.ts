@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
-import {
-  getPaymentRow,
-  upsertPaymentScheduledDate,
-} from "$lib/server/payments/paymentRepository";
+import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import {
   approveSettlement,
   loadSettlementMonth,
@@ -17,8 +14,8 @@ import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlem
 import {
   getSnapshot,
   listSnapshotsForMonth,
-  upsertSnapshot,
 } from "$lib/server/settlements/snapshotRepository";
+import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import {
   listWorkSubmissionsForMonth,
   upsertWorkSubmission,
@@ -39,13 +36,15 @@ vi.mock("$lib/server/github/projectClient", () => ({
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
-  upsertPaymentScheduledDate: vi.fn(),
 }));
 
 vi.mock("$lib/server/settlements/snapshotRepository", () => ({
   getSnapshot: vi.fn(),
   listSnapshotsForMonth: vi.fn(),
-  upsertSnapshot: vi.fn(),
+}));
+
+vi.mock("$lib/server/settlements/settlementApprovalRepository", () => ({
+  recordSettlementApproval: vi.fn(),
 }));
 
 vi.mock("$lib/server/settlements/submissionRepository", () => ({
@@ -110,14 +109,9 @@ beforeEach(() => {
   vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([]);
   vi.mocked(getSnapshot).mockResolvedValue(null);
   vi.mocked(getPaymentRow).mockResolvedValue(null);
-  vi.mocked(upsertPaymentScheduledDate).mockResolvedValue(
-    {} as Awaited<ReturnType<typeof upsertPaymentScheduledDate>>,
-  );
+  vi.mocked(recordSettlementApproval).mockResolvedValue(undefined);
   vi.mocked(upsertWorkSubmission).mockResolvedValue(
     {} as Awaited<ReturnType<typeof upsertWorkSubmission>>,
-  );
-  vi.mocked(upsertSnapshot).mockResolvedValue(
-    {} as Awaited<ReturnType<typeof upsertSnapshot>>,
   );
   vi.mocked(reviewChangeRequest).mockResolvedValue(null);
   vi.mocked(createAuditLog).mockResolvedValue(
@@ -159,7 +153,7 @@ describe("monthly settlement actions", () => {
       ok: false,
       message: "GitHub Projectを取得できないため、精算額を確定できません。",
     });
-    expect(upsertSnapshot).not.toHaveBeenCalled();
+    expect(recordSettlementApproval).not.toHaveBeenCalled();
   });
 
   it("未承認の精算は支払い情報を更新できない", async () => {
@@ -211,7 +205,7 @@ describe("monthly settlement actions", () => {
       message:
         "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
     });
-    expect(upsertSnapshot).not.toHaveBeenCalled();
+    expect(recordSettlementApproval).not.toHaveBeenCalled();
   });
 
   it("月次承認と同時に支払い予定日を保存する", async () => {
@@ -241,17 +235,11 @@ describe("monthly settlement actions", () => {
     );
 
     expect(result).toEqual({ ok: true });
-    expect(upsertSnapshot).toHaveBeenCalledWith(summary, "admin");
-    expect(upsertPaymentScheduledDate).toHaveBeenCalledWith({
-      month: "2026-06",
-      assigneeLogin: "tashua314",
+    expect(recordSettlementApproval).toHaveBeenCalledWith({
+      summary,
+      approvedBy: "admin",
       scheduledDate: "2026-07-20",
     });
-    expect(createAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        details: expect.objectContaining({ scheduledDate: "2026-07-20" }),
-      }),
-    );
   });
 
   it("不正な支払い予定日は月次承認前に拒否する", async () => {
@@ -267,7 +255,6 @@ describe("monthly settlement actions", () => {
       message: "支払い予定日はYYYY-MM-DD形式で入力してください。",
     });
     expect(fetchProjectIssuesForPage).not.toHaveBeenCalled();
-    expect(upsertSnapshot).not.toHaveBeenCalled();
-    expect(upsertPaymentScheduledDate).not.toHaveBeenCalled();
+    expect(recordSettlementApproval).not.toHaveBeenCalled();
   });
 });
