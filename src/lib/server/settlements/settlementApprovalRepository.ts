@@ -24,7 +24,7 @@ const approvalDetails = (
 export const recordSettlementApproval = async (
   input: ApprovalWriteInput,
 ): Promise<void> => {
-  const approvedAt = new Date();
+  const approvedAt = new Date().toISOString();
   const snapshotJson = JSON.stringify(
     createSettlementSnapshotPayload(input.summary),
   );
@@ -47,7 +47,7 @@ export const recordSettlementApproval = async (
           ${input.summary.assigneeLogin},
           ${snapshotJson}::jsonb,
           ${input.approvedBy},
-          ${approvedAt}
+          ${approvedAt}::timestamptz
         )
         ON CONFLICT (month, assignee_login)
         DO UPDATE SET
@@ -113,7 +113,7 @@ export const recordSettlementApproval = async (
         ${input.summary.assigneeLogin},
         ${snapshotJson}::jsonb,
         ${input.approvedBy},
-        ${approvedAt}
+        ${approvedAt}::timestamptz
       )
       ON CONFLICT (month, assignee_login)
       DO UPDATE SET
