@@ -18,6 +18,13 @@ export const formatDateTime = (date: Date | string | null): string => {
   }).format(typeof date === "string" ? new Date(date) : date);
 };
 
+export const formatDate = (date: string | null): string => {
+  if (!date) return "-";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  if (!match) return date;
+  return `${match[1]}/${match[2]}/${match[3]}`;
+};
+
 export const formatProjectName = (repository: string): string => {
   const parts = repository.split("/");
   return parts[parts.length - 1] || repository;

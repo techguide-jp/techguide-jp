@@ -3,6 +3,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import SettlementPaymentPanel from "$lib/components/SettlementPaymentPanel.svelte";
   import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
   import UnsettledSettlementPanel from "$lib/components/UnsettledSettlementPanel.svelte";
   import {
@@ -43,7 +44,15 @@
   const approvedTaxExcludedYen = $derived(
     snapshotTaxExcludedYen(data.snapshot?.snapshot),
   );
-  const actionMessage = $derived((form as ActionData | undefined)?.message);
+  const formResult = $derived(
+    form as (ActionData & { scope?: string }) | undefined,
+  );
+  const paymentMessage = $derived(
+    formResult?.scope === "payment" ? formResult.message : undefined,
+  );
+  const actionMessage = $derived(
+    formResult?.scope === "payment" ? undefined : formResult?.message,
+  );
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
@@ -115,6 +124,17 @@
     </div>
   </dl>
 </section>
+
+{#if data.payment && data.snapshot}
+  <SettlementPaymentPanel
+    payment={data.payment}
+    paymentEditable={data.paymentEditable}
+    isAdmin={Boolean(data.user?.isAdmin)}
+    message={paymentMessage}
+    {pendingAction}
+    {enhanceAction}
+  />
+{/if}
 
 {#if !summary}
   {#if data.projectFetchError}

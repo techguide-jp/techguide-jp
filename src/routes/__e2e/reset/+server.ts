@@ -3,6 +3,7 @@ import {
   auditLogs,
   authSessions,
   githubProjectStatusSyncs,
+  monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   workLogChangeRequests,
@@ -19,6 +20,7 @@ export const POST = async () => {
   }
 
   await db.delete(auditLogs);
+  await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
   await db.delete(workLogChangeRequests);

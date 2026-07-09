@@ -1,5 +1,6 @@
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
+import { normalizeDateInput } from "$lib/server/payments/paymentDate";
 import {
   listChangeRequestsForSettlementContext,
   listWorkSessionsForSettlementContext,
@@ -12,12 +13,12 @@ import {
 import {
   getSnapshot,
   listSnapshotsForMonth,
-  upsertSnapshot,
 } from "$lib/server/settlements/snapshotRepository";
 import {
   listWorkSubmissionsForMonth,
   upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
+import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import type {
   MonthlySettlementSnapshot,
   MonthlyWorkSubmission,
@@ -27,11 +28,33 @@ import {
   hasSettlementSnapshotChanges,
   settlementSnapshotAmount,
 } from "$lib/server/settlements/settlementSnapshot";
+import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
+
+const parseApprovalScheduledDate = (
+  scheduledDateInput: string | null | undefined,
+):
+  | { ok: true; shouldUpdate: false; scheduledDate: null }
+  | { ok: true; shouldUpdate: true; scheduledDate: string }
+  | { ok: false; message: string } => {
+  if (scheduledDateInput === null || scheduledDateInput === undefined) {
+    return { ok: true, shouldUpdate: false, scheduledDate: null };
+  }
+
+  const scheduledDate = normalizeDateInput(scheduledDateInput);
+  if (!scheduledDate) {
+    return {
+      ok: false,
+      message: "支払い予定日はYYYY-MM-DD形式で入力してください。",
+    };
+  }
+
+  return { ok: true, shouldUpdate: true, scheduledDate };
+};
 
 const toSnapshotMeta = (
   snapshot: MonthlySettlementSnapshot,
@@ -166,6 +189,40 @@ export const loadSettlementAssignee = async (
   };
 };
 
+/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
+export const validateSettlementPaymentEligibility = async (
+  month: string,
+  assigneeLogin: string,
+): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  if (data.projectFetchError) {
+    return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
+  }
+  if (!data.summary) {
+    return { ok: false, message: "対象assigneeの精算データがありません。" };
+  }
+  if (!data.summary.approvalRequired) {
+    return {
+      ok: false,
+      message: "精算対象がないため支払い情報を更新できません。",
+    };
+  }
+  if (!data.snapshot) {
+    return {
+      ok: false,
+      message: "未承認の月次精算は支払い情報を更新できません。",
+    };
+  }
+  if (hasSettlementSnapshotChanges(data.snapshot.snapshot, data.summary)) {
+    return {
+      ok: false,
+      message:
+        "承認後に内容が変更されています。再承認後に支払い情報を更新してください。",
+    };
+  }
+  return { ok: true };
+};
+
 export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
@@ -216,7 +273,11 @@ export const approveSettlement = async (
   month: string,
   assigneeLogin: string,
   approvedBy: string,
+  scheduledDateInput?: string | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const scheduledDate = parseApprovalScheduledDate(scheduledDateInput);
+  if (!scheduledDate.ok) return scheduledDate;
+
   const data = await loadSettlementAssignee(month, assigneeLogin);
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
@@ -251,18 +312,21 @@ export const approveSettlement = async (
     return { ok: false, message: "未解決の不備があるため月次承認できません。" };
   }
 
-  await upsertSnapshot(summary, approvedBy);
-  await createAuditLog({
-    actorLogin: approvedBy,
-    action: "monthly_settlement_approved",
-    targetType: "monthly_settlement_snapshot",
-    targetId: `${month}:${assigneeLogin}`,
-    details: {
-      month,
-      assigneeLogin,
-      taxExcludedYen: summary.taxExcludedYen,
-      taxIncludedYen: summary.taxIncludedYen,
-    },
+  const payment = await getPaymentRow(month, assigneeLogin);
+  if (payment?.status === "paid") {
+    return {
+      ok: false,
+      message:
+        "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
+    };
+  }
+
+  await recordSettlementApproval({
+    summary,
+    approvedBy,
+    ...(scheduledDate.shouldUpdate
+      ? { scheduledDate: scheduledDate.scheduledDate }
+      : {}),
   });
   return { ok: true };
 };

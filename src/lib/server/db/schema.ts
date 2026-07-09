@@ -1,5 +1,6 @@
 import {
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -29,6 +30,11 @@ export const githubProjectStatusSyncStatus = pgEnum(
   "github_project_status_sync_status",
   ["pending", "resolved"],
 );
+
+export const monthlyPaymentStatus = pgEnum("monthly_payment_status", [
+  "unpaid",
+  "paid",
+]);
 
 export const workerProfiles = pgTable(
   "worker_profiles",
@@ -230,6 +236,37 @@ export const monthlyWorkSubmissions = pgTable(
   ],
 );
 
+export const monthlyPayments = pgTable(
+  "monthly_payments",
+  {
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    status: monthlyPaymentStatus("status").notNull().default("unpaid"),
+    scheduledDate: date("scheduled_date"),
+    paidOn: date("paid_on"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.month, table.assigneeLogin] }),
+    check(
+      "monthly_payments_month_chk",
+      sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "monthly_payments_paid_chk",
+      sql`
+        (${table.status} = 'paid' AND ${table.paidOn} IS NOT NULL)
+        OR (${table.status} = 'unpaid' AND ${table.paidOn} IS NULL)
+      `,
+    ),
+  ],
+);
+
 export const githubProjectStatusSyncs = pgTable(
   "github_project_status_syncs",
   {
@@ -293,6 +330,7 @@ export type WorkerPayoutAccount = typeof workerPayoutAccounts.$inferSelect;
 export type MonthlySettlementSnapshot =
   typeof monthlySettlementSnapshots.$inferSelect;
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;
+export type MonthlyPayment = typeof monthlyPayments.$inferSelect;
 export type GithubProjectStatusSync =
   typeof githubProjectStatusSyncs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;

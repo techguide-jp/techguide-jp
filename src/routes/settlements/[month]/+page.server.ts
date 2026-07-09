@@ -1,5 +1,6 @@
 import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
+import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
 import {
   approveSettlement,
@@ -11,13 +12,15 @@ export const load = async (event) => {
   requireAdmin(event);
   const month = event.params.month;
   const settlement = await loadSettlementMonth(month);
+  const assigneeLogins = settlement.summaries.map(
+    (summary) => summary.assigneeLogin,
+  );
 
   return {
     month,
     ...settlement,
-    payoutAccountStatuses: await listPayoutAccountStatuses(
-      settlement.summaries.map((summary) => summary.assigneeLogin),
-    ),
+    payoutAccountStatuses: await listPayoutAccountStatuses(assigneeLogins),
+    payments: await listPaymentViewsForMonth(month, assigneeLogins),
   };
 };
 
@@ -26,10 +29,12 @@ export const actions = {
     const user = requireAdmin(event);
     const formData = await event.request.formData();
     const assigneeLogin = String(formData.get("assigneeLogin") ?? "");
+    const scheduledDate = String(formData.get("scheduledDate") ?? "");
     const result = await approveSettlement(
       event.params.month,
       assigneeLogin,
       user.login,
+      scheduledDate,
     );
     if (!result.ok) return fail(400, { message: result.message });
     return { message: `${assigneeLogin} の月次精算を承認しました。` };

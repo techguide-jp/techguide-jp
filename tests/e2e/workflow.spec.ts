@@ -69,6 +69,7 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(
     page.getByText("tashua314 の月次精算を承認しました。"),
   ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByText("承認済み")).toBeVisible();
 });
 
