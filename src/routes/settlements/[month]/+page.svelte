@@ -1,6 +1,5 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { replaceState } from "$app/navigation";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -17,6 +16,7 @@
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
+  let closedApprovalLogin = $state<string | null>(null);
   const snapshotByAssignee = $derived(
     new Map(
       data.snapshots.map((snapshot) => [snapshot.assigneeLogin, snapshot]),
@@ -44,14 +44,12 @@
       return async ({ result, update }) => {
         await update();
         pendingAction = null;
-        if (
-          clearHashOnSuccess &&
-          result.type === "success" &&
-          globalThis.location.hash
-        ) {
-          replaceState(
-            `${globalThis.location.pathname}${globalThis.location.search}`,
+        if (clearHashOnSuccess && result.type === "success") {
+          closedApprovalLogin = name.replace(/^approve-/, "");
+          globalThis.history.replaceState(
             {},
+            "",
+            `${globalThis.location.pathname}${globalThis.location.search}`,
           );
         }
       };
@@ -315,6 +313,7 @@
                 class={`button ${snapshot ? "secondary" : "primary"}`}
                 href={`#approve-${summary.assigneeLogin}`}
                 data-sveltekit-reload
+                onclick={() => (closedApprovalLogin = null)}
               >
                 {snapshot ? "再承認" : "承認"}
               </a>
@@ -330,11 +329,14 @@
   {#if summary.approvalRequired}
     {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
     {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
+    {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
     <SettlementApprovalModal
       month={data.month}
       {summary}
       {snapshot}
       {submission}
+      {payment}
+      forceClosed={closedApprovalLogin === summary.assigneeLogin}
       {pendingAction}
       {enhanceAction}
       {formatProjectStatus}

@@ -11,6 +11,10 @@
     @apply grid;
   }
 
+  .modal-backdrop-hash.modal-backdrop-closed {
+    @apply hidden;
+  }
+
   .modal {
     width: min(48rem, 100%);
     max-height: min(46rem, calc(100vh - 2rem));
@@ -139,5 +143,17 @@
 
   .modal-actions {
     @apply mt-4 border-t border-slate-200 pt-4;
+  }
+
+  .approval-action-form {
+    @apply flex flex-wrap items-end justify-end gap-3;
+  }
+
+  .approval-date-field {
+    @apply flex flex-col gap-1 text-xs font-bold text-slate-600;
+  }
+
+  .approval-date-field input {
+    @apply h-11 rounded-md border border-stone-300 px-3 text-base font-normal text-slate-900;
   }
 }

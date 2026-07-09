@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
-import { getPaymentRow } from "$lib/server/payments/paymentRepository";
+import {
+  getPaymentRow,
+  upsertPaymentScheduledDate,
+} from "$lib/server/payments/paymentRepository";
 import {
   approveSettlement,
   loadSettlementMonth,
@@ -36,6 +39,7 @@ vi.mock("$lib/server/github/projectClient", () => ({
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
+  upsertPaymentScheduledDate: vi.fn(),
 }));
 
 vi.mock("$lib/server/settlements/snapshotRepository", () => ({
@@ -106,6 +110,9 @@ beforeEach(() => {
   vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([]);
   vi.mocked(getSnapshot).mockResolvedValue(null);
   vi.mocked(getPaymentRow).mockResolvedValue(null);
+  vi.mocked(upsertPaymentScheduledDate).mockResolvedValue(
+    {} as Awaited<ReturnType<typeof upsertPaymentScheduledDate>>,
+  );
   vi.mocked(upsertWorkSubmission).mockResolvedValue(
     {} as Awaited<ReturnType<typeof upsertWorkSubmission>>,
   );
@@ -205,5 +212,62 @@ describe("monthly settlement actions", () => {
         "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
     });
     expect(upsertSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("月次承認と同時に支払い予定日を保存する", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot,
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      "2026-07-20",
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(upsertSnapshot).toHaveBeenCalledWith(summary, "admin");
+    expect(upsertPaymentScheduledDate).toHaveBeenCalledWith({
+      month: "2026-06",
+      assigneeLogin: "tashua314",
+      scheduledDate: "2026-07-20",
+    });
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ scheduledDate: "2026-07-20" }),
+      }),
+    );
+  });
+
+  it("不正な支払い予定日は月次承認前に拒否する", async () => {
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      "2026-99-99",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "支払い予定日はYYYY-MM-DD形式で入力してください。",
+    });
+    expect(fetchProjectIssuesForPage).not.toHaveBeenCalled();
+    expect(upsertSnapshot).not.toHaveBeenCalled();
+    expect(upsertPaymentScheduledDate).not.toHaveBeenCalled();
   });
 });

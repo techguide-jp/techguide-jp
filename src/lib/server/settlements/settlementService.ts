@@ -1,5 +1,7 @@
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
+import { upsertPaymentScheduledDate } from "$lib/server/payments/paymentRepository";
+import { normalizeDateInput } from "$lib/server/payments/paymentDate";
 import {
   listChangeRequestsForSettlementContext,
   listWorkSessionsForSettlementContext,
@@ -33,6 +35,27 @@ import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
+
+const parseApprovalScheduledDate = (
+  scheduledDateInput: string | null | undefined,
+):
+  | { ok: true; shouldUpdate: false; scheduledDate: null }
+  | { ok: true; shouldUpdate: true; scheduledDate: string }
+  | { ok: false; message: string } => {
+  if (scheduledDateInput === null || scheduledDateInput === undefined) {
+    return { ok: true, shouldUpdate: false, scheduledDate: null };
+  }
+
+  const scheduledDate = normalizeDateInput(scheduledDateInput);
+  if (!scheduledDate) {
+    return {
+      ok: false,
+      message: "支払い予定日はYYYY-MM-DD形式で入力してください。",
+    };
+  }
+
+  return { ok: true, shouldUpdate: true, scheduledDate };
+};
 
 const toSnapshotMeta = (
   snapshot: MonthlySettlementSnapshot,
@@ -251,7 +274,11 @@ export const approveSettlement = async (
   month: string,
   assigneeLogin: string,
   approvedBy: string,
+  scheduledDateInput?: string | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const scheduledDate = parseApprovalScheduledDate(scheduledDateInput);
+  if (!scheduledDate.ok) return scheduledDate;
+
   const data = await loadSettlementAssignee(month, assigneeLogin);
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
@@ -296,6 +323,13 @@ export const approveSettlement = async (
   }
 
   await upsertSnapshot(summary, approvedBy);
+  if (scheduledDate.shouldUpdate) {
+    await upsertPaymentScheduledDate({
+      month,
+      assigneeLogin,
+      scheduledDate: scheduledDate.scheduledDate,
+    });
+  }
   await createAuditLog({
     actorLogin: approvedBy,
     action: "monthly_settlement_approved",
@@ -306,6 +340,9 @@ export const approveSettlement = async (
       assigneeLogin,
       taxExcludedYen: summary.taxExcludedYen,
       taxIncludedYen: summary.taxIncludedYen,
+      ...(scheduledDate.shouldUpdate
+        ? { scheduledDate: scheduledDate.scheduledDate }
+        : {}),
     },
   });
   return { ok: true };

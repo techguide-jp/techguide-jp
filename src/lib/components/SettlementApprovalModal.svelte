@@ -12,6 +12,7 @@
     SettlementSummary,
     UnsettledProjectIssueReason,
   } from "$lib/server/settlements/settlementTypes";
+  import type { MonthlyPaymentView } from "$lib/server/payments/paymentTypes";
 
   type SnapshotMeta = {
     approvedBy: string;
@@ -31,6 +32,8 @@
     summary: SettlementSummary;
     snapshot: SnapshotMeta | undefined;
     submission: SubmissionMeta | undefined;
+    payment: MonthlyPaymentView | undefined;
+    forceClosed: boolean;
     pendingAction: string | null;
     enhanceAction: (
       name: string,
@@ -45,16 +48,22 @@
     summary,
     snapshot,
     submission,
+    payment,
+    forceClosed,
     pendingAction,
     enhanceAction,
     formatProjectStatus,
     formatUnsettledReason,
   }: Props = $props();
+
+  const scheduledDateValue = $derived(
+    payment?.customScheduledDate ?? payment?.scheduledDate ?? "",
+  );
 </script>
 
 <div
   id={`approve-${summary.assigneeLogin}`}
-  class="modal-backdrop modal-backdrop-hash"
+  class={`modal-backdrop modal-backdrop-hash${forceClosed ? " modal-backdrop-closed" : ""}`}
   role="dialog"
   aria-modal="true"
   aria-labelledby={`approval-dialog-${summary.assigneeLogin}`}
@@ -246,12 +255,22 @@
         method="POST"
         action="?/approve"
         use:enhance={enhanceAction(`approve-${summary.assigneeLogin}`, true)}
+        class="approval-action-form"
       >
         <input
           type="hidden"
           name="assigneeLogin"
           value={summary.assigneeLogin}
         />
+        <label class="approval-date-field">
+          支払い予定日
+          <input
+            type="date"
+            name="scheduledDate"
+            value={scheduledDateValue}
+            required
+          />
+        </label>
         <ActionSubmit
           actionName={`approve-${summary.assigneeLogin}`}
           {pendingAction}
