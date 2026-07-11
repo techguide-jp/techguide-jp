@@ -19,6 +19,14 @@ import {
   upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
+import { defaultPaymentDueDate } from "$lib/server/payments/paymentDate";
+import {
+  jstDateString,
+  noticeSkipMessage,
+  prepareNoticeWriteInput,
+} from "$lib/server/notices/noticeService";
+import { insertPaymentNotice } from "$lib/server/notices/noticeRepository";
+import type { NoticeSkipReason } from "$lib/server/notices/noticeTypes";
 import type {
   MonthlySettlementSnapshot,
   MonthlyWorkSubmission,
@@ -274,7 +282,10 @@ export const approveSettlement = async (
   assigneeLogin: string,
   approvedBy: string,
   scheduledDateInput?: string | null,
-): Promise<{ ok: true } | { ok: false; message: string }> => {
+): Promise<
+  | { ok: true; noticeCreated: boolean; noticeSkippedReason?: NoticeSkipReason }
+  | { ok: false; message: string }
+> => {
   const scheduledDate = parseApprovalScheduledDate(scheduledDateInput);
   if (!scheduledDate.ok) return scheduledDate;
 
@@ -328,6 +339,72 @@ export const approveSettlement = async (
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
   });
+
+  // 承認確定後、承認時点の宛先・支払い予定日を凍結した通知書スナップショットを保存する。
+  // 振込先が未登録・復号失敗のときは承認自体は成立させ、通知書のみスキップする。
+  const now = new Date();
+  const effectiveScheduledDate = scheduledDate.shouldUpdate
+    ? scheduledDate.scheduledDate
+    : (payment?.scheduledDate ?? defaultPaymentDueDate(month));
+  const prepared = await prepareNoticeWriteInput({
+    month,
+    assigneeLogin,
+    summary,
+    scheduledDate: effectiveScheduledDate,
+    approvedBy,
+    approvedAt: now.toISOString(),
+    issuedOn: jstDateString(now),
+    createdBy: approvedBy,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: true,
+      noticeCreated: false,
+      noticeSkippedReason: prepared.reason,
+    };
+  }
+  await insertPaymentNotice(prepared.notice);
+  return { ok: true, noticeCreated: true };
+};
+
+/**
+ * 管理者による支払い通知書の再作成。承認済みかつ内容変更のない精算について、
+ * 現在の振込先・支払い予定日で新しい通知書を append する。過去通知書は上書きしない。
+ * 承認日時・承認者は既存の承認スナップショットの値を凍結する。
+ */
+export const recreateSettlementNotice = async (
+  month: string,
+  assigneeLogin: string,
+  actor: string,
+): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const eligibility = await validateSettlementPaymentEligibility(
+    month,
+    assigneeLogin,
+  );
+  if (!eligibility.ok) return eligibility;
+
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  if (!data.summary || !data.snapshot) {
+    return { ok: false, message: "承認済みの月次精算がありません。" };
+  }
+
+  const payment = await getPaymentRow(month, assigneeLogin);
+  const scheduledDate = payment?.scheduledDate ?? defaultPaymentDueDate(month);
+  const prepared = await prepareNoticeWriteInput({
+    month,
+    assigneeLogin,
+    summary: data.summary,
+    scheduledDate,
+    approvedBy: data.snapshot.approvedBy,
+    approvedAt: data.snapshot.approvedAt.toISOString(),
+    issuedOn: jstDateString(new Date()),
+    createdBy: actor,
+  });
+  if (!prepared.ok) {
+    return { ok: false, message: noticeSkipMessage(prepared.reason) };
+  }
+
+  await insertPaymentNotice(prepared.notice);
   return { ok: true };
 };
 

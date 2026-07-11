@@ -8,6 +8,7 @@ import {
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
+  paymentNotices,
   workLogChangeRequests,
   workerPayoutAccounts,
   workerProfiles,
@@ -35,6 +36,7 @@ const errorCode = (error: unknown): string | undefined => {
 beforeEach(async () => {
   if (process.env.RUN_DB_INTEGRATION !== "1") return;
   await db.delete(auditLogs);
+  await db.delete(paymentNotices);
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
@@ -119,6 +121,37 @@ describeDb("DB constraints", () => {
       await db.insert(monthlyPayments).values({
         month: "2026-13",
         assigneeLogin: "tashua314",
+      });
+      throw new Error("month check constraint did not fail");
+    } catch (error) {
+      expect(errorCode(error)).toBe("23514");
+    }
+  });
+
+  it("不正な月フォーマットの支払い通知書は保存できない", async () => {
+    try {
+      await db.insert(paymentNotices).values({
+        month: "2026-13",
+        assigneeLogin: "tashua314",
+        document: {
+          schemaVersion: 1,
+          totals: {
+            fixedRewardYen: 0,
+            timedRewardYen: 0,
+            taxExcludedYen: 0,
+            taxYen: 0,
+            taxIncludedYen: 0,
+          },
+          lines: [],
+          workLogs: [],
+        },
+        workerDisplayName: "tashua314",
+        recipientEncryptedPayload: '{"v":1,"data":"AAAA"}',
+        scheduledDate: "2026-07-14",
+        approvedBy: "admin",
+        approvedAt: new Date("2026-07-11T00:00:00Z"),
+        issuedOn: "2026-07-11",
+        createdBy: "admin",
       });
       throw new Error("month check constraint did not fail");
     } catch (error) {

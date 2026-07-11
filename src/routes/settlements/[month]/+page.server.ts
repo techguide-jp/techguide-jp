@@ -37,7 +37,15 @@ export const actions = {
       scheduledDate,
     );
     if (!result.ok) return fail(400, { message: result.message });
-    return { message: `${assigneeLogin} の月次精算を承認しました。` };
+    const approved = `${assigneeLogin} の月次精算を承認しました。`;
+    if (result.noticeCreated) {
+      return { message: `${approved}支払い通知書を作成しました。` };
+    }
+    const noticeNote =
+      result.noticeSkippedReason === "payout_account_missing"
+        ? "振込先情報が未登録のため支払い通知書は未作成です。作業者へ振込先の登録を依頼してください。"
+        : "振込先情報を復号できなかったため支払い通知書は未作成です。管理者に確認してください。";
+    return { message: `${approved}${noticeNote}` };
   },
   reviewRequest: async (event) => {
     const user = requireAdmin(event);

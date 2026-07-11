@@ -1,4 +1,15 @@
+import { addMonths, isMonthString } from "$lib/month";
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 対象月の翌月14日を、デフォルトの支払い予定日として返す。
+ * 例: "2026-06" -> "2026-07-14"
+ */
+export const defaultPaymentDueDate = (month: string): string => {
+  if (!isMonthString(month)) return "";
+  return `${addMonths(month, 1)}-14`;
+};
 
 /** "YYYY-MM-DD" 形式かつ実在する日付なら正規化した文字列を返す。 */
 export const normalizeDateInput = (value: string): string | null => {

@@ -16,6 +16,8 @@ import {
   listSnapshotsForMonth,
 } from "$lib/server/settlements/snapshotRepository";
 import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
+import { prepareNoticeWriteInput } from "$lib/server/notices/noticeService";
+import { insertPaymentNotice } from "$lib/server/notices/noticeRepository";
 import {
   listWorkSubmissionsForMonth,
   upsertWorkSubmission,
@@ -51,6 +53,45 @@ vi.mock("$lib/server/settlements/submissionRepository", () => ({
   listWorkSubmissionsForMonth: vi.fn(),
   upsertWorkSubmission: vi.fn(),
 }));
+
+vi.mock("$lib/server/notices/noticeService", () => ({
+  prepareNoticeWriteInput: vi.fn(),
+  jstDateString: vi.fn(() => "2026-07-11"),
+  noticeSkipMessage: vi.fn(() => "notice skipped"),
+}));
+
+vi.mock("$lib/server/notices/noticeRepository", () => ({
+  insertPaymentNotice: vi.fn(),
+  getLatestNotice: vi.fn(),
+}));
+
+const preparedNotice = {
+  ok: true as const,
+  notice: {
+    month: "2026-06",
+    assigneeLogin: "tashua314",
+    document: {
+      schemaVersion: 1 as const,
+      totals: {
+        fixedRewardYen: 0,
+        timedRewardYen: 0,
+        taxExcludedYen: 0,
+        taxYen: 0,
+        taxIncludedYen: 0,
+      },
+      lines: [],
+      workLogs: [],
+    },
+    workerDisplayName: "tashua314",
+    recipientEncryptedPayload: "enc",
+    encryptionKeyVersion: 1,
+    scheduledDate: "2026-07-14",
+    approvedBy: "admin",
+    approvedAt: "2026-07-11T00:00:00Z",
+    issuedOn: "2026-07-11",
+    createdBy: "admin",
+  },
+};
 
 vi.mock("$lib/server/work/workRepository", () => ({
   listChangeRequestsForSettlementContext: vi.fn(),
@@ -110,6 +151,10 @@ beforeEach(() => {
   vi.mocked(getSnapshot).mockResolvedValue(null);
   vi.mocked(getPaymentRow).mockResolvedValue(null);
   vi.mocked(recordSettlementApproval).mockResolvedValue(undefined);
+  vi.mocked(prepareNoticeWriteInput).mockResolvedValue(preparedNotice);
+  vi.mocked(insertPaymentNotice).mockResolvedValue(
+    {} as Awaited<ReturnType<typeof insertPaymentNotice>>,
+  );
   vi.mocked(upsertWorkSubmission).mockResolvedValue(
     {} as Awaited<ReturnType<typeof upsertWorkSubmission>>,
   );
@@ -234,12 +279,83 @@ describe("monthly settlement actions", () => {
       "2026-07-20",
     );
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, noticeCreated: true });
     expect(recordSettlementApproval).toHaveBeenCalledWith({
       summary,
       approvedBy: "admin",
       scheduledDate: "2026-07-20",
     });
+    expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        summary,
+        scheduledDate: "2026-07-20",
+        approvedBy: "admin",
+        createdBy: "admin",
+      }),
+    );
+    expect(insertPaymentNotice).toHaveBeenCalledWith(preparedNotice.notice);
+  });
+
+  it("承認時の予定日未指定なら通知書の予定日はデフォルト(翌月14日)になる", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot,
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+
+    await approveSettlement("2026-06", "tashua314", "admin");
+
+    expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduledDate: "2026-07-14" }),
+    );
+  });
+
+  it("振込先未登録では通知書を作成せず承認自体は成立する", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot,
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+    vi.mocked(prepareNoticeWriteInput).mockResolvedValue({
+      ok: false,
+      reason: "payout_account_missing",
+    });
+
+    const result = await approveSettlement("2026-06", "tashua314", "admin");
+
+    expect(result).toEqual({
+      ok: true,
+      noticeCreated: false,
+      noticeSkippedReason: "payout_account_missing",
+    });
+    expect(recordSettlementApproval).toHaveBeenCalled();
+    expect(insertPaymentNotice).not.toHaveBeenCalled();
   });
 
   it("不正な支払い予定日は月次承認前に拒否する", async () => {
