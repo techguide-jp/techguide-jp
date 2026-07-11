@@ -332,17 +332,11 @@ export const approveSettlement = async (
     };
   }
 
-  await recordSettlementApproval({
-    summary,
-    approvedBy,
-    ...(scheduledDate.shouldUpdate
-      ? { scheduledDate: scheduledDate.scheduledDate }
-      : {}),
-  });
-
-  // 承認確定後、承認時点の宛先・支払い予定日を凍結した通知書スナップショットを保存する。
-  // 振込先が未登録・復号失敗のときは承認自体は成立させ、通知書のみスキップする。
+  // 承認時点の宛先・支払い予定日を凍結した通知書スナップショットを、承認確定と
+  // 同一トランザクションで保存する。振込先が未登録・復号失敗のときは承認自体は
+  // 成立させ、通知書のみスキップする。承認日時は1つだけ生成して両レコードで共有する。
   const now = new Date();
+  const approvedAt = now.toISOString();
   const effectiveScheduledDate = scheduledDate.shouldUpdate
     ? scheduledDate.scheduledDate
     : (payment?.scheduledDate ?? defaultPaymentDueDate(month));
@@ -352,19 +346,28 @@ export const approveSettlement = async (
     summary,
     scheduledDate: effectiveScheduledDate,
     approvedBy,
-    approvedAt: now.toISOString(),
+    approvedAt,
     issuedOn: jstDateString(now),
     createdBy: approvedBy,
   });
-  if (!prepared.ok) {
-    return {
-      ok: true,
-      noticeCreated: false,
-      noticeSkippedReason: prepared.reason,
-    };
-  }
-  await insertPaymentNotice(prepared.notice);
-  return { ok: true, noticeCreated: true };
+
+  await recordSettlementApproval({
+    summary,
+    approvedBy,
+    approvedAt,
+    ...(scheduledDate.shouldUpdate
+      ? { scheduledDate: scheduledDate.scheduledDate }
+      : {}),
+    ...(prepared.ok ? { notice: prepared.notice } : {}),
+  });
+
+  return prepared.ok
+    ? { ok: true, noticeCreated: true }
+    : {
+        ok: true,
+        noticeCreated: false,
+        noticeSkippedReason: prepared.reason,
+      };
 };
 
 /**

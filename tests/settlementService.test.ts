@@ -280,22 +280,29 @@ describe("monthly settlement actions", () => {
     );
 
     expect(result).toEqual({ ok: true, noticeCreated: true });
-    expect(recordSettlementApproval).toHaveBeenCalledWith({
+
+    // 通知書は承認確定と同一トランザクションで書き込む（単発 insert は使わない）
+    const approvalArg = vi.mocked(recordSettlementApproval).mock.calls[0][0];
+    expect(approvalArg).toMatchObject({
       summary,
       approvedBy: "admin",
       scheduledDate: "2026-07-20",
+      notice: preparedNotice.notice,
     });
-    expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
-      expect.objectContaining({
-        month: "2026-06",
-        assigneeLogin: "tashua314",
-        summary,
-        scheduledDate: "2026-07-20",
-        approvedBy: "admin",
-        createdBy: "admin",
-      }),
-    );
-    expect(insertPaymentNotice).toHaveBeenCalledWith(preparedNotice.notice);
+    expect(typeof approvalArg.approvedAt).toBe("string");
+    expect(insertPaymentNotice).not.toHaveBeenCalled();
+
+    // スナップショットと通知書で承認日時を共有している
+    const prepareArg = vi.mocked(prepareNoticeWriteInput).mock.calls[0][0];
+    expect(prepareArg).toMatchObject({
+      month: "2026-06",
+      assigneeLogin: "tashua314",
+      summary,
+      scheduledDate: "2026-07-20",
+      approvedBy: "admin",
+      createdBy: "admin",
+    });
+    expect(prepareArg.approvedAt).toBe(approvalArg.approvedAt);
   });
 
   it("承認時の予定日未指定なら通知書の予定日はデフォルト(翌月14日)になる", async () => {
@@ -354,7 +361,9 @@ describe("monthly settlement actions", () => {
       noticeCreated: false,
       noticeSkippedReason: "payout_account_missing",
     });
-    expect(recordSettlementApproval).toHaveBeenCalled();
+    // 承認自体は成立するが、通知書は書き込まない
+    const approvalArg = vi.mocked(recordSettlementApproval).mock.calls[0][0];
+    expect(approvalArg.notice).toBeUndefined();
     expect(insertPaymentNotice).not.toHaveBeenCalled();
   });
 
