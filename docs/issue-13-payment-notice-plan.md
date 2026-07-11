@@ -224,4 +224,14 @@ buildNoticeView(row): PaymentNoticeView
 - **再作成は `recreateSettlementNotice`（settlementService）。** 承認済みかつ内容変更なし（`validateSettlementPaymentEligibility`）を前提に、承認日時・承認者は既存承認スナップショットの値を凍結し、新規行を append。
 - **通知書レイヤー。** `src/lib/server/notices/`（`noticeTypes.ts` / `noticeCrypto.ts` / `noticeRepository.ts` / `noticeService.ts`）。ルート: `src/routes/settlements/[month]/[assignee]/notice/`（`+page.server.ts` / `+page.svelte`）。印刷時のナビ非表示は `+page.svelte` の `@media print` + `:global()` で対応（レイアウトリセットは不使用）。
 - **テスト。** `tests/noticeDocument.test.ts`（本文生成・除外ログ除外）、`tests/noticeCrypto.test.ts`（宛先のみ暗号化・往復・不正暗号文）、`tests/settlementService.test.ts`（承認時の通知書作成・デフォルト予定日凍結・振込先未登録スキップ）、`tests/dbConstraints.integration.test.ts`（`payment_notices_month_chk`）。E2E は §10 の観点を今後追加。
-- **未実施。** E2E スペック追加、help ページへの案内追記は未対応（別途）。
+- **未実施。** E2E スペック追加は未対応（別途）。
+
+## 14. 実装後の画面・運用整理
+
+- 月次詳細 `/settlements/[month]/[assignee]` には、承認済みの場合のみ「支払い通知書を表示」リンクを出す。
+- 通知書表示 `/settlements/[month]/[assignee]/notice` は本人 / 管理者のみ閲覧できる。他作業者は既存の `requireSelfOrAdmin` パターンで `/work` へリダイレクトする。
+- 未承認月、振込先未登録、承認済みだが通知書スナップショットなしの状態は、通知書本文を出さずに理由と次アクションを表示する。
+- 管理者の再作成操作は `payment_notices` へ新規行を append する。既存通知書は上書きしない。
+- PDF保存は `html2canvas-pro` と `jspdf` を動的 import してクライアント側で生成する。サーバー側PDF生成や保存は行わない。
+- 印刷時はナビゲーション、操作ボタン、案内文を非表示にし、通知書本文のみ出力する。
+- 銀行名、支店名、口座種別、口座番号、口座名義、補足メモ、支払い済み状態、支払日、支払い済み登録履歴、適格請求書発行事業者登録番号は、通知書表示にも通知書スナップショットにも含めない。
