@@ -59,6 +59,22 @@ export const getPayerInformation =
     }
   };
 
+const payerNoticeSkipReason = (
+  reason: Exclude<
+    PayerInformationResult,
+    { ok: true; recipient: NoticeRecipient }
+  >["reason"],
+): NoticeSkipReason => {
+  switch (reason) {
+    case "admin_not_configured":
+      return "payer_admin_not_configured";
+    case "payout_account_missing":
+      return "payer_payout_account_missing";
+    case "payout_decrypt_failed":
+      return "payer_payout_decrypt_failed";
+  }
+};
+
 /** JST の日付を YYYY-MM-DD で返す。 */
 export const jstDateString = (date: Date): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -147,9 +163,18 @@ export const prepareNoticeWriteInput = async (params: {
 }): Promise<
   { ok: true; notice: PreparedNotice } | { ok: false; reason: NoticeSkipReason }
 > => {
-  const row = await getPayoutAccountRow(params.assigneeLogin);
+  const [row, payerInformation] = await Promise.all([
+    getPayoutAccountRow(params.assigneeLogin),
+    getPayerInformation(),
+  ]);
   if (!row) {
     return { ok: false, reason: "payout_account_missing" };
+  }
+  if (!payerInformation.ok) {
+    return {
+      ok: false,
+      reason: payerNoticeSkipReason(payerInformation.reason),
+    };
   }
 
   let recipient: NoticeRecipient;
@@ -174,6 +199,7 @@ export const prepareNoticeWriteInput = async (params: {
       document: buildNoticeDocument(params.summary),
       workerDisplayName: profile?.displayName ?? params.assigneeLogin,
       recipientEncryptedPayload: encryptNoticeRecipient(recipient),
+      payerEncryptedPayload: encryptNoticeRecipient(payerInformation.recipient),
       encryptionKeyVersion: ENCRYPTION_KEY_VERSION,
       scheduledDate: params.scheduledDate,
       approvedBy: params.approvedBy,
@@ -185,10 +211,20 @@ export const prepareNoticeWriteInput = async (params: {
 };
 
 /** 通知書スナップショットを保存できなかった理由の表示メッセージ。 */
-export const noticeSkipMessage = (reason: NoticeSkipReason): string =>
-  reason === "payout_account_missing"
-    ? "振込先情報が未登録のため支払い通知書を作成できませんでした。作業者へ振込先の登録を依頼してください。"
-    : "振込先情報を復号できなかったため支払い通知書を作成できませんでした。管理者に確認してください。";
+export const noticeSkipMessage = (reason: NoticeSkipReason): string => {
+  switch (reason) {
+    case "payout_account_missing":
+      return "振込先情報が未登録のため支払い通知書を作成できませんでした。作業者へ振込先の登録を依頼してください。";
+    case "payout_decrypt_failed":
+      return "振込先情報を復号できなかったため支払い通知書を作成できませんでした。管理者に確認してください。";
+    case "payer_admin_not_configured":
+      return "支払い者となる管理者が設定されていないため支払い通知書を作成できませんでした。ADMIN_GITHUB_LOGINS を確認してください。";
+    case "payer_payout_account_missing":
+      return "支払い者の宛先情報が未登録のため支払い通知書を作成できませんでした。先頭の管理者の振込先情報を登録してください。";
+    case "payer_payout_decrypt_failed":
+      return "支払い者の宛先情報を復号できなかったため支払い通知書を作成できませんでした。管理者に確認してください。";
+  }
+};
 
 const toNoticeView = (row: PaymentNotice): PaymentNoticeView => {
   let recipient: NoticeRecipient = {
@@ -197,10 +233,21 @@ const toNoticeView = (row: PaymentNotice): PaymentNoticeView => {
     address: "",
   };
   let recipientLoadError = false;
+  let payer: NoticeRecipient = {
+    recipientName: "",
+    postalCode: "",
+    address: "",
+  };
+  let payerLoadError = false;
   try {
     recipient = decryptNoticeRecipient(row.recipientEncryptedPayload);
   } catch {
     recipientLoadError = true;
+  }
+  try {
+    payer = decryptNoticeRecipient(row.payerEncryptedPayload);
+  } catch {
+    payerLoadError = true;
   }
 
   return {
@@ -210,6 +257,8 @@ const toNoticeView = (row: PaymentNotice): PaymentNoticeView => {
     workerDisplayName: row.workerDisplayName,
     recipient,
     recipientLoadError,
+    payer,
+    payerLoadError,
     scheduledDate: row.scheduledDate,
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt.toISOString(),

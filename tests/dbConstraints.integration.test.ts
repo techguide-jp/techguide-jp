@@ -147,6 +147,7 @@ describeDb("DB constraints", () => {
         },
         workerDisplayName: "tashua314",
         recipientEncryptedPayload: '{"v":1,"data":"AAAA"}',
+        payerEncryptedPayload: '{"v":1,"data":"AAAA"}',
         scheduledDate: "2026-07-14",
         approvedBy: "admin",
         approvedAt: new Date("2026-07-11T00:00:00Z"),

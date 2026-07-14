@@ -197,12 +197,14 @@ export const loadSettlementAssignee = async (
   };
 };
 
-/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
-export const validateSettlementPaymentEligibility = async (
-  month: string,
-  assigneeLogin: string,
-): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const data = await loadSettlementAssignee(month, assigneeLogin);
+type SettlementAssigneeData = Awaited<
+  ReturnType<typeof loadSettlementAssignee>
+>;
+
+/** 取得済みデータが、支払い情報を更新できる承認済み精算かを確認する。 */
+const validateSettlementPaymentData = (
+  data: SettlementAssigneeData,
+): { ok: true } | { ok: false; message: string } => {
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
   }
@@ -230,6 +232,15 @@ export const validateSettlementPaymentEligibility = async (
   }
   return { ok: true };
 };
+
+/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
+export const validateSettlementPaymentEligibility = async (
+  month: string,
+  assigneeLogin: string,
+): Promise<{ ok: true } | { ok: false; message: string }> =>
+  validateSettlementPaymentData(
+    await loadSettlementAssignee(month, assigneeLogin),
+  );
 
 export const submitSettlementWork = async (
   month: string,
@@ -380,13 +391,10 @@ export const recreateSettlementNotice = async (
   assigneeLogin: string,
   actor: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const eligibility = await validateSettlementPaymentEligibility(
-    month,
-    assigneeLogin,
-  );
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  const eligibility = validateSettlementPaymentData(data);
   if (!eligibility.ok) return eligibility;
 
-  const data = await loadSettlementAssignee(month, assigneeLogin);
   if (!data.summary || !data.snapshot) {
     return { ok: false, message: "承認済みの月次精算がありません。" };
   }

@@ -565,6 +565,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "payer_encrypted_payload": {
+          "name": "payer_encrypted_payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "encryption_key_version": {
           "name": "encryption_key_version",
           "type": "integer",

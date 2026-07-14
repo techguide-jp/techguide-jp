@@ -68,6 +68,7 @@ export type PreparedNotice = {
   document: PaymentNoticeDocument;
   workerDisplayName: string;
   recipientEncryptedPayload: string;
+  payerEncryptedPayload: string;
   encryptionKeyVersion: number;
   scheduledDate: string;
   approvedBy: string;
@@ -79,7 +80,10 @@ export type PreparedNotice = {
 /** 通知書スナップショットを保存できなかった理由。 */
 export type NoticeSkipReason =
   | "payout_account_missing"
-  | "payout_decrypt_failed";
+  | "payout_decrypt_failed"
+  | "payer_admin_not_configured"
+  | "payer_payout_account_missing"
+  | "payer_payout_decrypt_failed";
 
 /** 通知書表示用のビュー。宛先は復号済み。 */
 export type PaymentNoticeView = {
@@ -89,6 +93,8 @@ export type PaymentNoticeView = {
   workerDisplayName: string;
   recipient: NoticeRecipient;
   recipientLoadError: boolean;
+  payer: NoticeRecipient;
+  payerLoadError: boolean;
   scheduledDate: string;
   approvedBy: string;
   approvedAt: string;

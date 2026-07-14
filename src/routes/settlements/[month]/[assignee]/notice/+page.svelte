@@ -212,25 +212,25 @@
 
     <section class="notice-section">
       <h2>支払い者情報</h2>
-      {#if data.payerInformation}
+      {#if notice.payerLoadError}
+        <div class="alert">
+          支払い者情報を復号できませんでした。通知書を再作成してください。
+        </div>
+      {:else}
         <dl class="notice-fields">
           <div>
             <dt>宛名</dt>
-            <dd>{data.payerInformation.recipientName}</dd>
+            <dd>{notice.payer.recipientName}</dd>
           </div>
           <div>
             <dt>郵便番号</dt>
-            <dd>〒{data.payerInformation.postalCode}</dd>
+            <dd>〒{notice.payer.postalCode}</dd>
           </div>
           <div>
             <dt>住所</dt>
-            <dd>{data.payerInformation.address}</dd>
+            <dd>{notice.payer.address}</dd>
           </div>
         </dl>
-      {:else}
-        <div class="alert">
-          支払い者情報を表示できません。管理者に確認してください。
-        </div>
       {/if}
     </section>
 

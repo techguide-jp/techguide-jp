@@ -280,6 +280,7 @@ export const paymentNotices = pgTable(
     document: jsonb("document").$type<PaymentNoticeDocument>().notNull(),
     workerDisplayName: text("worker_display_name").notNull(),
     recipientEncryptedPayload: text("recipient_encrypted_payload").notNull(),
+    payerEncryptedPayload: text("payer_encrypted_payload").notNull(),
     encryptionKeyVersion: integer("encryption_key_version")
       .notNull()
       .default(1),

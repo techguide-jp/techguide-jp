@@ -6,6 +6,7 @@ import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import {
   approveSettlement,
   loadSettlementMonth,
+  recreateSettlementNotice,
   submitSettlementWork,
   validateSettlementPaymentEligibility,
 } from "$lib/server/settlements/settlementService";
@@ -84,6 +85,7 @@ const preparedNotice = {
     },
     workerDisplayName: "tashua314",
     recipientEncryptedPayload: "enc",
+    payerEncryptedPayload: "payer-enc",
     encryptionKeyVersion: 1,
     scheduledDate: "2026-07-14",
     approvedBy: "admin",
@@ -365,6 +367,38 @@ describe("monthly settlement actions", () => {
     const approvalArg = vi.mocked(recordSettlementApproval).mock.calls[0][0];
     expect(approvalArg.notice).toBeUndefined();
     expect(insertPaymentNotice).not.toHaveBeenCalled();
+  });
+
+  it("通知書の再作成では検証と保存に同じ精算データを使う", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(getSnapshot).mockResolvedValue({
+      month: "2026-06",
+      assigneeLogin: "tashua314",
+      snapshot,
+      approvedBy: "admin",
+      approvedAt: new Date("2026-07-11T00:00:00Z"),
+    });
+
+    const result = await recreateSettlementNotice(
+      "2026-06",
+      "tashua314",
+      "admin",
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchProjectIssuesForPage).toHaveBeenCalledOnce();
+    expect(getSnapshot).toHaveBeenCalledOnce();
+    expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
+      expect.objectContaining({ summary }),
+    );
+    expect(insertPaymentNotice).toHaveBeenCalledWith(preparedNotice.notice);
   });
 
   it("不正な支払い予定日は月次承認前に拒否する", async () => {

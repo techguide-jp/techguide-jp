@@ -15,6 +15,7 @@ export const insertPaymentNotice = async (
       document: notice.document,
       workerDisplayName: notice.workerDisplayName,
       recipientEncryptedPayload: notice.recipientEncryptedPayload,
+      payerEncryptedPayload: notice.payerEncryptedPayload,
       encryptionKeyVersion: notice.encryptionKeyVersion,
       scheduledDate: notice.scheduledDate,
       approvedBy: notice.approvedBy,

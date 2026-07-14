@@ -5,6 +5,7 @@ CREATE TABLE "payment_notices" (
 	"document" jsonb NOT NULL,
 	"worker_display_name" text NOT NULL,
 	"recipient_encrypted_payload" text NOT NULL,
+	"payer_encrypted_payload" text NOT NULL,
 	"encryption_key_version" integer DEFAULT 1 NOT NULL,
 	"scheduled_date" date NOT NULL,
 	"approved_by" text NOT NULL,

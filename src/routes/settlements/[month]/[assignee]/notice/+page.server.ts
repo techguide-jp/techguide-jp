@@ -1,9 +1,6 @@
 import { fail } from "@sveltejs/kit";
 import { requireAdmin, requireSelfOrAdmin } from "$lib/server/auth/guards";
-import {
-  getNoticeForViewer,
-  getPayerInformation,
-} from "$lib/server/notices/noticeService";
+import { getNoticeForViewer } from "$lib/server/notices/noticeService";
 import { getPayoutAccountStatus } from "$lib/server/payoutAccounts/payoutAccountService";
 import { recreateSettlementNotice } from "$lib/server/settlements/settlementService";
 import { getSnapshot } from "$lib/server/settlements/snapshotRepository";
@@ -11,9 +8,8 @@ import { getSnapshot } from "$lib/server/settlements/snapshotRepository";
 export const load = async (event) => {
   requireSelfOrAdmin(event, event.params.assignee);
   const { month, assignee } = event.params;
-  const [notice, payerInformation, snapshot, payoutStatus] = await Promise.all([
+  const [notice, snapshot, payoutStatus] = await Promise.all([
     getNoticeForViewer(month, assignee, event.locals.user),
-    getPayerInformation(),
     getSnapshot(month, assignee),
     getPayoutAccountStatus(assignee),
   ]);
@@ -22,8 +18,6 @@ export const load = async (event) => {
     month,
     assignee,
     notice,
-    payerInformation:
-      payerInformation.ok && notice ? payerInformation.recipient : null,
     approved: Boolean(snapshot),
     payoutRegistered: payoutStatus.registered,
   };

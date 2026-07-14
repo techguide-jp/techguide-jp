@@ -2,6 +2,7 @@ import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
 import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
+import { noticeSkipMessage } from "$lib/server/notices/noticeService";
 import {
   approveSettlement,
   loadSettlementMonth,
@@ -41,10 +42,9 @@ export const actions = {
     if (result.noticeCreated) {
       return { message: `${approved}支払い通知書を作成しました。` };
     }
-    const noticeNote =
-      result.noticeSkippedReason === "payout_account_missing"
-        ? "振込先情報が未登録のため支払い通知書は未作成です。作業者へ振込先の登録を依頼してください。"
-        : "振込先情報を復号できなかったため支払い通知書は未作成です。管理者に確認してください。";
+    const noticeNote = result.noticeSkippedReason
+      ? noticeSkipMessage(result.noticeSkippedReason)
+      : "支払い通知書を作成できませんでした。";
     return { message: `${approved}${noticeNote}` };
   },
   reviewRequest: async (event) => {
