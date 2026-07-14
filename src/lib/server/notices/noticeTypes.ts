@@ -50,6 +50,17 @@ export type NoticeRecipient = {
   address: string;
 };
 
+/** 通知書に表示する支払い者情報の取得結果。 */
+export type PayerInformationResult =
+  | { ok: true; recipient: NoticeRecipient }
+  | {
+      ok: false;
+      reason:
+        | "admin_not_configured"
+        | "payout_account_missing"
+        | "payout_decrypt_failed";
+    };
+
 /** 通知書1行として保存する材料。承認確定・再作成のどちらでも同じ形で保存する。 */
 export type PreparedNotice = {
   month: string;

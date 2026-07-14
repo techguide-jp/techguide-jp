@@ -14,6 +14,7 @@ import {
   formatNoticeNumber,
   type NoticeRecipient,
   type NoticeSkipReason,
+  type PayerInformationResult,
   type PaymentNoticeDocument,
   type PaymentNoticeLine,
   type PaymentNoticeView,
@@ -26,6 +27,37 @@ import type { SettlementSummary } from "$lib/server/settlements/settlementTypes"
 /** 対象月・作業者の精算ページURL。APP_ORIGIN 未設定時は相対パスを返す。 */
 const settlementUrlFor = (month: string, assigneeLogin: string): string =>
   `${env.appOrigin ?? ""}/settlements/${month}/${encodeURIComponent(assigneeLogin)}`;
+
+/**
+ * ADMIN_GITHUB_LOGINS の先頭ユーザーに登録された宛先3項目を、
+ * 通知書の支払い者情報として返す。
+ */
+export const getPayerInformation =
+  async (): Promise<PayerInformationResult> => {
+    const payerLogin = env.adminGithubLogins.values().next().value;
+    if (!payerLogin) {
+      return { ok: false, reason: "admin_not_configured" };
+    }
+
+    const row = await getPayoutAccountRow(payerLogin);
+    if (!row) {
+      return { ok: false, reason: "payout_account_missing" };
+    }
+
+    try {
+      const payload = decryptPayload(row.encryptedPayload);
+      return {
+        ok: true,
+        recipient: {
+          recipientName: payload.recipientName,
+          postalCode: payload.postalCode,
+          address: payload.address,
+        },
+      };
+    } catch {
+      return { ok: false, reason: "payout_decrypt_failed" };
+    }
+  };
 
 /** JST の日付を YYYY-MM-DD で返す。 */
 export const jstDateString = (date: Date): string => {

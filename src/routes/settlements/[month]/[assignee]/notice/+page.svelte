@@ -211,6 +211,30 @@
     </section>
 
     <section class="notice-section">
+      <h2>支払い者情報</h2>
+      {#if data.payerInformation}
+        <dl class="notice-fields">
+          <div>
+            <dt>宛名</dt>
+            <dd>{data.payerInformation.recipientName}</dd>
+          </div>
+          <div>
+            <dt>郵便番号</dt>
+            <dd>〒{data.payerInformation.postalCode}</dd>
+          </div>
+          <div>
+            <dt>住所</dt>
+            <dd>{data.payerInformation.address}</dd>
+          </div>
+        </dl>
+      {:else}
+        <div class="alert">
+          支払い者情報を表示できません。管理者に確認してください。
+        </div>
+      {/if}
+    </section>
+
+    <section class="notice-section">
       <h2>支払い金額</h2>
       <table class="notice-amounts">
         <tbody>
