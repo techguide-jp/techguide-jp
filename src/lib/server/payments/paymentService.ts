@@ -1,4 +1,4 @@
-import { addMonths, isMonthString } from "$lib/month";
+import { isMonthString } from "$lib/month";
 import type { MonthlyPayment } from "$lib/server/db/schema";
 import {
   getPaymentRow,
@@ -7,23 +7,17 @@ import {
   upsertPaymentScheduledDate,
   upsertPaymentUnpaid,
 } from "$lib/server/payments/paymentRepository";
-import { normalizeDateInput } from "$lib/server/payments/paymentDate";
+import {
+  defaultPaymentDueDate,
+  normalizeDateInput,
+} from "$lib/server/payments/paymentDate";
 import {
   PAYMENT_STATUS_LABELS,
   type MonthlyPaymentView,
 } from "$lib/server/payments/paymentTypes";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
 
-export { normalizeDateInput };
-
-/**
- * 対象月の翌月14日を、デフォルトの支払い予定日として返す。
- * 例: "2026-06" -> "2026-07-14"
- */
-export const defaultPaymentDueDate = (month: string): string => {
-  if (!isMonthString(month)) return "";
-  return `${addMonths(month, 1)}-14`;
-};
+export { normalizeDateInput, defaultPaymentDueDate };
 
 const toPaymentView = (
   month: string,

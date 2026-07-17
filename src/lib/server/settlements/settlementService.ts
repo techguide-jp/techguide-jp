@@ -19,6 +19,14 @@ import {
   upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
+import { defaultPaymentDueDate } from "$lib/server/payments/paymentDate";
+import {
+  jstDateString,
+  noticeSkipMessage,
+  prepareNoticeWriteInput,
+} from "$lib/server/notices/noticeService";
+import { insertPaymentNotice } from "$lib/server/notices/noticeRepository";
+import type { NoticeSkipReason } from "$lib/server/notices/noticeTypes";
 import type {
   MonthlySettlementSnapshot,
   MonthlyWorkSubmission,
@@ -189,12 +197,14 @@ export const loadSettlementAssignee = async (
   };
 };
 
-/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
-export const validateSettlementPaymentEligibility = async (
-  month: string,
-  assigneeLogin: string,
-): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const data = await loadSettlementAssignee(month, assigneeLogin);
+type SettlementAssigneeData = Awaited<
+  ReturnType<typeof loadSettlementAssignee>
+>;
+
+/** 取得済みデータが、支払い情報を更新できる承認済み精算かを確認する。 */
+const validateSettlementPaymentData = (
+  data: SettlementAssigneeData,
+): { ok: true } | { ok: false; message: string } => {
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
   }
@@ -222,6 +232,15 @@ export const validateSettlementPaymentEligibility = async (
   }
   return { ok: true };
 };
+
+/** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
+export const validateSettlementPaymentEligibility = async (
+  month: string,
+  assigneeLogin: string,
+): Promise<{ ok: true } | { ok: false; message: string }> =>
+  validateSettlementPaymentData(
+    await loadSettlementAssignee(month, assigneeLogin),
+  );
 
 export const submitSettlementWork = async (
   month: string,
@@ -274,7 +293,10 @@ export const approveSettlement = async (
   assigneeLogin: string,
   approvedBy: string,
   scheduledDateInput?: string | null,
-): Promise<{ ok: true } | { ok: false; message: string }> => {
+): Promise<
+  | { ok: true; noticeCreated: boolean; noticeSkippedReason?: NoticeSkipReason }
+  | { ok: false; message: string }
+> => {
   const scheduledDate = parseApprovalScheduledDate(scheduledDateInput);
   if (!scheduledDate.ok) return scheduledDate;
 
@@ -321,13 +343,79 @@ export const approveSettlement = async (
     };
   }
 
+  // 承認時点の宛先・支払い予定日を凍結した通知書スナップショットを、承認確定と
+  // 同一トランザクションで保存する。振込先が未登録・復号失敗のときは承認自体は
+  // 成立させ、通知書のみスキップする。承認日時は1つだけ生成して両レコードで共有する。
+  const now = new Date();
+  const approvedAt = now.toISOString();
+  const effectiveScheduledDate = scheduledDate.shouldUpdate
+    ? scheduledDate.scheduledDate
+    : (payment?.scheduledDate ?? defaultPaymentDueDate(month));
+  const prepared = await prepareNoticeWriteInput({
+    month,
+    assigneeLogin,
+    summary,
+    scheduledDate: effectiveScheduledDate,
+    approvedBy,
+    approvedAt,
+    issuedOn: jstDateString(now),
+    createdBy: approvedBy,
+  });
+
   await recordSettlementApproval({
     summary,
     approvedBy,
+    approvedAt,
     ...(scheduledDate.shouldUpdate
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
+    ...(prepared.ok ? { notice: prepared.notice } : {}),
   });
+
+  return prepared.ok
+    ? { ok: true, noticeCreated: true }
+    : {
+        ok: true,
+        noticeCreated: false,
+        noticeSkippedReason: prepared.reason,
+      };
+};
+
+/**
+ * 管理者による支払い通知書の再作成。承認済みかつ内容変更のない精算について、
+ * 現在の振込先・支払い予定日で新しい通知書を append する。過去通知書は上書きしない。
+ * 承認日時・承認者は既存の承認スナップショットの値を凍結する。
+ */
+export const recreateSettlementNotice = async (
+  month: string,
+  assigneeLogin: string,
+  actor: string,
+): Promise<{ ok: true } | { ok: false; message: string }> => {
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  const eligibility = validateSettlementPaymentData(data);
+  if (!eligibility.ok) return eligibility;
+
+  if (!data.summary || !data.snapshot) {
+    return { ok: false, message: "承認済みの月次精算がありません。" };
+  }
+
+  const payment = await getPaymentRow(month, assigneeLogin);
+  const scheduledDate = payment?.scheduledDate ?? defaultPaymentDueDate(month);
+  const prepared = await prepareNoticeWriteInput({
+    month,
+    assigneeLogin,
+    summary: data.summary,
+    scheduledDate,
+    approvedBy: data.snapshot.approvedBy,
+    approvedAt: data.snapshot.approvedAt.toISOString(),
+    issuedOn: jstDateString(new Date()),
+    createdBy: actor,
+  });
+  if (!prepared.ok) {
+    return { ok: false, message: noticeSkipMessage(prepared.reason) };
+  }
+
+  await insertPaymentNotice(prepared.notice);
   return { ok: true };
 };
 

@@ -2,6 +2,7 @@ import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
 import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
+import { noticeSkipMessage } from "$lib/server/notices/noticeService";
 import {
   approveSettlement,
   loadSettlementMonth,
@@ -37,7 +38,14 @@ export const actions = {
       scheduledDate,
     );
     if (!result.ok) return fail(400, { message: result.message });
-    return { message: `${assigneeLogin} の月次精算を承認しました。` };
+    const approved = `${assigneeLogin} の月次精算を承認しました。`;
+    if (result.noticeCreated) {
+      return { message: `${approved}支払い通知書を作成しました。` };
+    }
+    const noticeNote = result.noticeSkippedReason
+      ? noticeSkipMessage(result.noticeSkippedReason)
+      : "支払い通知書を作成できませんでした。";
+    return { message: `${approved}${noticeNote}` };
   },
   reviewRequest: async (event) => {
     const user = requireAdmin(event);

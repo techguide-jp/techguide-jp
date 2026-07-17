@@ -1,4 +1,5 @@
 import {
+  bigint,
   check,
   date,
   index,
@@ -13,6 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { PaymentNoticeDocument } from "$lib/server/notices/noticeTypes";
 
 export const changeRequestType = pgEnum("work_log_change_request_type", [
   "add",
@@ -267,6 +269,42 @@ export const monthlyPayments = pgTable(
   ],
 );
 
+export const paymentNotices = pgTable(
+  "payment_notices",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    document: jsonb("document").$type<PaymentNoticeDocument>().notNull(),
+    workerDisplayName: text("worker_display_name").notNull(),
+    recipientEncryptedPayload: text("recipient_encrypted_payload").notNull(),
+    payerEncryptedPayload: text("payer_encrypted_payload").notNull(),
+    encryptionKeyVersion: integer("encryption_key_version")
+      .notNull()
+      .default(1),
+    scheduledDate: date("scheduled_date").notNull(),
+    approvedBy: text("approved_by").notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
+    issuedOn: date("issued_on").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("payment_notices_month_assignee_idx").on(
+      table.month,
+      table.assigneeLogin,
+    ),
+    check(
+      "payment_notices_month_chk",
+      sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+  ],
+);
+
 export const githubProjectStatusSyncs = pgTable(
   "github_project_status_syncs",
   {
@@ -331,6 +369,7 @@ export type MonthlySettlementSnapshot =
   typeof monthlySettlementSnapshots.$inferSelect;
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;
 export type MonthlyPayment = typeof monthlyPayments.$inferSelect;
+export type PaymentNotice = typeof paymentNotices.$inferSelect;
 export type GithubProjectStatusSync =
   typeof githubProjectStatusSyncs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;

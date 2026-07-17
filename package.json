@@ -26,6 +26,8 @@
     "@sveltejs/kit": "^2.65.2",
     "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.45.2",
+    "html2canvas-pro": "^2.2.3",
+    "jspdf": "^4.2.1",
     "postgres": "^3.4.9",
     "svelte": "^5.56.3",
     "zod": "^4.4.3"

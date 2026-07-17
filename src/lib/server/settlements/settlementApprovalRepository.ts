@@ -1,11 +1,16 @@
 import { neonClient, postgresClient } from "$lib/server/db/client";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
+import type { PreparedNotice } from "$lib/server/notices/noticeTypes";
 
 type ApprovalWriteInput = {
   summary: SettlementSummary;
   approvedBy: string;
+  /** スナップショットと通知書で共有する承認日時。未指定なら生成する。 */
+  approvedAt?: string;
   scheduledDate?: string;
+  /** 同一トランザクションで append する通知書。振込先未登録時などは undefined。 */
+  notice?: PreparedNotice;
 };
 
 const approvalTargetId = (summary: SettlementSummary): string =>
@@ -19,17 +24,20 @@ const approvalDetails = (
   taxExcludedYen: input.summary.taxExcludedYen,
   taxIncludedYen: input.summary.taxIncludedYen,
   ...(input.scheduledDate ? { scheduledDate: input.scheduledDate } : {}),
+  ...(input.notice ? { noticeCreated: true } : {}),
 });
 
 export const recordSettlementApproval = async (
   input: ApprovalWriteInput,
 ): Promise<void> => {
-  const approvedAt = new Date().toISOString();
+  const approvedAt = input.approvedAt ?? new Date().toISOString();
   const snapshotJson = JSON.stringify(
     createSettlementSnapshotPayload(input.summary),
   );
   const detailsJson = JSON.stringify(approvalDetails(input));
   const targetId = approvalTargetId(input.summary);
+  const notice = input.notice;
+  const noticeDocumentJson = notice ? JSON.stringify(notice.document) : null;
 
   // Neon HTTP は interactive transaction 非対応なので、承認確定の書き込みをこの repository に集約する。
   if (postgresClient) {
@@ -91,6 +99,39 @@ export const recordSettlementApproval = async (
           ${detailsJson}::jsonb
         )
       `;
+
+      if (notice) {
+        await sql`
+          INSERT INTO payment_notices (
+            month,
+            assignee_login,
+            document,
+            worker_display_name,
+            recipient_encrypted_payload,
+            payer_encrypted_payload,
+            encryption_key_version,
+            scheduled_date,
+            approved_by,
+            approved_at,
+            issued_on,
+            created_by
+          )
+          VALUES (
+            ${notice.month},
+            ${notice.assigneeLogin},
+            ${noticeDocumentJson}::jsonb,
+            ${notice.workerDisplayName},
+            ${notice.recipientEncryptedPayload},
+            ${notice.payerEncryptedPayload},
+            ${notice.encryptionKeyVersion},
+            ${notice.scheduledDate}::date,
+            ${notice.approvedBy},
+            ${approvedAt}::timestamptz,
+            ${notice.issuedOn}::date,
+            ${notice.createdBy}
+          )
+        `;
+      }
     });
     return;
   }
@@ -157,5 +198,39 @@ export const recordSettlementApproval = async (
         ${detailsJson}::jsonb
       )
     `,
+    ...(notice
+      ? [
+          sql`
+            INSERT INTO payment_notices (
+              month,
+              assignee_login,
+              document,
+              worker_display_name,
+              recipient_encrypted_payload,
+              payer_encrypted_payload,
+              encryption_key_version,
+              scheduled_date,
+              approved_by,
+              approved_at,
+              issued_on,
+              created_by
+            )
+            VALUES (
+              ${notice.month},
+              ${notice.assigneeLogin},
+              ${noticeDocumentJson}::jsonb,
+              ${notice.workerDisplayName},
+              ${notice.recipientEncryptedPayload},
+              ${notice.payerEncryptedPayload},
+              ${notice.encryptionKeyVersion},
+              ${notice.scheduledDate}::date,
+              ${notice.approvedBy},
+              ${approvedAt}::timestamptz,
+              ${notice.issuedOn}::date,
+              ${notice.createdBy}
+            )
+          `,
+        ]
+      : []),
   ]);
 };

@@ -6,6 +6,7 @@ import {
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
+  paymentNotices,
   workLogChangeRequests,
   workerPayoutAccounts,
   workerProfiles,
@@ -20,6 +21,7 @@ export const POST = async () => {
   }
 
   await db.delete(auditLogs);
+  await db.delete(paymentNotices);
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
