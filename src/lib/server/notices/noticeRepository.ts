@@ -45,3 +45,14 @@ export const getLatestNotice = async (
     .limit(1);
   return row ?? null;
 };
+
+/** 対象月に通知書が1件以上ある作業者の login を返す。 */
+export const listNoticeAssigneeLoginsForMonth = async (
+  month: string,
+): Promise<string[]> => {
+  const rows = await db
+    .selectDistinct({ assigneeLogin: paymentNotices.assigneeLogin })
+    .from(paymentNotices)
+    .where(eq(paymentNotices.month, month));
+  return rows.map((row) => row.assigneeLogin);
+};

@@ -49,6 +49,22 @@ test("稼働開始と終了を記録できる", async ({ page }) => {
 test("本人申請後に管理者が月次承認できる", async ({ page }) => {
   const month = currentJstMonth();
   await page.goto("/__e2e/login");
+  await page.goto("/workers/tashua314");
+  await page
+    .getByRole("textbox", { name: "宛名（名前・屋号・会社名）" })
+    .fill("株式会社テックガイド");
+  await page.getByRole("textbox", { name: "郵便番号" }).fill("1500001");
+  await page
+    .getByRole("textbox", { name: "住所" })
+    .fill("東京都渋谷区神南1-2-3");
+  await page.getByRole("textbox", { name: "金融機関名" }).fill("テスト銀行");
+  await page.getByRole("textbox", { name: "支店名" }).fill("本店");
+  await page.getByLabel("口座種別").selectOption("ordinary");
+  await page.getByRole("textbox", { name: "口座番号" }).fill("0123456");
+  await page.getByRole("textbox", { name: "口座名義" }).fill("テックガイド");
+  await page.getByRole("button", { name: "振込先情報を保存" }).click();
+  await expect(page.getByText("振込先情報を保存しました。")).toBeVisible();
+
   await page.goto(`/settlements/${month}/tashua314`);
 
   await expect(
@@ -62,6 +78,10 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   ).toBeVisible();
 
   await page.goto(`/settlements/${month}`);
+  const settlementRow = page.getByRole("row").filter({ hasText: "tashua314" });
+  await expect(
+    settlementRow.getByRole("link", { name: "通知書を見る", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("link", { name: "承認" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "この内容で承認" }).click();
@@ -71,6 +91,27 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByText("承認済み")).toBeVisible();
+  const noticeLink = settlementRow.getByRole("link", {
+    name: "通知書を見る",
+    exact: true,
+  });
+  await expect(noticeLink).toBeVisible();
+  await noticeLink.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/settlements/${month}/tashua314/notice$`),
+  );
+  await expect(
+    page.getByRole("heading", { name: "支払い通知書", exact: true }).first(),
+  ).toBeVisible();
+
+  await page.goto(`/settlements/${month}/tashua314`);
+  const detailNoticeLink = page.getByRole("link", {
+    name: "支払い通知書を確認する",
+    exact: true,
+  });
+  await expect(detailNoticeLink).toBeVisible();
+  await expect(detailNoticeLink).toHaveClass(/button/);
+  await expect(detailNoticeLink).toHaveClass(/primary/);
 });
 
 test("本人プロフィールを保存して管理者の稼働確認で見られる", async ({

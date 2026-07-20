@@ -2,7 +2,10 @@ import { fail } from "@sveltejs/kit";
 import { requireAdmin } from "$lib/server/auth/guards";
 import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
-import { noticeSkipMessage } from "$lib/server/notices/noticeService";
+import {
+  listAvailableNoticeAssignees,
+  noticeSkipMessage,
+} from "$lib/server/notices/noticeService";
 import {
   approveSettlement,
   loadSettlementMonth,
@@ -17,11 +20,18 @@ export const load = async (event) => {
     (summary) => summary.assigneeLogin,
   );
 
+  const [payoutAccountStatuses, payments, noticeAssignees] = await Promise.all([
+    listPayoutAccountStatuses(assigneeLogins),
+    listPaymentViewsForMonth(month, assigneeLogins),
+    listAvailableNoticeAssignees(month),
+  ]);
+
   return {
     month,
     ...settlement,
-    payoutAccountStatuses: await listPayoutAccountStatuses(assigneeLogins),
-    payments: await listPaymentViewsForMonth(month, assigneeLogins),
+    payoutAccountStatuses,
+    payments,
+    noticeAssignees,
   };
 };
 

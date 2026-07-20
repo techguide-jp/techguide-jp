@@ -139,10 +139,15 @@
 {#if data.snapshot}
   <section class="panel">
     <h2>支払い通知書</h2>
-    <p>承認済みの月次精算内容を支払い通知書として表示・印刷できます。</p>
     <p>
-      <a href={`/settlements/${data.month}/${data.assignee}/notice`}>
-        支払い通知書を表示
+      承認済みの月次精算内容を確認できます。表示後に印刷やPDF保存もできます。
+    </p>
+    <p>
+      <a
+        class="button primary"
+        href={`/settlements/${data.month}/${data.assignee}/notice`}
+      >
+        支払い通知書を確認する
       </a>
     </p>
   </section>

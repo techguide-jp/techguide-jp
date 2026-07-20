@@ -8,7 +8,10 @@ import {
   decryptNoticeRecipient,
   encryptNoticeRecipient,
 } from "$lib/server/notices/noticeCrypto";
-import { getLatestNotice } from "$lib/server/notices/noticeRepository";
+import {
+  getLatestNotice,
+  listNoticeAssigneeLoginsForMonth,
+} from "$lib/server/notices/noticeRepository";
 import {
   NOTICE_DOCUMENT_SCHEMA_VERSION,
   formatNoticeNumber,
@@ -281,3 +284,8 @@ export const getNoticeForViewer = async (
   const row = await getLatestNotice(month, assigneeLogin);
   return row ? toNoticeView(row) : null;
 };
+
+/** 月次一覧で通知書への導線を出せる作業者を返す。 */
+export const listAvailableNoticeAssignees = async (
+  month: string,
+): Promise<string[]> => listNoticeAssigneeLoginsForMonth(month);
