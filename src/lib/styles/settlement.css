@@ -24,6 +24,14 @@
     @apply mb-1 block text-xs;
   }
 
+  .table-actions {
+    @apply flex min-w-36 flex-col items-stretch gap-2;
+  }
+
+  .table-actions .button {
+    @apply min-w-0 whitespace-nowrap px-3;
+  }
+
   .payment-heading {
     @apply mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2;
   }

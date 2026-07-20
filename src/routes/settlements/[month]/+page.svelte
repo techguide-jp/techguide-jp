@@ -37,6 +37,7 @@
   const paymentByAssignee = $derived(
     new Map(data.payments.map((payment) => [payment.assigneeLogin, payment])),
   );
+  const noticeAssignees = $derived(new Set(data.noticeAssignees));
 
   const enhanceAction =
     (name: string, clearHashOnSuccess = false): SubmitFunction =>
@@ -201,6 +202,7 @@
           summary.assigneeLogin,
         )}
         {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
+        {@const noticeAvailable = noticeAssignees.has(summary.assigneeLogin)}
         <tr>
           <td>
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
@@ -296,28 +298,38 @@
             {/if}
           </td>
           <td>
-            {#if !summary.approvalRequired}
-              <span class="muted">-</span>
-            {:else if snapshot && !snapshot.hasChanges}
-              <span class="muted">-</span>
-            {:else if !submission || submission.hasChanges || submission.blockingReasons.length}
-              <button class="button primary" type="button" disabled
-                >{snapshot ? "再承認" : "承認"}</button
-              >
-            {:else if summary.blockingReasons.length > 0}
-              <button class="button primary" type="button" disabled
-                >{snapshot ? "再承認" : "承認"}</button
-              >
-            {:else}
-              <a
-                class={`button ${snapshot ? "secondary" : "primary"}`}
-                href={`#approve-${summary.assigneeLogin}`}
-                data-sveltekit-reload
-                onclick={() => (closedApprovalLogin = null)}
-              >
-                {snapshot ? "再承認" : "承認"}
-              </a>
-            {/if}
+            <div class="table-actions">
+              {#if noticeAvailable}
+                <a
+                  class="button secondary"
+                  href={`/settlements/${data.month}/${summary.assigneeLogin}/notice`}
+                >
+                  通知書を見る
+                </a>
+              {/if}
+              {#if !summary.approvalRequired}
+                {#if !noticeAvailable}<span class="muted">-</span>{/if}
+              {:else if snapshot && !snapshot.hasChanges}
+                {#if !noticeAvailable}<span class="muted">-</span>{/if}
+              {:else if !submission || submission.hasChanges || submission.blockingReasons.length}
+                <button class="button primary" type="button" disabled
+                  >{snapshot ? "再承認" : "承認"}</button
+                >
+              {:else if summary.blockingReasons.length > 0}
+                <button class="button primary" type="button" disabled
+                  >{snapshot ? "再承認" : "承認"}</button
+                >
+              {:else}
+                <a
+                  class={`button ${snapshot ? "secondary" : "primary"}`}
+                  href={`#approve-${summary.assigneeLogin}`}
+                  data-sveltekit-reload
+                  onclick={() => (closedApprovalLogin = null)}
+                >
+                  {snapshot ? "再承認" : "承認"}
+                </a>
+              {/if}
+            </div>
           </td>
         </tr>
       {/each}
