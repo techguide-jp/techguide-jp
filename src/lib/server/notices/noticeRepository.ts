@@ -1,6 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
-import { paymentNotices, type PaymentNotice } from "$lib/server/db/schema";
+import {
+  monthlySettlementSnapshots,
+  paymentNotices,
+  type PaymentNotice,
+} from "$lib/server/db/schema";
 import type { PreparedNotice } from "$lib/server/notices/noticeTypes";
 
 /** 通知書を1行 append する。過去の通知書は上書きしない。 */
@@ -46,13 +50,24 @@ export const getLatestNotice = async (
   return row ?? null;
 };
 
-/** 対象月に通知書が1件以上ある作業者の login を返す。 */
+/** 再承認で古い通知書を出さないため、現在の承認日時と一致する作業者だけを返す。 */
 export const listNoticeAssigneeLoginsForMonth = async (
   month: string,
 ): Promise<string[]> => {
   const rows = await db
     .selectDistinct({ assigneeLogin: paymentNotices.assigneeLogin })
     .from(paymentNotices)
+    .innerJoin(
+      monthlySettlementSnapshots,
+      and(
+        eq(monthlySettlementSnapshots.month, paymentNotices.month),
+        eq(
+          monthlySettlementSnapshots.assigneeLogin,
+          paymentNotices.assigneeLogin,
+        ),
+        eq(monthlySettlementSnapshots.approvedAt, paymentNotices.approvedAt),
+      ),
+    )
     .where(eq(paymentNotices.month, month));
   return rows.map((row) => row.assigneeLogin);
 };

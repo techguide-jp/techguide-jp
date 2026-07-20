@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../src/lib/server/db/client";
+import { listNoticeAssigneeLoginsForMonth } from "../src/lib/server/notices/noticeRepository";
 import {
   auditLogs,
   authSessions,
@@ -158,6 +159,67 @@ describeDb("DB constraints", () => {
     } catch (error) {
       expect(errorCode(error)).toBe("23514");
     }
+  });
+
+  it("現在の承認日時と一致する支払い通知書だけを一覧対象にする", async () => {
+    const currentApprovedAt = new Date("2026-07-12T00:00:00Z");
+    const staleApprovedAt = new Date("2026-07-11T00:00:00Z");
+    await db.insert(monthlySettlementSnapshots).values([
+      {
+        month: "2026-06",
+        assigneeLogin: "current-user",
+        snapshot: {},
+        approvedBy: "admin",
+        approvedAt: currentApprovedAt,
+      },
+      {
+        month: "2026-06",
+        assigneeLogin: "stale-user",
+        snapshot: {},
+        approvedBy: "admin",
+        approvedAt: currentApprovedAt,
+      },
+    ]);
+
+    const noticeBase = {
+      month: "2026-06",
+      document: {
+        schemaVersion: 1 as const,
+        totals: {
+          fixedRewardYen: 0,
+          timedRewardYen: 0,
+          taxExcludedYen: 0,
+          taxYen: 0,
+          taxIncludedYen: 0,
+        },
+        lines: [],
+        workLogs: [],
+      },
+      recipientEncryptedPayload: '{"v":1,"data":"AAAA"}',
+      payerEncryptedPayload: '{"v":1,"data":"AAAA"}',
+      scheduledDate: "2026-07-14",
+      approvedBy: "admin",
+      issuedOn: "2026-07-12",
+      createdBy: "admin",
+    };
+    await db.insert(paymentNotices).values([
+      {
+        ...noticeBase,
+        assigneeLogin: "current-user",
+        workerDisplayName: "Current User",
+        approvedAt: currentApprovedAt,
+      },
+      {
+        ...noticeBase,
+        assigneeLogin: "stale-user",
+        workerDisplayName: "Stale User",
+        approvedAt: staleApprovedAt,
+      },
+    ]);
+
+    await expect(listNoticeAssigneeLoginsForMonth("2026-06")).resolves.toEqual([
+      "current-user",
+    ]);
   });
 
   it("worker_profiles削除時に振込先も削除される", async () => {
