@@ -1,6 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "$lib/server/db/client";
+import { db, neonClient, postgresClient } from "$lib/server/db/client";
 import { monthlyPayments, type MonthlyPayment } from "$lib/server/db/schema";
+import {
+  notificationInsertQuery,
+  type PreparedNotificationWrite,
+  type SqlTag,
+} from "$lib/server/notifications/notificationWrite";
 
 export const getPaymentRow = async (
   month: string,
@@ -47,11 +52,73 @@ export const listPaymentRowsForAssignee = async (
 };
 
 /** 支払い済みとして登録する。既存の支払い予定日は保持する。 */
-export const upsertPaymentPaid = async (input: {
-  month: string;
-  assigneeLogin: string;
-  paidOn: string;
-}): Promise<MonthlyPayment> => {
+export const upsertPaymentPaid = async (
+  input: {
+    month: string;
+    assigneeLogin: string;
+    paidOn: string;
+  },
+  options?: {
+    updatedAt: Date;
+    notification?: PreparedNotificationWrite;
+  },
+): Promise<MonthlyPayment> => {
+  const updatedAt = options?.updatedAt ?? new Date();
+  if (options?.notification) {
+    if (postgresClient) {
+      await postgresClient.begin(async (sql) => {
+        await sql`
+          INSERT INTO monthly_payments (
+            month, assignee_login, status, paid_on, updated_at
+          ) VALUES (
+            ${input.month}, ${input.assigneeLogin}, ${"paid"},
+            ${input.paidOn}::date, ${updatedAt.toISOString()}::timestamptz
+          )
+          ON CONFLICT (month, assignee_login) DO UPDATE SET
+            status = EXCLUDED.status,
+            paid_on = EXCLUDED.paid_on,
+            updated_at = EXCLUDED.updated_at
+        `;
+        await notificationInsertQuery(
+          sql as unknown as SqlTag<ReturnType<typeof sql>>,
+          options.notification as PreparedNotificationWrite,
+        );
+      });
+    } else if (neonClient) {
+      const notification = options.notification;
+      await neonClient.transaction((sql) => [
+        sql`
+          INSERT INTO monthly_payments (
+            month, assignee_login, status, paid_on, updated_at
+          ) VALUES (
+            ${input.month}, ${input.assigneeLogin}, ${"paid"},
+            ${input.paidOn}::date, ${updatedAt.toISOString()}::timestamptz
+          )
+          ON CONFLICT (month, assignee_login) DO UPDATE SET
+            status = EXCLUDED.status,
+            paid_on = EXCLUDED.paid_on,
+            updated_at = EXCLUDED.updated_at
+        `,
+        notificationInsertQuery(
+          sql as unknown as SqlTag<ReturnType<typeof sql>>,
+          notification,
+        ),
+      ]);
+    } else {
+      throw new Error("Database client is not configured.");
+    }
+    return (
+      (await getPaymentRow(input.month, input.assigneeLogin)) ?? {
+        month: input.month,
+        assigneeLogin: input.assigneeLogin,
+        status: "paid",
+        scheduledDate: null,
+        paidOn: input.paidOn,
+        createdAt: updatedAt,
+        updatedAt,
+      }
+    );
+  }
   const [row] = await db
     .insert(monthlyPayments)
     .values({
@@ -65,7 +132,7 @@ export const upsertPaymentPaid = async (input: {
       set: {
         status: "paid",
         paidOn: input.paidOn,
-        updatedAt: new Date(),
+        updatedAt,
       },
     })
     .returning();

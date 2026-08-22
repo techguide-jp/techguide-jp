@@ -22,6 +22,10 @@ export type OperationalHealth = {
     sessionSecret: boolean;
     adminGithubLogins: number;
     e2eTestMode: boolean;
+    emailDeliveryMode: string;
+    resendApiKey: boolean;
+    emailFrom: boolean;
+    appOrigin: boolean;
   };
   projectClient: ReturnType<typeof getProjectClientRuntimeHealth>;
 };
@@ -65,6 +69,10 @@ export const loadOperationalHealth = async (): Promise<OperationalHealth> => {
       sessionSecret: Boolean(env.sessionSecret),
       adminGithubLogins: env.adminGithubLogins.size,
       e2eTestMode: env.e2eTestMode,
+      emailDeliveryMode: env.emailDeliveryMode,
+      resendApiKey: Boolean(env.resendApiKey),
+      emailFrom: Boolean(env.emailFrom),
+      appOrigin: Boolean(env.appOrigin),
     },
     projectClient: getProjectClientRuntimeHealth(),
   };

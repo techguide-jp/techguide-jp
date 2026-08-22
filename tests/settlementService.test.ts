@@ -33,6 +33,14 @@ vi.mock("$lib/server/audit/auditRepository", () => ({
   createAuditLog: vi.fn(),
 }));
 
+vi.mock("$lib/server/notifications/notificationService", () => ({
+  prepareSettlementNotificationSafely: vi.fn(async () => ({
+    mode: "preview",
+    entries: [],
+  })),
+  dispatchPreparedNotification: vi.fn(),
+}));
+
 vi.mock("$lib/server/github/projectClient", () => ({
   fetchProjectIssuesForPage: vi.fn(),
 }));

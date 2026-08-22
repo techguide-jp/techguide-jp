@@ -32,6 +32,13 @@ export const env = {
     (dev ? "development-session-secret" : undefined),
   appOrigin: optional("APP_ORIGIN") ?? optionalPublic("PUBLIC_APP_ORIGIN"),
   adminGithubLogins: loginSet("ADMIN_GITHUB_LOGINS"),
+  resendApiKey: optional("RESEND_API_KEY"),
+  emailFrom: optional("EMAIL_FROM"),
+  emailReplyTo: optional("EMAIL_REPLY_TO"),
+  emailDeliveryMode:
+    optional("EMAIL_DELIVERY_MODE") === "resend" ? "resend" : "preview",
+  emailPreviewDir: optional("EMAIL_PREVIEW_DIR") ?? ".local/email-previews",
+  emailRecipientOverride: optional("EMAIL_RECIPIENT_OVERRIDE"),
   payoutAccountEncryptionKey:
     optional("PAYOUT_ACCOUNT_ENCRYPTION_KEY") ??
     (dev ? "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=" : undefined),

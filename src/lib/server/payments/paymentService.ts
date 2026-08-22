@@ -16,6 +16,10 @@ import {
   type MonthlyPaymentView,
 } from "$lib/server/payments/paymentTypes";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
 
 export { normalizeDateInput, defaultPaymentDueDate };
 
@@ -89,7 +93,25 @@ export const markSettlementPaid = async (
     assigneeLogin,
   );
   if (!eligibility.ok) return eligibility;
-  const row = await upsertPaymentPaid({ month, assigneeLogin, paidOn });
+  const updatedAt = new Date();
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_paid",
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: updatedAt,
+    paidOn,
+  });
+  const row = await upsertPaymentPaid(
+    { month, assigneeLogin, paidOn },
+    {
+      updatedAt,
+      ...(emailNotification.mode === "resend"
+        ? { notification: emailNotification.write }
+        : {}),
+    },
+  );
+  await dispatchPreparedNotification(emailNotification);
   return { ok: true, payment: toPaymentView(month, assigneeLogin, row) };
 };
 

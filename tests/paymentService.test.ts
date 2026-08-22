@@ -30,6 +30,14 @@ vi.mock("$lib/server/settlements/settlementService", () => ({
   validateSettlementPaymentEligibility: vi.fn(),
 }));
 
+vi.mock("$lib/server/notifications/notificationService", () => ({
+  prepareSettlementNotificationSafely: vi.fn(async () => ({
+    mode: "preview",
+    entries: [],
+  })),
+  dispatchPreparedNotification: vi.fn(),
+}));
+
 const paymentRow = (
   overrides: Partial<MonthlyPayment> = {},
 ): MonthlyPayment => ({
@@ -156,11 +164,14 @@ describe("markSettlementPaid", () => {
       "2026-07-14",
     );
     expect(result).toMatchObject({ ok: true });
-    expect(upsertPaymentPaid).toHaveBeenCalledWith({
-      month: "2026-06",
-      assigneeLogin: "tashua314",
-      paidOn: "2026-07-14",
-    });
+    expect(upsertPaymentPaid).toHaveBeenCalledWith(
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        paidOn: "2026-07-14",
+      },
+      expect.objectContaining({ updatedAt: expect.any(Date) }),
+    );
   });
 
   it("不正な支払日はエラー", async () => {

@@ -39,6 +39,10 @@ import {
 import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -272,7 +276,22 @@ export const submitSettlementWork = async (
     };
   }
 
-  await upsertWorkSubmission(summary, submittedBy);
+  const wasSubmitted = Boolean(data.submission);
+  const submittedAt = new Date();
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_submitted",
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: submittedAt,
+    isRepeat: wasSubmitted,
+  });
+  await upsertWorkSubmission(summary, submittedBy, {
+    submittedAt,
+    ...(emailNotification.mode === "resend"
+      ? { notification: emailNotification.write }
+      : {}),
+  });
   await createAuditLog({
     actorLogin: submittedBy,
     action: "monthly_work_submitted",
@@ -285,6 +304,7 @@ export const submitSettlementWork = async (
       taxIncludedYen: summary.taxIncludedYen,
     },
   });
+  await dispatchPreparedNotification(emailNotification);
   return { ok: true };
 };
 
@@ -361,6 +381,16 @@ export const approveSettlement = async (
     issuedOn: jstDateString(now),
     createdBy: approvedBy,
   });
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_approved",
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: now,
+    scheduledDate: effectiveScheduledDate,
+    hasPaymentNotice: prepared.ok,
+    isRepeat: Boolean(data.snapshot),
+  });
 
   await recordSettlementApproval({
     summary,
@@ -370,7 +400,12 @@ export const approveSettlement = async (
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
     ...(prepared.ok ? { notice: prepared.notice } : {}),
+    ...(emailNotification.mode === "resend"
+      ? { notification: emailNotification.write }
+      : {}),
   });
+
+  await dispatchPreparedNotification(emailNotification);
 
   return prepared.ok
     ? { ok: true, noticeCreated: true }

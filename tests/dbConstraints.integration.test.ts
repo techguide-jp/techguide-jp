@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../src/lib/server/db/client";
 import { listNoticeAssigneeLoginsForMonth } from "../src/lib/server/notices/noticeRepository";
 import {
   auditLogs,
   authSessions,
+  emailDeliveries,
+  emailNotificationEvents,
   githubProjectStatusSyncs,
   monthlyPayments,
   monthlySettlementSnapshots,
@@ -15,6 +18,8 @@ import {
   workerProfiles,
   workSessions,
 } from "../src/lib/server/db/schema";
+import { upsertPaymentPaid } from "../src/lib/server/payments/paymentRepository";
+import type { PreparedNotificationWrite } from "../src/lib/server/notifications/notificationWrite";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -36,6 +41,8 @@ const errorCode = (error: unknown): string | undefined => {
 
 beforeEach(async () => {
   if (process.env.RUN_DB_INTEGRATION !== "1") return;
+  await db.delete(emailDeliveries);
+  await db.delete(emailNotificationEvents);
   await db.delete(auditLogs);
   await db.delete(paymentNotices);
   await db.delete(monthlyPayments);
@@ -50,6 +57,42 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  it("支払い更新と1イベント・複数配送を同一transactionで保存する", async () => {
+    const occurredAt = new Date("2026-07-14T00:00:00Z");
+    const eventId = randomUUID();
+    const notification: PreparedNotificationWrite = {
+      eventId,
+      eventKey: "settlement_paid:2026-06:worker:operation-1",
+      type: "settlement_paid",
+      month: "2026-06",
+      assigneeLogin: "worker",
+      occurredAt,
+      payloadJson: JSON.stringify({ paidOn: "2026-07-14" }),
+      deliveries: ["admin-a", "admin-b"].map((recipientLogin) => {
+        const id = randomUUID();
+        return {
+          id,
+          recipientLogin,
+          recipientEmail: `${recipientLogin}@example.com`,
+          status: "pending" as const,
+          subject: "subject",
+          textBody: "text",
+          htmlBody: "<p>html</p>",
+          idempotencyKey: `settlement-notification/${id}`,
+          errorCode: null,
+        };
+      }),
+    };
+
+    await upsertPaymentPaid(
+      { month: "2026-06", assigneeLogin: "worker", paidOn: "2026-07-14" },
+      { updatedAt: occurredAt, notification },
+    );
+
+    expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
+    expect(await db.select().from(emailDeliveries)).toHaveLength(2);
+  });
+
   it("同じassigneeとIssueの未終了ログを二重作成できない", async () => {
     const base = {
       assigneeLogin: "tashua314",

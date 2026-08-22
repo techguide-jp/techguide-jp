@@ -2,6 +2,11 @@ import { neonClient, postgresClient } from "$lib/server/db/client";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import type { PreparedNotice } from "$lib/server/notices/noticeTypes";
+import {
+  notificationInsertQuery,
+  type PreparedNotificationWrite,
+  type SqlTag,
+} from "$lib/server/notifications/notificationWrite";
 
 type ApprovalWriteInput = {
   summary: SettlementSummary;
@@ -11,6 +16,7 @@ type ApprovalWriteInput = {
   scheduledDate?: string;
   /** 同一トランザクションで append する通知書。振込先未登録時などは undefined。 */
   notice?: PreparedNotice;
+  notification?: PreparedNotificationWrite;
 };
 
 const approvalTargetId = (summary: SettlementSummary): string =>
@@ -132,6 +138,12 @@ export const recordSettlementApproval = async (
           )
         `;
       }
+      if (input.notification) {
+        await notificationInsertQuery(
+          sql as unknown as SqlTag<ReturnType<typeof sql>>,
+          input.notification,
+        );
+      }
     });
     return;
   }
@@ -230,6 +242,14 @@ export const recordSettlementApproval = async (
               ${notice.createdBy}
             )
           `,
+        ]
+      : []),
+    ...(input.notification
+      ? [
+          notificationInsertQuery(
+            sql as unknown as SqlTag<ReturnType<typeof sql>>,
+            input.notification,
+          ),
         ]
       : []),
   ]);
