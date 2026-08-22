@@ -317,6 +317,26 @@
   </div>
 </section>
 
+{#if data.canEditSelf}
+  <section class="panel">
+    <h2>メール通知先</h2>
+    {#if data.notificationContact}
+      <p><strong>{data.notificationContact.email}</strong></p>
+      <p class="muted">
+        GitHub の認証済みプライマリメールから同期・ 最終同期: {data.notificationContact.syncedAt.toLocaleString(
+          "ja-JP",
+        )}
+      </p>
+    {:else}
+      <p class="notice">通知先はまだ同期されていません。</p>
+    {/if}
+    <p class="muted">
+      GitHub
+      側でメールアドレスを変更した場合は、一度ログアウトして再ログインすると更新されます。
+    </p>
+  </section>
+{/if}
+
 <div class="profile-layout">
   <section class="profile-panel">
     <div class="profile-panel-heading">

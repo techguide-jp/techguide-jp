@@ -36,6 +36,9 @@
   );
   const isAdminWorkActive = $derived(pathname === "/admin/work");
   const isProjectHealthActive = $derived(pathname === "/admin/project-health");
+  const isEmailPreviewActive = $derived(
+    pathname.startsWith("/admin/email-previews"),
+  );
   const breadcrumbs = $derived(buildBreadcrumbs(pathname, data.user));
 
   function buildBreadcrumbs(
@@ -116,6 +119,13 @@
             aria-current={isProjectHealthActive ? "page" : undefined}
           >
             Project確認
+          </a>
+          <a
+            href="/admin/email-previews"
+            class:active={isEmailPreviewActive}
+            aria-current={isEmailPreviewActive ? "page" : undefined}
+          >
+            メール通知
           </a>
         {/if}
         <a

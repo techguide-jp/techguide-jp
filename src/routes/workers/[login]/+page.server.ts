@@ -9,6 +9,7 @@ import {
   updateWorkerAdminNote,
   updateWorkerSelfProfile,
 } from "$lib/server/workers/workerProfileService";
+import { getNotificationContact } from "$lib/server/notifications/contactRepository";
 
 export const load = async (event) => {
   const user = requireUser(event);
@@ -19,6 +20,8 @@ export const load = async (event) => {
 
   const profile = await loadWorkerProfile(login);
   const payoutAccount = await loadPayoutAccountForViewer(login, user);
+  const notificationContact =
+    user.login === login ? await getNotificationContact(login) : null;
 
   return {
     profile: user.isAdmin
@@ -30,6 +33,7 @@ export const load = async (event) => {
           adminNoteUpdatedAt: null,
         },
     payoutAccount,
+    notificationContact,
     canEditSelf: user.login === login,
     canEditAdminNote: user.isAdmin,
     canEditPayoutAccount: user.login === login,

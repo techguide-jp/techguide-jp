@@ -120,6 +120,27 @@
       <small>ADMIN_GITHUB_LOGINS</small>
     </div>
     <div class="health-card">
+      <span>メール配送</span>
+      <strong
+        class={data.operationalHealth.environment.emailDeliveryMode ===
+          "preview" ||
+        (data.operationalHealth.environment.resendApiKey &&
+          data.operationalHealth.environment.emailFrom &&
+          data.operationalHealth.environment.appOrigin)
+          ? "ok"
+          : "bad"}
+      >
+        {data.operationalHealth.environment.emailDeliveryMode}
+      </strong>
+      <small
+        >Resend Key / From: {mark(
+          data.operationalHealth.environment.resendApiKey &&
+            data.operationalHealth.environment.emailFrom &&
+            data.operationalHealth.environment.appOrigin,
+        )}</small
+      >
+    </div>
+    <div class="health-card">
       <span>Project取得</span>
       <strong
         class={data.operationalHealth.projectClient.lastFetchError
