@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { dev } from "$app/environment";
 import { Resend } from "resend";
+import type { EmailDelivery } from "$lib/server/db/schema";
 import { env } from "$lib/server/env";
-import { listNotificationContacts } from "$lib/server/notifications/contactRepository";
 import {
+  listNotificationContacts,
+  normalizeNotificationLogin,
+} from "$lib/server/notifications/contactRepository";
+import {
+  claimEmailDelivery,
   getEmailDelivery,
   markDeliveryResult,
-  markDeliverySending,
+  markStaleSendingDeliveriesUnknown,
 } from "$lib/server/notifications/deliveryRepository";
 import type {
   PreparedDeliveryWrite,
@@ -31,12 +36,15 @@ const recipientLogins = (input: SettlementNotificationInput): string[] =>
     ? [...env.adminGithubLogins]
     : [input.assigneeLogin];
 
-const eventKey = (input: SettlementNotificationInput): string =>
+// 同じフォーム送信がHTTPレベルで再実行されても、同一イベントとしてDBで重複排除する。
+export const buildNotificationEventKey = (
+  input: SettlementNotificationInput,
+): string =>
   [
     input.type,
     input.month,
-    input.assigneeLogin,
-    input.occurredAt.toISOString(),
+    normalizeNotificationLogin(input.assigneeLogin),
+    input.operationId,
   ].join(":");
 
 const isLocalRuntime = (appOrigin: string): boolean => {
@@ -49,6 +57,12 @@ const isLocalRuntime = (appOrigin: string): boolean => {
     return dev;
   }
 };
+
+const persistedIdempotencyKey = (
+  deliveryId: string,
+  localRuntime: boolean,
+): string =>
+  `${localRuntime ? "local" : "production"}/settlement-notification/${deliveryId}`;
 
 export const prepareSettlementNotification = async (
   input: SettlementNotificationInput,
@@ -81,7 +95,9 @@ export const prepareSettlementNotification = async (
           month: input.month,
           assigneeLogin: input.assigneeLogin,
           recipientLogin: login,
-          recipientEmail: contactByLogin.get(login)?.email ?? null,
+          recipientEmail:
+            contactByLogin.get(normalizeNotificationLogin(login))?.email ??
+            null,
           subject: message.subject,
         },
         text: message.text,
@@ -91,7 +107,8 @@ export const prepareSettlementNotification = async (
   }
 
   const deliveries: PreparedDeliveryWrite[] = logins.map((login) => {
-    const syncedEmail = contactByLogin.get(login)?.email ?? null;
+    const syncedEmail =
+      contactByLogin.get(normalizeNotificationLogin(login))?.email ?? null;
     const appOriginMissing = !localRuntime && !env.appOrigin;
     const recipientEmail = appOriginMissing
       ? null
@@ -107,7 +124,7 @@ export const prepareSettlementNotification = async (
       subject: localRuntime ? `[LOCAL] ${message.subject}` : message.subject,
       textBody: message.text,
       htmlBody: message.html,
-      idempotencyKey: `settlement-notification/${id}`,
+      idempotencyKey: persistedIdempotencyKey(id, localRuntime),
       errorCode: recipientEmail
         ? null
         : appOriginMissing
@@ -121,7 +138,7 @@ export const prepareSettlementNotification = async (
     mode: "resend",
     write: {
       eventId: randomUUID(),
-      eventKey: eventKey(input),
+      eventKey: buildNotificationEventKey(input),
       type: input.type,
       month: input.month,
       assigneeLogin: input.assigneeLogin,
@@ -146,6 +163,8 @@ export const prepareSettlementNotificationSafely = async (
     if (env.emailDeliveryMode === "preview") {
       return { mode: "preview", entries: [] };
     }
+    const appOrigin = env.appOrigin ?? "http://localhost:5173";
+    const localRuntime = isLocalRuntime(appOrigin);
     const deliveries: PreparedDeliveryWrite[] = recipientLogins(input).map(
       (recipientLogin) => {
         const id = randomUUID();
@@ -157,7 +176,7 @@ export const prepareSettlementNotificationSafely = async (
           subject: `【通知生成失敗】${input.month}`,
           textBody: "通知内容を生成できなかったため送信していません。",
           htmlBody: "<p>通知内容を生成できなかったため送信していません。</p>",
-          idempotencyKey: `settlement-notification/${id}`,
+          idempotencyKey: persistedIdempotencyKey(id, localRuntime),
           errorCode: "notification_preparation_failed",
         };
       },
@@ -166,7 +185,7 @@ export const prepareSettlementNotificationSafely = async (
       mode: "resend",
       write: {
         eventId: randomUUID(),
-        eventKey: eventKey(input),
+        eventKey: buildNotificationEventKey(input),
         type: input.type,
         month: input.month,
         assigneeLogin: input.assigneeLogin,
@@ -179,14 +198,17 @@ export const prepareSettlementNotificationSafely = async (
 };
 
 export const classifyResendError = (errorName: string): "failed" | "unknown" =>
-  new Set(["application_error", "internal_server_error", "conflict"]).has(
-    errorName,
-  )
+  new Set([
+    "application_error",
+    "internal_server_error",
+    "concurrent_idempotent_requests",
+    "invalid_idempotent_request",
+  ]).has(errorName)
     ? "unknown"
     : "failed";
 
-const sendDelivery = async (delivery: PreparedDeliveryWrite): Promise<void> => {
-  if (delivery.status !== "pending" || !delivery.recipientEmail) return;
+const sendClaimedDelivery = async (delivery: EmailDelivery): Promise<void> => {
+  if (delivery.status !== "sending" || !delivery.recipientEmail) return;
   if (!env.resendApiKey || !env.emailFrom) {
     await markDeliveryResult({
       id: delivery.id,
@@ -195,20 +217,19 @@ const sendDelivery = async (delivery: PreparedDeliveryWrite): Promise<void> => {
     });
     return;
   }
-  const localRuntime = isLocalRuntime(env.appOrigin ?? "http://localhost:5173");
-  await markDeliverySending(delivery.id);
+  const recipientEmail = delivery.recipientEmail;
   try {
     const result = await new Resend(env.resendApiKey).emails.send(
       {
         from: env.emailFrom,
-        to: delivery.recipientEmail,
+        to: recipientEmail,
         subject: delivery.subject,
         text: delivery.textBody,
         html: delivery.htmlBody,
         ...(env.emailReplyTo ? { replyTo: env.emailReplyTo } : {}),
       },
       {
-        idempotencyKey: `${localRuntime ? "local/" : "production/"}${delivery.idempotencyKey}`,
+        idempotencyKey: delivery.idempotencyKey,
       },
     );
     if (result.error) {
@@ -233,6 +254,16 @@ const sendDelivery = async (delivery: PreparedDeliveryWrite): Promise<void> => {
   }
 };
 
+const dispatchPersistedDelivery = async (
+  id: string,
+  expectedStatus: "pending" | "failed",
+): Promise<boolean> => {
+  const claimed = await claimEmailDelivery(id, expectedStatus);
+  if (!claimed) return false;
+  await sendClaimedDelivery(claimed);
+  return true;
+};
+
 export const dispatchPreparedNotification = async (
   prepared: PreparedSettlementNotification,
 ): Promise<void> => {
@@ -243,39 +274,25 @@ export const dispatchPreparedNotification = async (
     }
     await Promise.all(
       prepared.write.deliveries.map(async (candidate) => {
-        const persisted = await getEmailDelivery(candidate.id);
-        if (persisted?.status !== "pending" || !persisted.recipientEmail)
-          return;
-        await sendDelivery({
-          id: persisted.id,
-          recipientLogin: persisted.recipientLogin,
-          recipientEmail: persisted.recipientEmail,
-          status: "pending",
-          subject: persisted.subject,
-          textBody: persisted.textBody,
-          htmlBody: persisted.htmlBody,
-          idempotencyKey: persisted.idempotencyKey,
-          errorCode: persisted.errorCode,
-        });
+        await dispatchPersistedDelivery(candidate.id, "pending");
       }),
     );
-  } catch {
+  } catch (error) {
     // 通知障害は、確定済みの精算操作を失敗させない。
+    console.error("Email notification dispatch deferred", error);
   }
 };
 
-export const retryFailedDelivery = async (
+export const retryEmailDelivery = async (
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   const delivery = await getEmailDelivery(id);
-  if (!delivery || delivery.status !== "failed" || !delivery.recipientEmail) {
+  if (
+    !delivery ||
+    (delivery.status !== "pending" && delivery.status !== "failed") ||
+    !delivery.recipientEmail
+  ) {
     return { ok: false, message: "安全に再試行できる配送ではありません。" };
-  }
-  if (Date.now() - delivery.createdAt.getTime() > 24 * 60 * 60 * 1000) {
-    return {
-      ok: false,
-      message: "24時間を超えた配送は Resend 側の状況確認が必要です。",
-    };
   }
   if (!env.resendApiKey || !env.emailFrom) {
     return { ok: false, message: "Resend の設定が不足しています。" };
@@ -286,17 +303,10 @@ export const retryFailedDelivery = async (
   ) {
     return { ok: false, message: "ローカル実送信には宛先上書きが必要です。" };
   }
-  await sendDelivery({
-    id: delivery.id,
-    recipientLogin: delivery.recipientLogin,
-    recipientEmail: delivery.recipientEmail,
-    status: "pending",
-    subject: delivery.subject,
-    textBody: delivery.textBody,
-    htmlBody: delivery.htmlBody,
-    idempotencyKey: delivery.idempotencyKey,
-    errorCode: delivery.errorCode,
-  });
+  const claimed = await dispatchPersistedDelivery(delivery.id, delivery.status);
+  if (!claimed) {
+    return { ok: false, message: "別の処理が送信を開始しています。" };
+  }
   const updated = await getEmailDelivery(id);
   if (updated?.status === "accepted") return { ok: true };
   return updated?.status === "unknown"
@@ -305,4 +315,12 @@ export const retryFailedDelivery = async (
         message: "送信結果を確認できません。自動再送しないでください。",
       }
     : { ok: false, message: "Resend が送信を拒否しました。" };
+};
+
+const STALE_SENDING_MINUTES = 15;
+
+export const reconcileStaleEmailDeliveries = async (): Promise<number> => {
+  // Resend到達後に応答だけ失われた可能性があるため、自動再送せず要確認に固定する。
+  const staleBefore = new Date(Date.now() - STALE_SENDING_MINUTES * 60 * 1000);
+  return markStaleSendingDeliveriesUnknown(staleBefore);
 };

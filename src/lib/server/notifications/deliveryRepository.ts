@@ -1,17 +1,29 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
 import { emailDeliveries, type EmailDelivery } from "$lib/server/db/schema";
 
-export const markDeliverySending = async (id: string): Promise<void> => {
-  await db
+export const claimEmailDelivery = async (
+  id: string,
+  expectedStatus: "pending" | "failed",
+): Promise<EmailDelivery | null> => {
+  const now = new Date();
+  const [delivery] = await db
     .update(emailDeliveries)
     .set({
       status: "sending",
       attemptCount: sql`${emailDeliveries.attemptCount} + 1`,
-      lastAttemptAt: new Date(),
-      updatedAt: new Date(),
+      lastAttemptAt: now,
+      updatedAt: now,
     })
-    .where(eq(emailDeliveries.id, id));
+    // UI以外からの再送や多重実行でも、送信権は1リクエストだけが取得する。
+    .where(
+      and(
+        eq(emailDeliveries.id, id),
+        eq(emailDeliveries.status, expectedStatus),
+      ),
+    )
+    .returning();
+  return delivery ?? null;
 };
 
 export const markDeliveryResult = async (input: {
@@ -30,7 +42,33 @@ export const markDeliveryResult = async (input: {
       errorCode: input.errorCode,
       updatedAt: now,
     })
-    .where(eq(emailDeliveries.id, input.id));
+    .where(
+      and(
+        eq(emailDeliveries.id, input.id),
+        eq(emailDeliveries.status, "sending"),
+      ),
+    );
+};
+
+export const markStaleSendingDeliveriesUnknown = async (
+  staleBefore: Date,
+): Promise<number> => {
+  const now = new Date();
+  const deliveries = await db
+    .update(emailDeliveries)
+    .set({
+      status: "unknown",
+      errorCode: "stale_sending_requires_confirmation",
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(emailDeliveries.status, "sending"),
+        lt(emailDeliveries.lastAttemptAt, staleBefore),
+      ),
+    )
+    .returning();
+  return deliveries.length;
 };
 
 export const listRecentEmailDeliveries = async (): Promise<EmailDelivery[]> =>

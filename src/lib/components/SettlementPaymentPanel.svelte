@@ -7,6 +7,7 @@
 
   type Props = {
     payment: MonthlyPaymentView;
+    notificationOperationId: string;
     paymentEditable: boolean;
     isAdmin: boolean;
     message?: string;
@@ -16,6 +17,7 @@
 
   let {
     payment,
+    notificationOperationId,
     paymentEditable,
     isAdmin,
     message,
@@ -141,6 +143,11 @@
             use:enhance={enhanceAction("mark-paid")}
             class="payment-form"
           >
+            <input
+              type="hidden"
+              name="notificationOperationId"
+              value={notificationOperationId}
+            />
             <label>
               支払日
               <input type="date" name="paidOn" value={jstToday()} required />

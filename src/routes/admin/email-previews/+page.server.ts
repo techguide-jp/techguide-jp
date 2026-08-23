@@ -4,7 +4,10 @@ import { listEmailPreviews } from "$lib/server/notifications/previewStore";
 import { env } from "$lib/server/env";
 import { fail } from "@sveltejs/kit";
 import { cleanupEmailPreviews } from "$lib/server/notifications/previewStore";
-import { retryFailedDelivery } from "$lib/server/notifications/notificationService";
+import {
+  reconcileStaleEmailDeliveries,
+  retryEmailDelivery,
+} from "$lib/server/notifications/notificationService";
 import {
   createTestEmailPreview,
   isNotificationType,
@@ -27,26 +30,45 @@ export const actions = {
     const user = requireAdmin(event);
     const type = String((await event.request.formData()).get("type") ?? "");
     if (!isNotificationType(type)) {
-      return fail(400, { message: "通知種別が不正です。" });
+      return fail(400, { scope: "preview", message: "通知種別が不正です。" });
     }
     const result = await createTestEmailPreview(
       type,
       user.login,
       event.url.origin,
     );
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: "動作確認用のメールプレビューを生成しました。" };
+    if (!result.ok)
+      return fail(400, { scope: "preview", message: result.message });
+    return {
+      scope: "preview",
+      message: "動作確認用のメールプレビューを生成しました。",
+    };
   },
   cleanup: async (event) => {
     requireAdmin(event);
     const deletedCount = await cleanupEmailPreviews();
-    return { message: `${deletedCount}件の古いプレビューを削除しました。` };
+    return {
+      scope: "preview",
+      message: `${deletedCount}件の古いプレビューを削除しました。`,
+    };
   },
   retry: async (event) => {
     requireAdmin(event);
     const id = String((await event.request.formData()).get("deliveryId") ?? "");
-    const result = await retryFailedDelivery(id);
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: "同じ冪等キーで再試行しました。" };
+    const result = await retryEmailDelivery(id);
+    if (!result.ok)
+      return fail(400, { scope: "delivery", message: result.message });
+    return {
+      scope: "delivery",
+      message: "同じ冪等キーで配送処理を実行しました。",
+    };
+  },
+  reconcile: async (event) => {
+    requireAdmin(event);
+    const updatedCount = await reconcileStaleEmailDeliveries();
+    return {
+      scope: "delivery",
+      message: `${updatedCount}件の長時間送信中の配送を要確認に変更しました。`,
+    };
   },
 };

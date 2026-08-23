@@ -3,6 +3,10 @@ import { requireAdmin } from "$lib/server/auth/guards";
 import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
 import {
+  createNotificationOperationId,
+  parseNotificationOperationId,
+} from "$lib/server/notifications/notificationOperation";
+import {
   listAvailableNoticeAssignees,
   noticeSkipMessage,
 } from "$lib/server/notices/noticeService";
@@ -28,6 +32,7 @@ export const load = async (event) => {
 
   return {
     month,
+    notificationOperationId: createNotificationOperationId(),
     ...settlement,
     payoutAccountStatuses,
     payments,
@@ -41,10 +46,20 @@ export const actions = {
     const formData = await event.request.formData();
     const assigneeLogin = String(formData.get("assigneeLogin") ?? "");
     const scheduledDate = String(formData.get("scheduledDate") ?? "");
+    const notificationOperationId = parseNotificationOperationId(
+      formData.get("notificationOperationId"),
+    );
+    // 画面の二重送信防止だけではHTTP再送を防げないため、サーバーでも操作IDを必須にする。
+    if (!notificationOperationId) {
+      return fail(400, {
+        message: "操作情報が不正です。画面を再読み込みしてください。",
+      });
+    }
     const result = await approveSettlement(
       event.params.month,
       assigneeLogin,
       user.login,
+      notificationOperationId,
       scheduledDate,
     );
     if (!result.ok) return fail(400, { message: result.message });

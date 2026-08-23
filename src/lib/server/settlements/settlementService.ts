@@ -250,6 +250,7 @@ export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
   submittedBy: string,
+  notificationOperationId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   if (assigneeLogin !== submittedBy) {
     return { ok: false, message: "本人以外の月次確定申請はできません。" };
@@ -280,6 +281,7 @@ export const submitSettlementWork = async (
   const submittedAt = new Date();
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_submitted",
+    operationId: notificationOperationId,
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,
@@ -312,6 +314,7 @@ export const approveSettlement = async (
   month: string,
   assigneeLogin: string,
   approvedBy: string,
+  notificationOperationId: string,
   scheduledDateInput?: string | null,
 ): Promise<
   | { ok: true; noticeCreated: boolean; noticeSkippedReason?: NoticeSkipReason }
@@ -383,6 +386,7 @@ export const approveSettlement = async (
   });
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_approved",
+    operationId: notificationOperationId,
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,

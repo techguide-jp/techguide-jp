@@ -11,6 +11,7 @@ export type NotificationMessage = {
 
 export type SettlementNotificationInput = {
   type: NotificationType;
+  operationId: string;
   month: string;
   assigneeLogin: string;
   workerDisplayName: string;

@@ -78,6 +78,7 @@ export const markSettlementPaid = async (
   month: string,
   assigneeLogin: string,
   paidOnInput: string,
+  notificationOperationId: string,
 ): Promise<
   { ok: true; payment: MonthlyPaymentView } | { ok: false; message: string }
 > => {
@@ -96,6 +97,7 @@ export const markSettlementPaid = async (
   const updatedAt = new Date();
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_paid",
+    operationId: notificationOperationId,
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,

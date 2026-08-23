@@ -1,6 +1,7 @@
 import { env } from "$lib/server/env";
 import { defaultPaymentDueDate } from "$lib/server/payments/paymentDate";
 import { getNotificationContact } from "$lib/server/notifications/contactRepository";
+import { createNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 import { saveEmailPreview } from "$lib/server/notifications/previewStore";
 import { buildSettlementNotification } from "$lib/server/notifications/templates";
 import type {
@@ -47,6 +48,7 @@ export const createTestEmailPreview = async (
   ]);
   const input: SettlementNotificationInput = {
     type,
+    operationId: createNotificationOperationId(),
     month,
     assigneeLogin: actorLogin,
     workerDisplayName: profile?.displayName ?? actorLogin,

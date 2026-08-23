@@ -1,16 +1,39 @@
 <script lang="ts">
+  import { enhance } from "$app/forms";
+  import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
+  import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import { formatDateTime } from "$lib/format";
   let { data, form }: PageProps = $props();
-  const actionMessage = $derived((form as ActionData | undefined)?.message);
+  let pendingAction = $state<string | null>(null);
+  const formResult = $derived(
+    form as (ActionData & { scope?: string }) | undefined,
+  );
+  const previewMessage = $derived(
+    formResult?.scope === "preview" ? formResult.message : undefined,
+  );
+  const deliveryMessage = $derived(
+    formResult?.scope === "delivery" ? formResult.message : undefined,
+  );
+
+  const enhanceAction =
+    (name: string): SubmitFunction =>
+    () => {
+      pendingAction = name;
+      return async ({ update }) => {
+        try {
+          await update();
+        } finally {
+          pendingAction = null;
+        }
+      };
+    };
 </script>
 
 <section class="page-heading">
   <p class="eyebrow">email notifications</p>
   <h1>メール通知</h1>
 </section>
-
-{#if actionMessage}<p class="notice" role="status">{actionMessage}</p>{/if}
 
 <section class="panel">
   <h2>運用状態</h2>
@@ -19,6 +42,7 @@
 
 <section class="panel">
   <h2>ローカルプレビュー</h2>
+  {#if previewMessage}<p class="notice" role="status">{previewMessage}</p>{/if}
   {#if data.deliveryMode === "preview"}
     <div class="test-preview-actions">
       <div>
@@ -28,23 +52,63 @@
         </p>
       </div>
       <div class="button-row">
-        <form method="POST" action="?/createTestPreview">
+        <form
+          method="POST"
+          action="?/createTestPreview"
+          use:enhance={enhanceAction("preview-settlement-submitted")}
+        >
           <input type="hidden" name="type" value="settlement_submitted" />
-          <button type="submit" class="secondary">申請通知を生成</button>
+          <ActionSubmit
+            actionName="preview-settlement-submitted"
+            {pendingAction}
+            label="申請通知を生成"
+            pendingLabel="生成中..."
+            variant="secondary"
+          />
         </form>
-        <form method="POST" action="?/createTestPreview">
+        <form
+          method="POST"
+          action="?/createTestPreview"
+          use:enhance={enhanceAction("preview-settlement-approved")}
+        >
           <input type="hidden" name="type" value="settlement_approved" />
-          <button type="submit" class="secondary">承認通知を生成</button>
+          <ActionSubmit
+            actionName="preview-settlement-approved"
+            {pendingAction}
+            label="承認通知を生成"
+            pendingLabel="生成中..."
+            variant="secondary"
+          />
         </form>
-        <form method="POST" action="?/createTestPreview">
+        <form
+          method="POST"
+          action="?/createTestPreview"
+          use:enhance={enhanceAction("preview-settlement-paid")}
+        >
           <input type="hidden" name="type" value="settlement_paid" />
-          <button type="submit" class="secondary">支払い通知を生成</button>
+          <ActionSubmit
+            actionName="preview-settlement-paid"
+            {pendingAction}
+            label="支払い通知を生成"
+            pendingLabel="生成中..."
+            variant="secondary"
+          />
         </form>
       </div>
     </div>
   {/if}
-  <form method="POST" action="?/cleanup">
-    <button type="submit" class="secondary">古いプレビューを削除</button>
+  <form
+    method="POST"
+    action="?/cleanup"
+    use:enhance={enhanceAction("cleanup-previews")}
+  >
+    <ActionSubmit
+      actionName="cleanup-previews"
+      {pendingAction}
+      label="古いプレビューを削除"
+      pendingLabel="削除中..."
+      variant="secondary"
+    />
   </form>
   {#if data.previews.length === 0}
     <p class="muted">保存済みプレビューはありません。</p>
@@ -78,6 +142,25 @@
 {#if data.deliveries.length > 0}
   <section class="panel">
     <h2>配送履歴</h2>
+    {#if deliveryMessage}<p class="notice" role="status">
+        {deliveryMessage}
+      </p>{/if}
+    <form
+      method="POST"
+      action="?/reconcile"
+      use:enhance={enhanceAction("reconcile-deliveries")}
+    >
+      <ActionSubmit
+        actionName="reconcile-deliveries"
+        {pendingAction}
+        label="長時間送信中の配送を確認対象にする"
+        pendingLabel="確認中..."
+        variant="secondary"
+      />
+    </form>
+    <p class="muted">
+      15分以上「sending」の配送は、重複送信を避けるため再送せず「unknown」に変更します。
+    </p>
     <table>
       <thead
         ><tr
@@ -96,15 +179,19 @@
             <td>{delivery.status}</td><td>{delivery.attemptCount}</td>
             <td>{delivery.errorCode ?? "-"}</td>
             <td
-              >{#if delivery.status === "failed"}<form
+              >{#if delivery.status === "pending" || delivery.status === "failed"}<form
                   method="POST"
                   action="?/retry"
+                  use:enhance={enhanceAction(`retry-${delivery.id}`)}
                 >
-                  <input
-                    type="hidden"
-                    name="deliveryId"
-                    value={delivery.id}
-                  /><button type="submit" class="secondary">再試行</button>
+                  <input type="hidden" name="deliveryId" value={delivery.id} />
+                  <ActionSubmit
+                    actionName={`retry-${delivery.id}`}
+                    {pendingAction}
+                    label={delivery.status === "pending" ? "送信" : "再試行"}
+                    pendingLabel="送信中..."
+                    variant="secondary"
+                  />
                 </form>{:else}-{/if}</td
             >
           </tr>

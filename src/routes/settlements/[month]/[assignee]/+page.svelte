@@ -128,6 +128,7 @@
 {#if data.payment && data.snapshot}
   <SettlementPaymentPanel
     payment={data.payment}
+    notificationOperationId={data.notificationOperationId}
     paymentEditable={data.paymentEditable}
     isAdmin={Boolean(data.user?.isAdmin)}
     message={paymentMessage}
@@ -248,6 +249,11 @@
           action="?/submitWork"
           use:enhance={enhanceAction("submit-work")}
         >
+          <input
+            type="hidden"
+            name="notificationOperationId"
+            value={data.notificationOperationId}
+          />
           <ActionSubmit
             actionName="submit-work"
             {pendingAction}

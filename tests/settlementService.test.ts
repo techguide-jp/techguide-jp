@@ -111,6 +111,7 @@ vi.mock("$lib/server/work/workRepository", () => ({
 
 const projectFetchError =
   "GitHub Projectを取得できません。GITHUB_PROJECT_TOKEN にProject v2を読める権限がありません。";
+const notificationOperationId = "11111111-1111-4111-8111-111111111111";
 
 const approvedIssue: ProjectIssue = {
   projectItemId: "item-1",
@@ -192,6 +193,7 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "tashua314",
+      notificationOperationId,
     );
 
     expect(result).toEqual({
@@ -202,7 +204,12 @@ describe("monthly settlement actions", () => {
   });
 
   it("Project取得失敗中の月次承認を明示エラーにする", async () => {
-    const result = await approveSettlement("2026-06", "tashua314", "admin");
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      notificationOperationId,
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -253,7 +260,12 @@ describe("monthly settlement actions", () => {
       updatedAt: new Date("2026-07-14T00:00:00Z"),
     });
 
-    const result = await approveSettlement("2026-06", "tashua314", "admin");
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      notificationOperationId,
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -286,6 +298,7 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "admin",
+      notificationOperationId,
       "2026-07-20",
     );
 
@@ -334,7 +347,12 @@ describe("monthly settlement actions", () => {
       },
     ]);
 
-    await approveSettlement("2026-06", "tashua314", "admin");
+    await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      notificationOperationId,
+    );
 
     expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
       expect.objectContaining({ scheduledDate: "2026-07-14" }),
@@ -364,7 +382,12 @@ describe("monthly settlement actions", () => {
       reason: "payout_account_missing",
     });
 
-    const result = await approveSettlement("2026-06", "tashua314", "admin");
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      notificationOperationId,
+    );
 
     expect(result).toEqual({
       ok: true,
@@ -414,6 +437,7 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "admin",
+      notificationOperationId,
       "2026-99-99",
     );
 

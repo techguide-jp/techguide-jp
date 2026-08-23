@@ -114,6 +114,28 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(detailNoticeLink).toHaveClass(/primary/);
 });
 
+test("管理者が動作確認用メールプレビューを生成して確認できる", async ({
+  page,
+}) => {
+  await page.goto("/__e2e/login");
+  await page.goto("/admin/email-previews");
+
+  await page.getByRole("button", { name: "申請通知を生成" }).click();
+  await expect(
+    page.getByText("動作確認用のメールプレビューを生成しました。"),
+  ).toBeVisible();
+
+  const previewLink = page.getByRole("link", {
+    name: /\[動作確認\].*月次確定申請/,
+  });
+  await expect(previewLink).toBeVisible();
+  await previewLink.click();
+  await expect(
+    page.getByRole("heading", { name: /\[動作確認\].*月次確定申請/ }),
+  ).toBeVisible();
+  await expect(page.getByText("未同期")).toBeVisible();
+});
+
 test("本人プロフィールを保存して管理者の稼働確認で見られる", async ({
   page,
 }) => {

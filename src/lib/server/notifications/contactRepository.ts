@@ -5,20 +5,29 @@ import {
   type UserNotificationContact,
 } from "$lib/server/db/schema";
 
+export const normalizeNotificationLogin = (githubLogin: string): string =>
+  githubLogin.trim().toLowerCase();
+
 export const syncGithubNotificationContact = async (
   githubLogin: string,
   email: string | null,
 ): Promise<void> => {
+  const normalizedLogin = normalizeNotificationLogin(githubLogin);
   if (!email) {
     await db
       .delete(userNotificationContacts)
-      .where(eq(userNotificationContacts.githubLogin, githubLogin));
+      .where(eq(userNotificationContacts.githubLogin, normalizedLogin));
     return;
   }
   const now = new Date();
   await db
     .insert(userNotificationContacts)
-    .values({ githubLogin, email, source: "github", syncedAt: now })
+    .values({
+      githubLogin: normalizedLogin,
+      email,
+      source: "github",
+      syncedAt: now,
+    })
     .onConflictDoUpdate({
       target: userNotificationContacts.githubLogin,
       set: { email, source: "github", syncedAt: now, updatedAt: now },
@@ -31,7 +40,12 @@ export const getNotificationContact = async (
   const [contact] = await db
     .select()
     .from(userNotificationContacts)
-    .where(eq(userNotificationContacts.githubLogin, githubLogin))
+    .where(
+      eq(
+        userNotificationContacts.githubLogin,
+        normalizeNotificationLogin(githubLogin),
+      ),
+    )
     .limit(1);
   return contact ?? null;
 };
@@ -39,9 +53,12 @@ export const getNotificationContact = async (
 export const listNotificationContacts = async (
   logins: string[],
 ): Promise<UserNotificationContact[]> => {
-  if (logins.length === 0) return [];
+  const normalizedLogins = [
+    ...new Set(logins.map(normalizeNotificationLogin).filter(Boolean)),
+  ];
+  if (normalizedLogins.length === 0) return [];
   return db
     .select()
     .from(userNotificationContacts)
-    .where(inArray(userNotificationContacts.githubLogin, logins));
+    .where(inArray(userNotificationContacts.githubLogin, normalizedLogins));
 };

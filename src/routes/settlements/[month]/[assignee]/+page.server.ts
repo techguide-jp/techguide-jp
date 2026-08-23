@@ -7,6 +7,10 @@ import {
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
 import { getPayoutAccountStatus } from "$lib/server/payoutAccounts/payoutAccountService";
+import {
+  createNotificationOperationId,
+  parseNotificationOperationId,
+} from "$lib/server/notifications/notificationOperation";
 import { hasSettlementSnapshotChanges } from "$lib/server/settlements/settlementSnapshot";
 import {
   loadSettlementAssignee,
@@ -29,6 +33,7 @@ export const load = async (event) => {
   return {
     month: event.params.month,
     assignee,
+    notificationOperationId: createNotificationOperationId(),
     payoutAccountStatus: await getPayoutAccountStatus(assignee),
     payment: await getPaymentForViewer(
       event.params.month,
@@ -43,10 +48,20 @@ export const load = async (event) => {
 export const actions = {
   submitWork: async (event) => {
     const user = requireSelfOrAdmin(event, event.params.assignee);
+    const formData = await event.request.formData();
+    const notificationOperationId = parseNotificationOperationId(
+      formData.get("notificationOperationId"),
+    );
+    if (!notificationOperationId) {
+      return fail(400, {
+        message: "操作情報が不正です。画面を再読み込みしてください。",
+      });
+    }
     const result = await submitSettlementWork(
       event.params.month,
       event.params.assignee,
       user.login,
+      notificationOperationId,
     );
     if (!result.ok) return fail(400, { message: result.message });
     return { message: `${event.params.month} の稼働を確定して申請しました。` };
@@ -55,10 +70,20 @@ export const actions = {
     requireAdmin(event);
     const formData = await event.request.formData();
     const paidOn = String(formData.get("paidOn") ?? "");
+    const notificationOperationId = parseNotificationOperationId(
+      formData.get("notificationOperationId"),
+    );
+    if (!notificationOperationId) {
+      return fail(400, {
+        scope: "payment",
+        message: "操作情報が不正です。画面を再読み込みしてください。",
+      });
+    }
     const result = await markSettlementPaid(
       event.params.month,
       event.params.assignee,
       paidOn,
+      notificationOperationId,
     );
     if (!result.ok)
       return fail(400, { scope: "payment", message: result.message });

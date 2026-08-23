@@ -54,6 +54,7 @@ const paymentRow = (
 const admin = { login: "admin", isAdmin: true };
 const self = { login: "tashua314", isAdmin: false };
 const other = { login: "someoneelse", isAdmin: false };
+const notificationOperationId = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -162,6 +163,7 @@ describe("markSettlementPaid", () => {
       "2026-06",
       "tashua314",
       "2026-07-14",
+      notificationOperationId,
     );
     expect(result).toMatchObject({ ok: true });
     expect(upsertPaymentPaid).toHaveBeenCalledWith(
@@ -175,7 +177,12 @@ describe("markSettlementPaid", () => {
   });
 
   it("不正な支払日はエラー", async () => {
-    const result = await markSettlementPaid("2026-06", "tashua314", "invalid");
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "invalid",
+      notificationOperationId,
+    );
     expect(result).toMatchObject({ ok: false });
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
   });
@@ -190,6 +197,7 @@ describe("markSettlementPaid", () => {
       "2026-06",
       "tashua314",
       "2026-07-14",
+      notificationOperationId,
     );
 
     expect(result).toMatchObject({ ok: false });

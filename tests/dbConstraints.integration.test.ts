@@ -20,6 +20,10 @@ import {
 } from "../src/lib/server/db/schema";
 import { upsertPaymentPaid } from "../src/lib/server/payments/paymentRepository";
 import type { PreparedNotificationWrite } from "../src/lib/server/notifications/notificationWrite";
+import {
+  claimEmailDelivery,
+  getEmailDelivery,
+} from "../src/lib/server/notifications/deliveryRepository";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -78,7 +82,7 @@ describeDb("DB constraints", () => {
           subject: "subject",
           textBody: "text",
           htmlBody: "<p>html</p>",
-          idempotencyKey: `settlement-notification/${id}`,
+          idempotencyKey: `production/settlement-notification/${id}`,
           errorCode: null,
         };
       }),
@@ -91,6 +95,17 @@ describeDb("DB constraints", () => {
 
     expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
     expect(await db.select().from(emailDeliveries)).toHaveLength(2);
+
+    const deliveryId = notification.deliveries[0].id;
+    const claims = await Promise.all([
+      claimEmailDelivery(deliveryId, "pending"),
+      claimEmailDelivery(deliveryId, "pending"),
+    ]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    await expect(getEmailDelivery(deliveryId)).resolves.toMatchObject({
+      status: "sending",
+      attemptCount: 1,
+    });
   });
 
   it("同じassigneeとIssueの未終了ログを二重作成できない", async () => {

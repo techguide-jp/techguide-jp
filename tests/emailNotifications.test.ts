@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { buildSettlementNotification } from "$lib/server/notifications/templates";
 import { sanitizeEmailPreviewHtml } from "$lib/server/notifications/previewSafety";
-import { classifyResendError } from "$lib/server/notifications/notificationService";
+import {
+  buildNotificationEventKey,
+  classifyResendError,
+} from "$lib/server/notifications/notificationService";
+import { normalizeNotificationLogin } from "$lib/server/notifications/contactRepository";
+
+const operationId = "11111111-1111-4111-8111-111111111111";
 
 describe("email notification templates", () => {
   it("申請メールに対象月・対象者・日時・安全な詳細リンクを含める", () => {
     const message = buildSettlementNotification(
       {
         type: "settlement_submitted",
+        operationId,
         month: "2026-08",
         assigneeLogin: "worker",
         workerDisplayName: "<Worker>",
@@ -28,6 +35,7 @@ describe("email notification templates", () => {
     const message = buildSettlementNotification(
       {
         type: "settlement_approved",
+        operationId,
         month: "2026-08",
         assigneeLogin: "worker",
         workerDisplayName: "Worker",
@@ -59,14 +67,50 @@ describe("email preview safety", () => {
 });
 
 describe("Resend error classification", () => {
-  it.each(["application_error", "internal_server_error", "conflict"])(
-    "%s は送信結果不明として扱う",
-    (name) => {
-      expect(classifyResendError(name)).toBe("unknown");
-    },
-  );
+  it.each([
+    "application_error",
+    "internal_server_error",
+    "concurrent_idempotent_requests",
+    "invalid_idempotent_request",
+  ])("%s は送信結果不明として扱う", (name) => {
+    expect(classifyResendError(name)).toBe("unknown");
+  });
 
   it("入力拒否は未送信が確定した失敗として扱う", () => {
     expect(classifyResendError("validation_error")).toBe("failed");
+  });
+});
+
+describe("email notification idempotency", () => {
+  it("GitHub loginは大文字小文字を区別せず正規化する", () => {
+    expect(normalizeNotificationLogin(" Hiro3737 ")).toBe("hiro3737");
+  });
+
+  it("同じ操作IDのHTTP再送は発生日時が変わっても同じイベントキーになる", () => {
+    const base = {
+      type: "settlement_paid" as const,
+      operationId,
+      month: "2026-08",
+      assigneeLogin: "Hiro3737",
+      workerDisplayName: "Hiro",
+      paidOn: "2026-09-14",
+    };
+    const first = buildNotificationEventKey({
+      ...base,
+      occurredAt: new Date("2026-08-21T01:02:03Z"),
+    });
+    const replay = buildNotificationEventKey({
+      ...base,
+      assigneeLogin: "hiro3737",
+      occurredAt: new Date("2026-08-21T01:03:04Z"),
+    });
+    const nextOperation = buildNotificationEventKey({
+      ...base,
+      operationId: "22222222-2222-4222-8222-222222222222",
+      occurredAt: new Date("2026-08-21T01:03:04Z"),
+    });
+
+    expect(replay).toBe(first);
+    expect(nextOperation).not.toBe(first);
   });
 });
