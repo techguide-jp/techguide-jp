@@ -17,7 +17,10 @@ import {
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
-import { prepareSettlementNotificationSafely } from "$lib/server/notifications/notificationService";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
@@ -224,6 +227,24 @@ describe("markSettlementPaid", () => {
     });
     expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("別操作が先に支払い状態を更新した場合は通知しない", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(paymentRow());
+    vi.mocked(upsertPaymentPaid).mockResolvedValueOnce(null);
+
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "支払い状態が別の操作で更新されました。画面を再読み込みしてください。",
+    });
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
   });
 });
 

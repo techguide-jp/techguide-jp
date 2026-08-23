@@ -2,7 +2,6 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, neonClient, postgresClient } from "$lib/server/db/client";
 import { monthlyPayments, type MonthlyPayment } from "$lib/server/db/schema";
 import {
-  notificationInsertQuery,
   type PreparedNotificationWrite,
   type SqlTag,
 } from "$lib/server/notifications/notificationWrite";
@@ -51,92 +50,123 @@ export const listPaymentRowsForAssignee = async (
     );
 };
 
-/** 支払い済みとして登録する。既存の支払い予定日は保持する。 */
+type PaymentTransitionOptions = {
+  updatedAt?: Date;
+  expectedUpdatedAt: Date | null;
+  notification?: PreparedNotificationWrite;
+};
+
+const paymentTransitionQuery = <TResult>(
+  sql: SqlTag<TResult>,
+  input: { month: string; assigneeLogin: string; paidOn: string },
+  options: PaymentTransitionOptions & { updatedAt: Date },
+): TResult => {
+  const notification = options.notification;
+  const deliveriesJson = JSON.stringify(notification?.deliveries ?? []);
+  const expectedUpdatedAt = options.expectedUpdatedAt?.toISOString() ?? null;
+
+  return sql`
+    WITH transitioned_payment AS (
+      INSERT INTO monthly_payments (
+        month, assignee_login, status, paid_on, updated_at
+      ) VALUES (
+        ${input.month}, ${input.assigneeLogin}, ${"paid"},
+        ${input.paidOn}::date, ${options.updatedAt.toISOString()}::timestamptz
+      )
+      ON CONFLICT (month, assignee_login) DO UPDATE SET
+        status = EXCLUDED.status,
+        paid_on = EXCLUDED.paid_on,
+        updated_at = EXCLUDED.updated_at
+      WHERE monthly_payments.status = 'unpaid'
+        AND ${expectedUpdatedAt}::timestamptz IS NOT NULL
+        AND date_trunc('milliseconds', monthly_payments.updated_at) =
+          ${expectedUpdatedAt}::timestamptz
+      RETURNING 1
+    ),
+    inserted_event AS (
+      INSERT INTO email_notification_events (
+        id, event_key, type, month, assignee_login, occurred_at, payload
+      )
+      SELECT
+        ${notification?.eventId ?? null}::uuid,
+        ${notification?.eventKey ?? ""},
+        ${notification?.type ?? "settlement_paid"}::email_notification_type,
+        ${notification?.month ?? input.month},
+        ${notification?.assigneeLogin ?? input.assigneeLogin},
+        ${notification?.occurredAt.toISOString() ?? options.updatedAt.toISOString()}::timestamptz,
+        ${notification?.payloadJson ?? "{}"}::jsonb
+      FROM transitioned_payment
+      WHERE ${Boolean(notification)}
+      ON CONFLICT (event_key) DO NOTHING
+      RETURNING id
+    ),
+    inserted_deliveries AS (
+      INSERT INTO email_deliveries (
+        id, event_id, recipient_login, recipient_email, status,
+        subject, text_body, html_body, idempotency_key, error_code
+      )
+      SELECT
+        delivery.id::uuid,
+        inserted_event.id,
+        delivery."recipientLogin",
+        delivery."recipientEmail",
+        delivery.status::email_delivery_status,
+        delivery.subject,
+        delivery."textBody",
+        delivery."htmlBody",
+        delivery."idempotencyKey",
+        delivery."errorCode"
+      FROM inserted_event
+      CROSS JOIN jsonb_to_recordset(${deliveriesJson}::jsonb) AS delivery(
+        id text,
+        "recipientLogin" text,
+        "recipientEmail" text,
+        status text,
+        subject text,
+        "textBody" text,
+        "htmlBody" text,
+        "idempotencyKey" text,
+        "errorCode" text
+      )
+      ON CONFLICT (event_id, recipient_login) DO NOTHING
+      RETURNING id
+    )
+    SELECT EXISTS(SELECT 1 FROM transitioned_payment) AS transitioned
+  `;
+};
+
+const didTransition = (result: unknown): boolean =>
+  Array.isArray(result) &&
+  result.length > 0 &&
+  (result[0] as { transitioned?: unknown }).transitioned === true;
+
+/** 現在の未処理版だけを支払い済みにし、既存の支払い予定日は保持する。 */
 export const upsertPaymentPaid = async (
   input: {
     month: string;
     assigneeLogin: string;
     paidOn: string;
   },
-  options?: {
-    updatedAt: Date;
-    notification?: PreparedNotificationWrite;
-  },
-): Promise<MonthlyPayment> => {
+  options: PaymentTransitionOptions,
+): Promise<MonthlyPayment | null> => {
   const updatedAt = options?.updatedAt ?? new Date();
-  if (options?.notification) {
-    if (postgresClient) {
-      await postgresClient.begin(async (sql) => {
-        await sql`
-          INSERT INTO monthly_payments (
-            month, assignee_login, status, paid_on, updated_at
-          ) VALUES (
-            ${input.month}, ${input.assigneeLogin}, ${"paid"},
-            ${input.paidOn}::date, ${updatedAt.toISOString()}::timestamptz
-          )
-          ON CONFLICT (month, assignee_login) DO UPDATE SET
-            status = EXCLUDED.status,
-            paid_on = EXCLUDED.paid_on,
-            updated_at = EXCLUDED.updated_at
-        `;
-        await notificationInsertQuery(
-          sql as unknown as SqlTag<ReturnType<typeof sql>>,
-          options.notification as PreparedNotificationWrite,
-        );
-      });
-    } else if (neonClient) {
-      const notification = options.notification;
-      await neonClient.transaction((sql) => [
-        sql`
-          INSERT INTO monthly_payments (
-            month, assignee_login, status, paid_on, updated_at
-          ) VALUES (
-            ${input.month}, ${input.assigneeLogin}, ${"paid"},
-            ${input.paidOn}::date, ${updatedAt.toISOString()}::timestamptz
-          )
-          ON CONFLICT (month, assignee_login) DO UPDATE SET
-            status = EXCLUDED.status,
-            paid_on = EXCLUDED.paid_on,
-            updated_at = EXCLUDED.updated_at
-        `,
-        notificationInsertQuery(
-          sql as unknown as SqlTag<ReturnType<typeof sql>>,
-          notification,
-        ),
-      ]);
-    } else {
-      throw new Error("Database client is not configured.");
-    }
-    return (
-      (await getPaymentRow(input.month, input.assigneeLogin)) ?? {
-        month: input.month,
-        assigneeLogin: input.assigneeLogin,
-        status: "paid",
-        scheduledDate: null,
-        paidOn: input.paidOn,
-        createdAt: updatedAt,
-        updatedAt,
-      }
-    );
-  }
-  const [row] = await db
-    .insert(monthlyPayments)
-    .values({
-      month: input.month,
-      assigneeLogin: input.assigneeLogin,
-      status: "paid",
-      paidOn: input.paidOn,
-    })
-    .onConflictDoUpdate({
-      target: [monthlyPayments.month, monthlyPayments.assigneeLogin],
-      set: {
-        status: "paid",
-        paidOn: input.paidOn,
-        updatedAt,
-      },
-    })
-    .returning();
-  return row;
+  const resolvedOptions = { ...options, updatedAt };
+  const result = postgresClient
+    ? await paymentTransitionQuery(
+        postgresClient as unknown as SqlTag<unknown>,
+        input,
+        resolvedOptions,
+      )
+    : neonClient
+      ? await paymentTransitionQuery(
+          neonClient as unknown as SqlTag<unknown>,
+          input,
+          resolvedOptions,
+        )
+      : null;
+  if (!result) throw new Error("Database client is not configured.");
+  if (!didTransition(result)) return null;
+  return getPaymentRow(input.month, input.assigneeLogin);
 };
 
 /** 支払い済み登録を取り消し、未処理に戻す。支払い予定日は保持する。 */

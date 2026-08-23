@@ -28,7 +28,10 @@ import {
   listWorkSessionsForSettlementContext,
   reviewChangeRequest,
 } from "$lib/server/work/workRepository";
-import { prepareSettlementNotificationSafely } from "$lib/server/notifications/notificationService";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
 
 vi.mock("$lib/server/audit/auditRepository", () => ({
   createAuditLog: vi.fn(),
@@ -160,7 +163,7 @@ beforeEach(() => {
   vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([]);
   vi.mocked(getSnapshot).mockResolvedValue(null);
   vi.mocked(getPaymentRow).mockResolvedValue(null);
-  vi.mocked(recordSettlementApproval).mockResolvedValue(undefined);
+  vi.mocked(recordSettlementApproval).mockResolvedValue(true);
   vi.mocked(prepareNoticeWriteInput).mockResolvedValue(preparedNotice);
   vi.mocked(insertPaymentNotice).mockResolvedValue(
     {} as Awaited<ReturnType<typeof insertPaymentNotice>>,
@@ -334,6 +337,40 @@ describe("monthly settlement actions", () => {
     });
     expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
     expect(recordSettlementApproval).not.toHaveBeenCalled();
+  });
+
+  it("別操作が先に承認版を更新した場合は通知しない", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot: createSettlementSnapshotPayload(summary),
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+    vi.mocked(recordSettlementApproval).mockResolvedValueOnce(false);
+
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "承認状態が別の操作で更新されました。画面を再読み込みしてください。",
+    });
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
   });
 
   it("月次承認と同時に支払い予定日を保存する", async () => {

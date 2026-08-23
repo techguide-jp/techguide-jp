@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { db } from "../src/lib/server/db/client";
+import { db, postgresClient } from "../src/lib/server/db/client";
 import { listNoticeAssigneeLoginsForMonth } from "../src/lib/server/notices/noticeRepository";
 import {
   auditLogs,
@@ -19,6 +19,9 @@ import {
   workSessions,
 } from "../src/lib/server/db/schema";
 import { upsertPaymentPaid } from "../src/lib/server/payments/paymentRepository";
+import { recordSettlementApproval } from "../src/lib/server/settlements/settlementApprovalRepository";
+import { createSettlementSnapshotPayload } from "../src/lib/server/settlements/settlementSnapshot";
+import type { SettlementSummary } from "../src/lib/server/settlements/settlementTypes";
 import type { PreparedNotificationWrite } from "../src/lib/server/notifications/notificationWrite";
 import {
   claimEmailDelivery,
@@ -43,6 +46,39 @@ const errorCode = (error: unknown): string | undefined => {
     return error.cause.code;
   }
   return undefined;
+};
+
+const createNotification = (input: {
+  type: "settlement_paid" | "settlement_approved";
+  eventKey: string;
+  month?: string;
+  assigneeLogin?: string;
+  occurredAt: Date;
+}): PreparedNotificationWrite => {
+  const eventId = randomUUID();
+  const deliveryId = randomUUID();
+  return {
+    eventId,
+    eventKey: input.eventKey,
+    type: input.type,
+    month: input.month ?? "2026-06",
+    assigneeLogin: input.assigneeLogin ?? "worker",
+    occurredAt: input.occurredAt,
+    payloadJson: "{}",
+    deliveries: [
+      {
+        id: deliveryId,
+        recipientLogin: "worker",
+        recipientEmail: "worker@example.com",
+        status: "pending",
+        subject: "subject",
+        textBody: "text",
+        htmlBody: "<p>html</p>",
+        idempotencyKey: `production/settlement-notification/${deliveryId}`,
+        errorCode: null,
+      },
+    ],
+  };
 };
 
 beforeEach(async () => {
@@ -92,7 +128,7 @@ describeDb("DB constraints", () => {
 
     await upsertPaymentPaid(
       { month: "2026-06", assigneeLogin: "worker", paidOn: "2026-07-14" },
-      { updatedAt: occurredAt, notification },
+      { updatedAt: occurredAt, expectedUpdatedAt: null, notification },
     );
 
     expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
@@ -125,6 +161,123 @@ describeDb("DB constraints", () => {
       resendEmailId: "resend-1",
       errorCode: null,
     });
+  });
+
+  it("同じ未処理版への競合支払いは1件だけ確定・通知する", async () => {
+    await postgresClient!`
+      INSERT INTO monthly_payments (
+        month, assignee_login, status, updated_at
+      ) VALUES (
+        '2026-06', 'worker', 'unpaid',
+        '2026-07-13T00:00:00.123456Z'::timestamptz
+      )
+    `;
+    const [currentPayment] = await db.select().from(monthlyPayments);
+    const expectedUpdatedAt = currentPayment.updatedAt;
+
+    const candidates = [
+      {
+        paidOn: "2026-07-14",
+        updatedAt: new Date("2026-07-14T00:00:00Z"),
+      },
+      {
+        paidOn: "2026-07-15",
+        updatedAt: new Date("2026-07-15T00:00:00Z"),
+      },
+    ];
+    const results = await Promise.all(
+      candidates.map((candidate, index) =>
+        upsertPaymentPaid(
+          {
+            month: "2026-06",
+            assigneeLogin: "worker",
+            paidOn: candidate.paidOn,
+          },
+          {
+            expectedUpdatedAt,
+            updatedAt: candidate.updatedAt,
+            notification: createNotification({
+              type: "settlement_paid",
+              eventKey: `settlement_paid:2026-06:worker:race-${index}`,
+              occurredAt: candidate.updatedAt,
+            }),
+          },
+        ),
+      ),
+    );
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
+    expect(await db.select().from(emailDeliveries)).toHaveLength(1);
+    const winnerIndex = results.findIndex(Boolean);
+    const [payment] = await db.select().from(monthlyPayments);
+    expect(payment.paidOn).toBe(candidates[winnerIndex].paidOn);
+  });
+
+  it("同じ承認版への競合承認は1件だけ確定・通知する", async () => {
+    const summary: SettlementSummary = {
+      month: "2026-06",
+      assigneeLogin: "worker",
+      fixedRewardYen: 1000,
+      timedRewardYen: 0,
+      taxExcludedYen: 1000,
+      taxYen: 100,
+      taxIncludedYen: 1100,
+      lines: [],
+      pendingRequests: [],
+      unsettledProjectIssues: [],
+      unsettledIssueSessions: [],
+      approvalRequired: true,
+      blockingReasons: [],
+    };
+    await postgresClient!`
+      INSERT INTO monthly_settlement_snapshots (
+        month, assignee_login, snapshot, approved_by, approved_at
+      ) VALUES (
+        ${summary.month}, ${summary.assigneeLogin},
+        ${JSON.stringify(createSettlementSnapshotPayload(summary))}::jsonb,
+        'initial-admin',
+        '2026-06-30T00:00:00.123456Z'::timestamptz
+      )
+    `;
+    const [currentSnapshot] = await db
+      .select()
+      .from(monthlySettlementSnapshots);
+    const expectedApprovedAt = currentSnapshot.approvedAt.toISOString();
+    const candidates = [
+      {
+        scheduledDate: "2026-07-14",
+        approvedAt: "2026-07-01T00:00:00.000Z",
+      },
+      {
+        scheduledDate: "2026-07-15",
+        approvedAt: "2026-07-02T00:00:00.000Z",
+      },
+    ];
+    const results = await Promise.all(
+      candidates.map((candidate, index) =>
+        recordSettlementApproval({
+          summary,
+          approvedBy: `admin-${index}`,
+          approvedAt: candidate.approvedAt,
+          expectedApprovedAt,
+          scheduledDate: candidate.scheduledDate,
+          notification: createNotification({
+            type: "settlement_approved",
+            eventKey: `settlement_approved:2026-06:worker:race-${index}`,
+            occurredAt: new Date(candidate.approvedAt),
+          }),
+        }),
+      ),
+    );
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
+    expect(await db.select().from(emailDeliveries)).toHaveLength(1);
+    expect(await db.select().from(auditLogs)).toHaveLength(1);
+    const winnerIndex = results.findIndex(Boolean);
+    const [payment] = await db.select().from(monthlyPayments);
+    expect(payment.scheduledDate).toBe(candidates[winnerIndex].scheduledDate);
   });
 
   it("直近100件より古い未解決配送も操作一覧に残す", async () => {

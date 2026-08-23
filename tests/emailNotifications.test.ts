@@ -4,6 +4,8 @@ import { sanitizeEmailPreviewHtml } from "$lib/server/notifications/previewSafet
 import {
   buildNotificationEventKey,
   classifyResendError,
+  isProductionEmailRuntime,
+  resolveEmailRecipient,
 } from "$lib/server/notifications/notificationService";
 import { normalizeNotificationLogin } from "$lib/server/notifications/contactRepository";
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
@@ -125,5 +127,28 @@ describe("email notification idempotency", () => {
 
     expect(replay).toBe(first);
     expect(nextOperation).not.toBe(first);
+  });
+});
+
+describe("email notification runtime safety", () => {
+  it("Vercel Previewを実宛先へ送信可能な環境として扱わない", () => {
+    expect(
+      isProductionEmailRuntime("https://feature.example.com", "preview"),
+    ).toBe(false);
+    expect(isProductionEmailRuntime("https://example.com", "production")).toBe(
+      true,
+    );
+  });
+
+  it("非本番では同期済みメールより宛先上書きを優先する", () => {
+    expect(
+      resolveEmailRecipient("worker@example.com", "test@example.com", false),
+    ).toBe("test@example.com");
+    expect(
+      resolveEmailRecipient("worker@example.com", undefined, false),
+    ).toBeNull();
+    expect(
+      resolveEmailRecipient("worker@example.com", "test@example.com", true),
+    ).toBe("worker@example.com");
   });
 });

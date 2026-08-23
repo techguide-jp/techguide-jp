@@ -58,17 +58,32 @@ const isLocalRuntime = (appOrigin: string): boolean => {
   }
 };
 
+export const isProductionEmailRuntime = (
+  appOrigin: string,
+  vercelEnvironment = env.vercelEnvironment,
+): boolean =>
+  vercelEnvironment
+    ? vercelEnvironment === "production"
+    : !isLocalRuntime(appOrigin);
+
+export const resolveEmailRecipient = (
+  syncedEmail: string | null,
+  recipientOverride: string | undefined,
+  productionRuntime: boolean,
+): string | null =>
+  productionRuntime ? syncedEmail : (recipientOverride ?? null);
+
 const persistedIdempotencyKey = (
   deliveryId: string,
-  localRuntime: boolean,
+  productionRuntime: boolean,
 ): string =>
-  `${localRuntime ? "local" : "production"}/settlement-notification/${deliveryId}`;
+  `${productionRuntime ? "production" : "non-production"}/settlement-notification/${deliveryId}`;
 
 export const prepareSettlementNotification = async (
   input: SettlementNotificationInput,
 ): Promise<PreparedSettlementNotification> => {
   const appOrigin = env.appOrigin ?? "http://localhost:5173";
-  const localRuntime = isLocalRuntime(appOrigin);
+  const productionRuntime = isProductionEmailRuntime(appOrigin);
   const logins = recipientLogins(input);
   const [profile, contacts] = await Promise.all([
     getWorkerProfile(input.assigneeLogin),
@@ -109,28 +124,32 @@ export const prepareSettlementNotification = async (
   const deliveries: PreparedDeliveryWrite[] = logins.map((login) => {
     const syncedEmail =
       contactByLogin.get(normalizeNotificationLogin(login))?.email ?? null;
-    const appOriginMissing = !localRuntime && !env.appOrigin;
+    const appOriginMissing = productionRuntime && !env.appOrigin;
     const recipientEmail = appOriginMissing
       ? null
-      : localRuntime
-        ? (env.emailRecipientOverride ?? null)
-        : syncedEmail;
+      : resolveEmailRecipient(
+          syncedEmail,
+          env.emailRecipientOverride,
+          productionRuntime,
+        );
     const id = randomUUID();
     return {
       id,
       recipientLogin: login,
       recipientEmail,
       status: recipientEmail ? "pending" : "skipped",
-      subject: localRuntime ? `[LOCAL] ${message.subject}` : message.subject,
+      subject: productionRuntime
+        ? message.subject
+        : `[TEST] ${message.subject}`,
       textBody: message.text,
       htmlBody: message.html,
-      idempotencyKey: persistedIdempotencyKey(id, localRuntime),
+      idempotencyKey: persistedIdempotencyKey(id, productionRuntime),
       errorCode: recipientEmail
         ? null
         : appOriginMissing
           ? "app_origin_not_configured"
-          : localRuntime
-            ? "local_recipient_override_required"
+          : !productionRuntime
+            ? "non_production_recipient_override_required"
             : "recipient_not_synced",
     };
   });
@@ -164,7 +183,7 @@ export const prepareSettlementNotificationSafely = async (
       return { mode: "preview", entries: [] };
     }
     const appOrigin = env.appOrigin ?? "http://localhost:5173";
-    const localRuntime = isLocalRuntime(appOrigin);
+    const productionRuntime = isProductionEmailRuntime(appOrigin);
     const deliveries: PreparedDeliveryWrite[] = recipientLogins(input).map(
       (recipientLogin) => {
         const id = randomUUID();
@@ -176,7 +195,7 @@ export const prepareSettlementNotificationSafely = async (
           subject: `【通知生成失敗】${input.month}`,
           textBody: "通知内容を生成できなかったため送信していません。",
           htmlBody: "<p>通知内容を生成できなかったため送信していません。</p>",
-          idempotencyKey: persistedIdempotencyKey(id, localRuntime),
+          idempotencyKey: persistedIdempotencyKey(id, productionRuntime),
           errorCode: "notification_preparation_failed",
         };
       },
@@ -298,10 +317,10 @@ export const retryEmailDelivery = async (
     return { ok: false, message: "Resend の設定が不足しています。" };
   }
   if (
-    isLocalRuntime(env.appOrigin ?? "http://localhost:5173") &&
+    !isProductionEmailRuntime(env.appOrigin ?? "http://localhost:5173") &&
     !env.emailRecipientOverride
   ) {
-    return { ok: false, message: "ローカル実送信には宛先上書きが必要です。" };
+    return { ok: false, message: "非本番の実送信には宛先上書きが必要です。" };
   }
   const claimed = await dispatchPersistedDelivery(delivery.id, delivery.status);
   if (!claimed) {

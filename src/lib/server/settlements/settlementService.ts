@@ -377,7 +377,9 @@ export const approveSettlement = async (
   // 承認時点の宛先・支払い予定日を凍結した通知書スナップショットを、承認確定と
   // 同一トランザクションで保存する。振込先が未登録・復号失敗のときは承認自体は
   // 成立させ、通知書のみスキップする。承認日時は1つだけ生成して両レコードで共有する。
-  const now = new Date();
+  const now = new Date(
+    Math.max(Date.now(), (data.snapshot?.approvedAt.getTime() ?? -1) + 1),
+  );
   const approvedAt = now.toISOString();
   const effectiveScheduledDate = scheduledDate.shouldUpdate
     ? scheduledDate.scheduledDate
@@ -420,10 +422,11 @@ export const approveSettlement = async (
     isRepeat: Boolean(data.snapshot),
   });
 
-  await recordSettlementApproval({
+  const approvalRecorded = await recordSettlementApproval({
     summary,
     approvedBy,
     approvedAt,
+    expectedApprovedAt: data.snapshot?.approvedAt.toISOString() ?? null,
     ...(scheduledDate.shouldUpdate
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
@@ -432,6 +435,14 @@ export const approveSettlement = async (
       ? { notification: emailNotification.write }
       : {}),
   });
+
+  if (!approvalRecorded) {
+    return {
+      ok: false,
+      message:
+        "承認状態が別の操作で更新されました。画面を再読み込みしてください。",
+    };
+  }
 
   await dispatchPreparedNotification(emailNotification);
 

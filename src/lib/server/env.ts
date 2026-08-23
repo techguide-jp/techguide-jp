@@ -39,6 +39,7 @@ export const env = {
     optional("EMAIL_DELIVERY_MODE") === "resend" ? "resend" : "preview",
   emailPreviewDir: optional("EMAIL_PREVIEW_DIR") ?? ".local/email-previews",
   emailRecipientOverride: optional("EMAIL_RECIPIENT_OVERRIDE"),
+  vercelEnvironment: optional("VERCEL_ENV"),
   payoutAccountEncryptionKey:
     optional("PAYOUT_ACCOUNT_ENCRYPTION_KEY") ??
     (dev ? "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=" : undefined),
