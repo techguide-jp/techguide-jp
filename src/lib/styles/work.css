@@ -253,6 +253,18 @@
     @apply text-sky-950;
   }
 
+  .worker-directory-table {
+    min-width: 56rem;
+  }
+
+  .worker-directory-table code {
+    @apply whitespace-nowrap rounded-md bg-slate-50 px-2 py-1 text-sm text-slate-700;
+  }
+
+  .worker-directory-name {
+    @apply font-bold no-underline;
+  }
+
   .admin-work-section {
     @apply border-l-4;
   }

@@ -3,6 +3,7 @@ import type { WorkerProfile } from "$lib/server/db/schema";
 import {
   ensureWorkerProfile as ensureWorkerProfileRow,
   getWorkerProfile,
+  listAllWorkerProfiles,
   upsertWorkerAdminNote,
   upsertWorkerSelfProfile,
 } from "$lib/server/workers/workerProfileRepository";
@@ -10,6 +11,7 @@ import {
 export type WorkerProfileView = {
   login: string;
   displayName: string;
+  slackMemberId: string;
   skills: string[];
   specialtyNote: string;
   availabilityNote: string;
@@ -24,6 +26,10 @@ export type WorkerProfileView = {
 
 const selfProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(100),
+  slackMemberId: z
+    .string()
+    .max(64)
+    .regex(/^$|^[UW][A-Z0-9]+$/),
   skills: z.string().max(2000).optional(),
   specialtyNote: z.string().trim().max(2000).optional(),
   availabilityNote: z.string().trim().max(2000).optional(),
@@ -68,6 +74,7 @@ export const toWorkerProfileView = (
 ): WorkerProfileView => ({
   login,
   displayName: profile?.displayName ?? login,
+  slackMemberId: profile?.slackMemberId ?? "",
   skills: normalizeSkills(profile?.skills ?? []),
   specialtyNote: profile?.specialtyNote ?? "",
   availabilityNote: profile?.availabilityNote ?? "",
@@ -107,14 +114,31 @@ export const updateWorkerSelfProfile = async (
     return { ok: false, message: "本人以外のプロフィールは編集できません。" };
   }
 
-  const parsed = selfProfileSchema.safeParse(Object.fromEntries(formData));
+  const formInput = Object.fromEntries(formData);
+  const slackMemberId =
+    typeof formInput.slackMemberId === "string"
+      ? formInput.slackMemberId.trim().toUpperCase()
+      : "";
+  const parsed = selfProfileSchema.safeParse({
+    ...formInput,
+    slackMemberId,
+  });
   if (!parsed.success) {
-    return { ok: false, message: "プロフィールの入力内容を確認してください。" };
+    const hasSlackMemberIdError = parsed.error.issues.some(
+      (issue) => issue.path[0] === "slackMemberId",
+    );
+    return {
+      ok: false,
+      message: hasSlackMemberIdError
+        ? "SlackメンバーIDは、UまたはWから始まる英数字で入力してください。"
+        : "プロフィールの入力内容を確認してください。",
+    };
   }
 
   const profile = await upsertWorkerSelfProfile({
     login: targetLogin,
     displayName: parsed.data.displayName,
+    slackMemberId: parsed.data.slackMemberId,
     skills: normalizeSkills(parsed.data.skills),
     specialtyNote: parsed.data.specialtyNote ?? "",
     availabilityNote: parsed.data.availabilityNote ?? "",
@@ -122,6 +146,31 @@ export const updateWorkerSelfProfile = async (
   });
 
   return { ok: true, profile: toWorkerProfileView(targetLogin, profile) };
+};
+
+export type AdminWorkerListItem = Pick<
+  WorkerProfileView,
+  "login" | "displayName" | "slackMemberId" | "skills" | "updatedAt"
+>;
+
+export const listAdminWorkerProfiles = async (): Promise<
+  AdminWorkerListItem[]
+> => {
+  const profiles = await listAllWorkerProfiles();
+
+  return profiles
+    .map((profile) => ({
+      login: profile.login,
+      displayName: profile.displayName,
+      slackMemberId: profile.slackMemberId,
+      skills: normalizeSkills(profile.skills),
+      updatedAt: profile.updatedAt,
+    }))
+    .sort(
+      (a, b) =>
+        a.displayName.localeCompare(b.displayName, "ja") ||
+        a.login.localeCompare(b.login, "ja"),
+    );
 };
 
 export const updateWorkerAdminNote = async (

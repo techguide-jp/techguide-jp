@@ -45,6 +45,7 @@ export const ensureWorkerProfile = async (input: {
 export const upsertWorkerSelfProfile = async (input: {
   login: string;
   displayName: string;
+  slackMemberId: string;
   skills: string[];
   specialtyNote: string;
   availabilityNote: string;
@@ -55,6 +56,7 @@ export const upsertWorkerSelfProfile = async (input: {
     .values({
       login: input.login,
       displayName: input.displayName,
+      slackMemberId: input.slackMemberId,
       skills: input.skills,
       specialtyNote: input.specialtyNote,
       availabilityNote: input.availabilityNote,
@@ -65,6 +67,7 @@ export const upsertWorkerSelfProfile = async (input: {
       target: workerProfiles.login,
       set: {
         displayName: input.displayName,
+        slackMemberId: input.slackMemberId,
         skills: input.skills,
         specialtyNote: input.specialtyNote,
         availabilityNote: input.availabilityNote,

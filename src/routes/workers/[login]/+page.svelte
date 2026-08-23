@@ -25,6 +25,7 @@
 
   let pendingAction = $state<string | null>(null);
   let displayName = $state(initialProfile().displayName);
+  let slackMemberId = $state(initialProfile().slackMemberId);
   let skills = $state<string[]>(initialProfile().skills);
   let skillDraft = $state("");
   let specialtyNote = $state(initialProfile().specialtyNote);
@@ -151,6 +152,7 @@
     if (syncedProfileKey === profileSyncKey) return;
     syncedProfileKey = profileSyncKey;
     displayName = data.profile.displayName;
+    slackMemberId = data.profile.slackMemberId;
     skills = data.profile.skills;
     skillDraft = "";
     specialtyNote = data.profile.specialtyNote;
@@ -349,6 +351,23 @@
           />
         </label>
 
+        <label class="profile-field">
+          <span>SlackメンバーID（任意）</span>
+          <input
+            name="slackMemberId"
+            bind:value={slackMemberId}
+            maxlength="64"
+            placeholder="U0123456789"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            aria-describedby="slack-member-id-hint"
+          />
+          <small id="slack-member-id-hint" class="field-hint">
+            Slackのプロフィールで「メンバーIDをコピー」して貼り付けてください。
+          </small>
+        </label>
+
         <div class="profile-field profile-field-wide">
           <div class="profile-field-label" id="skills-label">スキル</div>
           <input type="hidden" name="skills" value={skillsFieldValue} />
@@ -447,6 +466,10 @@
         <div>
           <dt>表示名</dt>
           <dd>{data.profile.displayName}</dd>
+        </div>
+        <div>
+          <dt>SlackメンバーID</dt>
+          <dd>{data.profile.slackMemberId || "未登録"}</dd>
         </div>
         <div>
           <dt>スキル</dt>
