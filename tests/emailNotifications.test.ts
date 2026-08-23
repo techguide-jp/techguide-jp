@@ -4,9 +4,13 @@ import { sanitizeEmailPreviewHtml } from "$lib/server/notifications/previewSafet
 import {
   buildNotificationEventKey,
   classifyResendError,
+} from "$lib/server/notifications/notificationService";
+import {
+  isEmailDeliveryEnvironmentReady,
+  isEmailDeliveryRetryableInRuntime,
   isProductionEmailRuntime,
   resolveEmailRecipient,
-} from "$lib/server/notifications/notificationService";
+} from "$lib/server/notifications/emailRuntime";
 import { normalizeNotificationLogin } from "$lib/server/notifications/contactRepository";
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
@@ -150,5 +154,95 @@ describe("email notification runtime safety", () => {
     expect(
       resolveEmailRecipient("worker@example.com", "test@example.com", true),
     ).toBe("worker@example.com");
+  });
+
+  it("再送対象を現在の環境と非本番の上書き先に限定する", () => {
+    const productionDelivery = {
+      recipientEmail: "worker@example.com",
+      idempotencyKey: "production/settlement-notification/delivery-1",
+    };
+    const previewDelivery = {
+      recipientEmail: "test@example.com",
+      idempotencyKey: "non-production/settlement-notification/delivery-2",
+    };
+
+    expect(
+      isEmailDeliveryRetryableInRuntime(
+        productionDelivery,
+        false,
+        "test@example.com",
+      ),
+    ).toBe(false);
+    expect(
+      isEmailDeliveryRetryableInRuntime(
+        previewDelivery,
+        false,
+        "test@example.com",
+      ),
+    ).toBe(true);
+    expect(
+      isEmailDeliveryRetryableInRuntime(
+        previewDelivery,
+        false,
+        "changed@example.com",
+      ),
+    ).toBe(false);
+    expect(isEmailDeliveryRetryableInRuntime(previewDelivery, true)).toBe(
+      false,
+    );
+    expect(isEmailDeliveryRetryableInRuntime(productionDelivery, true)).toBe(
+      true,
+    );
+  });
+
+  it("メール運用状態を実行環境ごとの必須設定で判定する", () => {
+    const resendSettings = {
+      mode: "resend" as const,
+      hasResendApiKey: true,
+      hasEmailFrom: true,
+      hasAppOrigin: true,
+    };
+
+    expect(
+      isEmailDeliveryEnvironmentReady({
+        mode: "preview",
+        productionRuntime: true,
+        hasResendApiKey: true,
+        hasEmailFrom: true,
+        hasAppOrigin: true,
+        hasRecipientOverride: false,
+      }),
+    ).toBe(false);
+    expect(
+      isEmailDeliveryEnvironmentReady({
+        mode: "preview",
+        productionRuntime: false,
+        hasResendApiKey: false,
+        hasEmailFrom: false,
+        hasAppOrigin: false,
+        hasRecipientOverride: false,
+      }),
+    ).toBe(true);
+    expect(
+      isEmailDeliveryEnvironmentReady({
+        ...resendSettings,
+        productionRuntime: false,
+        hasRecipientOverride: false,
+      }),
+    ).toBe(false);
+    expect(
+      isEmailDeliveryEnvironmentReady({
+        ...resendSettings,
+        productionRuntime: false,
+        hasRecipientOverride: true,
+      }),
+    ).toBe(true);
+    expect(
+      isEmailDeliveryEnvironmentReady({
+        ...resendSettings,
+        productionRuntime: true,
+        hasRecipientOverride: false,
+      }),
+    ).toBe(true);
   });
 });

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { dev } from "$app/environment";
 import { Resend } from "resend";
 import type { EmailDelivery } from "$lib/server/db/schema";
 import { env } from "$lib/server/env";
@@ -13,6 +12,12 @@ import {
   markDeliveryResult,
   markStaleSendingDeliveriesUnknown,
 } from "$lib/server/notifications/deliveryRepository";
+import {
+  emailRuntimePrefix,
+  isEmailDeliveryRetryableInRuntime,
+  isProductionEmailRuntime,
+  resolveEmailRecipient,
+} from "$lib/server/notifications/emailRuntime";
 import type {
   PreparedDeliveryWrite,
   PreparedNotificationWrite,
@@ -47,43 +52,20 @@ export const buildNotificationEventKey = (
     input.operationId,
   ].join(":");
 
-const isLocalRuntime = (appOrigin: string): boolean => {
-  try {
-    return (
-      dev ||
-      ["localhost", "127.0.0.1", "::1"].includes(new URL(appOrigin).hostname)
-    );
-  } catch {
-    return dev;
-  }
-};
-
-export const isProductionEmailRuntime = (
-  appOrigin: string,
-  vercelEnvironment = env.vercelEnvironment,
-): boolean =>
-  vercelEnvironment
-    ? vercelEnvironment === "production"
-    : !isLocalRuntime(appOrigin);
-
-export const resolveEmailRecipient = (
-  syncedEmail: string | null,
-  recipientOverride: string | undefined,
-  productionRuntime: boolean,
-): string | null =>
-  productionRuntime ? syncedEmail : (recipientOverride ?? null);
-
 const persistedIdempotencyKey = (
   deliveryId: string,
   productionRuntime: boolean,
 ): string =>
-  `${productionRuntime ? "production" : "non-production"}/settlement-notification/${deliveryId}`;
+  `${emailRuntimePrefix(productionRuntime)}/settlement-notification/${deliveryId}`;
 
 export const prepareSettlementNotification = async (
   input: SettlementNotificationInput,
 ): Promise<PreparedSettlementNotification> => {
   const appOrigin = env.appOrigin ?? "http://localhost:5173";
-  const productionRuntime = isProductionEmailRuntime(appOrigin);
+  const productionRuntime = isProductionEmailRuntime(
+    appOrigin,
+    env.vercelEnvironment,
+  );
   const logins = recipientLogins(input);
   const [profile, contacts] = await Promise.all([
     getWorkerProfile(input.assigneeLogin),
@@ -183,7 +165,10 @@ export const prepareSettlementNotificationSafely = async (
       return { mode: "preview", entries: [] };
     }
     const appOrigin = env.appOrigin ?? "http://localhost:5173";
-    const productionRuntime = isProductionEmailRuntime(appOrigin);
+    const productionRuntime = isProductionEmailRuntime(
+      appOrigin,
+      env.vercelEnvironment,
+    );
     const deliveries: PreparedDeliveryWrite[] = recipientLogins(input).map(
       (recipientLogin) => {
         const id = randomUUID();
@@ -316,11 +301,24 @@ export const retryEmailDelivery = async (
   if (!env.resendApiKey || !env.emailFrom) {
     return { ok: false, message: "Resend の設定が不足しています。" };
   }
-  if (
-    !isProductionEmailRuntime(env.appOrigin ?? "http://localhost:5173") &&
-    !env.emailRecipientOverride
-  ) {
+  const productionRuntime = isProductionEmailRuntime(
+    env.appOrigin ?? "http://localhost:5173",
+    env.vercelEnvironment,
+  );
+  if (!productionRuntime && !env.emailRecipientOverride) {
     return { ok: false, message: "非本番の実送信には宛先上書きが必要です。" };
+  }
+  if (
+    !isEmailDeliveryRetryableInRuntime(
+      delivery,
+      productionRuntime,
+      env.emailRecipientOverride,
+    )
+  ) {
+    return {
+      ok: false,
+      message: "現在の環境で作成された配送ではないため再試行できません。",
+    };
   }
   const claimed = await dispatchPersistedDelivery(delivery.id, delivery.status);
   if (!claimed) {

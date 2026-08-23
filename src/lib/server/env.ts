@@ -22,6 +22,9 @@ const loginSet = (name: string): Set<string> => {
   );
 };
 
+const emailDeliveryMode = (): "preview" | "resend" =>
+  optional("EMAIL_DELIVERY_MODE") === "resend" ? "resend" : "preview";
+
 export const env = {
   databaseUrl: optional("DATABASE_URL"),
   githubClientId: optional("GITHUB_CLIENT_ID"),
@@ -35,8 +38,7 @@ export const env = {
   resendApiKey: optional("RESEND_API_KEY"),
   emailFrom: optional("EMAIL_FROM"),
   emailReplyTo: optional("EMAIL_REPLY_TO"),
-  emailDeliveryMode:
-    optional("EMAIL_DELIVERY_MODE") === "resend" ? "resend" : "preview",
+  emailDeliveryMode: emailDeliveryMode(),
   emailPreviewDir: optional("EMAIL_PREVIEW_DIR") ?? ".local/email-previews",
   emailRecipientOverride: optional("EMAIL_RECIPIENT_OVERRIDE"),
   vercelEnvironment: optional("VERCEL_ENV"),

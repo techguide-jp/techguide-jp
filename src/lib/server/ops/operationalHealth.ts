@@ -7,6 +7,10 @@ import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { db, isDatabaseConfigured } from "$lib/server/db/client";
 import { env } from "$lib/server/env";
 import { getProjectClientRuntimeHealth } from "$lib/server/github/projectClient";
+import {
+  isEmailDeliveryEnvironmentReady,
+  isProductionEmailRuntime,
+} from "$lib/server/notifications/emailRuntime";
 
 export type OperationalHealth = {
   database: {
@@ -22,10 +26,13 @@ export type OperationalHealth = {
     sessionSecret: boolean;
     adminGithubLogins: number;
     e2eTestMode: boolean;
-    emailDeliveryMode: string;
+    emailDeliveryMode: "preview" | "resend";
     resendApiKey: boolean;
     emailFrom: boolean;
     appOrigin: boolean;
+    emailRecipientOverride: boolean;
+    productionEmailRuntime: boolean;
+    emailDeliveryReady: boolean;
   };
   projectClient: ReturnType<typeof getProjectClientRuntimeHealth>;
 };
@@ -54,6 +61,22 @@ export const loadOperationalHealth = async (): Promise<OperationalHealth> => {
   const expiredSessionCount = database.reachable
     ? await countExpiredSessions()
     : null;
+  const resendApiKey = Boolean(env.resendApiKey);
+  const emailFrom = Boolean(env.emailFrom);
+  const appOrigin = Boolean(env.appOrigin);
+  const emailRecipientOverride = Boolean(env.emailRecipientOverride);
+  const productionEmailRuntime = isProductionEmailRuntime(
+    env.appOrigin ?? "http://localhost:5173",
+    env.vercelEnvironment,
+  );
+  const emailDeliveryReady = isEmailDeliveryEnvironmentReady({
+    mode: env.emailDeliveryMode,
+    productionRuntime: productionEmailRuntime,
+    hasResendApiKey: resendApiKey,
+    hasEmailFrom: emailFrom,
+    hasAppOrigin: appOrigin,
+    hasRecipientOverride: emailRecipientOverride,
+  });
 
   return {
     database: {
@@ -70,9 +93,12 @@ export const loadOperationalHealth = async (): Promise<OperationalHealth> => {
       adminGithubLogins: env.adminGithubLogins.size,
       e2eTestMode: env.e2eTestMode,
       emailDeliveryMode: env.emailDeliveryMode,
-      resendApiKey: Boolean(env.resendApiKey),
-      emailFrom: Boolean(env.emailFrom),
-      appOrigin: Boolean(env.appOrigin),
+      resendApiKey,
+      emailFrom,
+      appOrigin,
+      emailRecipientOverride,
+      productionEmailRuntime,
+      emailDeliveryReady,
     },
     projectClient: getProjectClientRuntimeHealth(),
   };

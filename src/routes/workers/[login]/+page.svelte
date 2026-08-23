@@ -325,8 +325,8 @@
     {#if data.notificationContact}
       <p><strong>{data.notificationContact.email}</strong></p>
       <p class="muted">
-        GitHub の認証済みプライマリメールから同期・ 最終同期: {data.notificationContact.syncedAt.toLocaleString(
-          "ja-JP",
+        GitHub の認証済みプライマリメールから同期・ 最終同期: {formatDateTime(
+          data.notificationContact.syncedAt,
         )}
       </p>
     {:else}
