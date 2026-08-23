@@ -41,6 +41,7 @@ beforeEach(() => {
   vi.mocked(getWorkerProfile).mockResolvedValue({
     login: "tashua314",
     displayName: "たしゅあ",
+    slackMemberId: "",
     skills: [],
     specialtyNote: "",
     availabilityNote: "",

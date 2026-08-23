@@ -1,0 +1,1 @@
+ALTER TABLE "worker_profiles" ADD COLUMN "slack_member_id" text DEFAULT '' NOT NULL;

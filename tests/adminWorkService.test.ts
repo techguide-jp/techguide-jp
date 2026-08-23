@@ -76,6 +76,7 @@ const request = (
 const profile = (overrides: Partial<WorkerProfile>): WorkerProfile => ({
   login: "tashua314",
   displayName: "たしゅあ",
+  slackMemberId: "",
   skills: ["SvelteKit"],
   specialtyNote: "",
   availabilityNote: "",
