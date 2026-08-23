@@ -3,11 +3,13 @@ import type { WorkerProfile } from "$lib/server/db/schema";
 import {
   ensureWorkerProfile as ensureWorkerProfileRow,
   getWorkerProfile,
+  listAllWorkerProfiles,
   upsertWorkerAdminNote,
   upsertWorkerSelfProfile,
 } from "$lib/server/workers/workerProfileRepository";
 import {
   ensureWorkerProfile,
+  listAdminWorkerProfiles,
   normalizeSkills,
   updateWorkerAdminNote,
   updateWorkerSelfProfile,
@@ -16,6 +18,7 @@ import {
 vi.mock("$lib/server/workers/workerProfileRepository", () => ({
   ensureWorkerProfile: vi.fn(),
   getWorkerProfile: vi.fn(),
+  listAllWorkerProfiles: vi.fn(),
   upsertWorkerAdminNote: vi.fn(),
   upsertWorkerSelfProfile: vi.fn(),
 }));
@@ -23,6 +26,7 @@ vi.mock("$lib/server/workers/workerProfileRepository", () => ({
 const profile = (overrides: Partial<WorkerProfile> = {}): WorkerProfile => ({
   login: "tashua314",
   displayName: "たしゅあ",
+  slackMemberId: "",
   skills: ["SvelteKit"],
   specialtyNote: "",
   availabilityNote: "",
@@ -39,6 +43,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(ensureWorkerProfileRow).mockResolvedValue(undefined);
   vi.mocked(getWorkerProfile).mockResolvedValue(null);
+  vi.mocked(listAllWorkerProfiles).mockResolvedValue([]);
   vi.mocked(upsertWorkerSelfProfile).mockResolvedValue(profile());
   vi.mocked(upsertWorkerAdminNote).mockResolvedValue(profile());
 });
@@ -86,11 +91,48 @@ describe("workerProfileService", () => {
     expect(upsertWorkerSelfProfile).toHaveBeenCalledWith({
       login: "tashua314",
       displayName: "たしゅあ",
+      slackMemberId: "",
       skills: ["SvelteKit", "Drizzle"],
       specialtyNote: "管理画面",
       availabilityNote: "平日夜",
       selfAssignmentNote: "短期タスク優先",
     });
+  });
+
+  it("SlackメンバーIDをtrimして大文字で保存する", async () => {
+    const data = new FormData();
+    data.set("displayName", "たしゅあ");
+    data.set("slackMemberId", "  u012abc3456  ");
+
+    const result = await updateWorkerSelfProfile(
+      data,
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result.ok).toBe(true);
+    expect(upsertWorkerSelfProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ slackMemberId: "U012ABC3456" }),
+    );
+  });
+
+  it("不正なSlackメンバーIDを拒否する", async () => {
+    const data = new FormData();
+    data.set("displayName", "たしゅあ");
+    data.set("slackMemberId", "@tashua");
+
+    const result = await updateWorkerSelfProfile(
+      data,
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "SlackメンバーIDは、UまたはWから始まる英数字で入力してください。",
+    });
+    expect(upsertWorkerSelfProfile).not.toHaveBeenCalled();
   });
 
   it("本人以外のプロフィール更新を拒否する", async () => {
@@ -137,5 +179,43 @@ describe("workerProfileService", () => {
 
     expect(result.ok).toBe(false);
     expect(upsertWorkerAdminNote).not.toHaveBeenCalled();
+  });
+
+  it("管理者一覧は必要な項目だけを表示名順で返す", async () => {
+    vi.mocked(listAllWorkerProfiles).mockResolvedValue([
+      profile({
+        login: "z-worker",
+        displayName: "山田",
+        slackMemberId: "U9999999999",
+        adminNote: "一覧へ返してはいけないメモ",
+      }),
+      profile({
+        login: "a-worker",
+        displayName: "阿部",
+        slackMemberId: "",
+        skills: ["TypeScript"],
+      }),
+    ]);
+
+    const result = await listAdminWorkerProfiles();
+
+    expect(result).toEqual([
+      {
+        login: "a-worker",
+        displayName: "阿部",
+        slackMemberId: "",
+        skills: ["TypeScript"],
+        updatedAt: new Date("2026-06-18T00:00:00Z"),
+      },
+      {
+        login: "z-worker",
+        displayName: "山田",
+        slackMemberId: "U9999999999",
+        skills: ["SvelteKit"],
+        updatedAt: new Date("2026-06-18T00:00:00Z"),
+      },
+    ]);
+    expect(result[1]).not.toHaveProperty("adminNote");
+    expect(result[1]).not.toHaveProperty("availabilityNote");
   });
 });

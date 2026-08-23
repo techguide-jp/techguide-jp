@@ -35,6 +35,7 @@
     ),
   );
   const isAdminWorkActive = $derived(pathname === "/admin/work");
+  const isAdminWorkersActive = $derived(pathname === "/admin/workers");
   const isProjectHealthActive = $derived(pathname === "/admin/project-health");
   const breadcrumbs = $derived(buildBreadcrumbs(pathname, data.user));
 
@@ -102,6 +103,13 @@
             aria-current={isAdminWorkActive ? "page" : undefined}
           >
             稼働確認
+          </a>
+          <a
+            href="/admin/workers"
+            class:active={isAdminWorkersActive}
+            aria-current={isAdminWorkersActive ? "page" : undefined}
+          >
+            登録者一覧
           </a>
           <a
             href={`/settlements/${currentMonth}`}

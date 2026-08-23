@@ -184,6 +184,34 @@ test("管理者メモは作業者本人のプロフィールデータに含め�
   expect(await page.content()).not.toContain(adminNote);
 });
 
+test("本人がSlack IDを保存し管理者が登録者一覧で確認できる", async ({
+  page,
+}) => {
+  await page.goto("/__e2e/login?login=worker-user");
+  await page.goto("/workers/worker-user");
+  await page
+    .getByRole("textbox", { name: "SlackメンバーID（任意）" })
+    .fill("  u012abc3456  ");
+  await page.getByRole("button", { name: "プロフィールを保存" }).click();
+
+  await expect(page.getByText("プロフィールを保存しました。")).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "SlackメンバーID（任意）" }),
+  ).toHaveValue("U012ABC3456");
+
+  await page.goto("/__e2e/login");
+  await page.goto("/admin/workers");
+  await expect(page.getByRole("heading", { name: "登録者一覧" })).toBeVisible();
+  const workerRow = page.getByRole("row").filter({ hasText: "worker-user" });
+  await expect(workerRow.getByText("U012ABC3456")).toBeVisible();
+  await workerRow.getByRole("link", { name: "プロフィール" }).click();
+  await expect(page.getByText("U012ABC3456")).toBeVisible();
+
+  await page.goto("/__e2e/login?login=worker-user");
+  await page.goto("/admin/workers");
+  await expect(page).toHaveURL(/\/work$/);
+});
+
 test("本人が振込先を登録し管理者が確認できる", async ({ page }) => {
   const month = currentJstMonth();
   const accountNumber = "0123456";

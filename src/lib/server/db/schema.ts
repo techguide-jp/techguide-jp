@@ -43,6 +43,7 @@ export const workerProfiles = pgTable(
   {
     login: text("login").primaryKey(),
     displayName: text("display_name").notNull(),
+    slackMemberId: text("slack_member_id").notNull().default(""),
     skills: jsonb("skills")
       .$type<string[]>()
       .notNull()
