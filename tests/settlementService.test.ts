@@ -28,6 +28,7 @@ import {
   listWorkSessionsForSettlementContext,
   reviewChangeRequest,
 } from "$lib/server/work/workRepository";
+import { prepareSettlementNotificationSafely } from "$lib/server/notifications/notificationService";
 
 vi.mock("$lib/server/audit/auditRepository", () => ({
   createAuditLog: vi.fn(),
@@ -111,8 +112,6 @@ vi.mock("$lib/server/work/workRepository", () => ({
 
 const projectFetchError =
   "GitHub Projectを取得できません。GITHUB_PROJECT_TOKEN にProject v2を読める権限がありません。";
-const notificationOperationId = "11111111-1111-4111-8111-111111111111";
-
 const approvedIssue: ProjectIssue = {
   projectItemId: "item-1",
   repository: "techguide-jp/example",
@@ -193,7 +192,6 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "tashua314",
-      notificationOperationId,
     );
 
     expect(result).toEqual({
@@ -204,18 +202,45 @@ describe("monthly settlement actions", () => {
   });
 
   it("Project取得失敗中の月次承認を明示エラーにする", async () => {
-    const result = await approveSettlement(
-      "2026-06",
-      "tashua314",
-      "admin",
-      notificationOperationId,
-    );
+    const result = await approveSettlement("2026-06", "tashua314", "admin");
 
     expect(result).toEqual({
       ok: false,
       message: "GitHub Projectを取得できないため、精算額を確定できません。",
     });
     expect(recordSettlementApproval).not.toHaveBeenCalled();
+  });
+
+  it("同じ内容の月次確定申請を再実行しない", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot: createSettlementSnapshotPayload(summary),
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await submitSettlementWork(
+      "2026-06",
+      "tashua314",
+      "tashua314",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "この内容はすでに月次確定申請済みです。",
+    });
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
+    expect(upsertWorkSubmission).not.toHaveBeenCalled();
   });
 
   it("未承認の精算は支払い情報を更新できない", async () => {
@@ -260,18 +285,54 @@ describe("monthly settlement actions", () => {
       updatedAt: new Date("2026-07-14T00:00:00Z"),
     });
 
-    const result = await approveSettlement(
-      "2026-06",
-      "tashua314",
-      "admin",
-      notificationOperationId,
-    );
+    const result = await approveSettlement("2026-06", "tashua314", "admin");
 
     expect(result).toEqual({
       ok: false,
       message:
         "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
     });
+    expect(recordSettlementApproval).not.toHaveBeenCalled();
+  });
+
+  it("同じ内容と支払い予定日の月次承認を再実行しない", async () => {
+    mockSuccessfulProjectFetch();
+    const summary = buildSettlementSummaries(
+      "2026-06",
+      [approvedIssue],
+      [],
+      [],
+    )[0];
+    const snapshot = createSettlementSnapshotPayload(summary);
+    vi.mocked(listWorkSubmissionsForMonth).mockResolvedValue([
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        snapshot,
+        submittedBy: "tashua314",
+        submittedAt: new Date("2026-07-01T00:00:00Z"),
+      },
+    ]);
+    vi.mocked(getSnapshot).mockResolvedValue({
+      month: "2026-06",
+      assigneeLogin: "tashua314",
+      snapshot,
+      approvedBy: "admin",
+      approvedAt: new Date("2026-07-02T00:00:00Z"),
+    });
+
+    const result = await approveSettlement(
+      "2026-06",
+      "tashua314",
+      "admin",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "承認内容と支払い予定日に変更がありません。",
+    });
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
     expect(recordSettlementApproval).not.toHaveBeenCalled();
   });
 
@@ -298,7 +359,6 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "admin",
-      notificationOperationId,
       "2026-07-20",
     );
 
@@ -347,12 +407,7 @@ describe("monthly settlement actions", () => {
       },
     ]);
 
-    await approveSettlement(
-      "2026-06",
-      "tashua314",
-      "admin",
-      notificationOperationId,
-    );
+    await approveSettlement("2026-06", "tashua314", "admin");
 
     expect(prepareNoticeWriteInput).toHaveBeenCalledWith(
       expect.objectContaining({ scheduledDate: "2026-07-14" }),
@@ -382,12 +437,7 @@ describe("monthly settlement actions", () => {
       reason: "payout_account_missing",
     });
 
-    const result = await approveSettlement(
-      "2026-06",
-      "tashua314",
-      "admin",
-      notificationOperationId,
-    );
+    const result = await approveSettlement("2026-06", "tashua314", "admin");
 
     expect(result).toEqual({
       ok: true,
@@ -437,7 +487,6 @@ describe("monthly settlement actions", () => {
       "2026-06",
       "tashua314",
       "admin",
-      notificationOperationId,
       "2026-99-99",
     );
 

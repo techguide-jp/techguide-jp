@@ -6,6 +6,7 @@ import {
   classifyResendError,
 } from "$lib/server/notifications/notificationService";
 import { normalizeNotificationLogin } from "$lib/server/notifications/contactRepository";
+import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
 const operationId = "11111111-1111-4111-8111-111111111111";
 
@@ -82,6 +83,18 @@ describe("Resend error classification", () => {
 });
 
 describe("email notification idempotency", () => {
+  it("同じ業務状態から安定した操作IDを生成する", () => {
+    const first = buildNotificationOperationId("settlement-paid", "version-1");
+    const replay = buildNotificationOperationId("settlement-paid", "version-1");
+    const nextVersion = buildNotificationOperationId(
+      "settlement-paid",
+      "version-2",
+    );
+
+    expect(replay).toBe(first);
+    expect(nextVersion).not.toBe(first);
+  });
+
   it("GitHub loginは大文字小文字を区別せず正規化する", () => {
     expect(normalizeNotificationLogin(" Hiro3737 ")).toBe("hiro3737");
   });

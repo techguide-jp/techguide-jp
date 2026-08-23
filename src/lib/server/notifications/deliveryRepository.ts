@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
 import { emailDeliveries, type EmailDelivery } from "$lib/server/db/schema";
 
@@ -37,9 +37,9 @@ export const markDeliveryResult = async (input: {
     .update(emailDeliveries)
     .set({
       status: input.status,
-      resendEmailId: input.resendEmailId,
+      resendEmailId: input.resendEmailId ?? null,
       acceptedAt: input.status === "accepted" ? now : null,
-      errorCode: input.errorCode,
+      errorCode: input.errorCode ?? null,
       updatedAt: now,
     })
     .where(
@@ -71,12 +71,31 @@ export const markStaleSendingDeliveriesUnknown = async (
   return deliveries.length;
 };
 
-export const listRecentEmailDeliveries = async (): Promise<EmailDelivery[]> =>
-  db
-    .select()
-    .from(emailDeliveries)
-    .orderBy(desc(emailDeliveries.createdAt))
-    .limit(100);
+const unresolvedStatuses = ["pending", "sending", "failed", "unknown"] as const;
+const terminalStatuses = ["accepted", "skipped"] as const;
+
+export const listOperationalEmailDeliveries = async (): Promise<
+  EmailDelivery[]
+> => {
+  const [unresolved, recentTerminal] = await Promise.all([
+    // 再送・確認の操作対象を履歴件数で失わないよう、未解決配送には上限を設けない。
+    db
+      .select()
+      .from(emailDeliveries)
+      .where(inArray(emailDeliveries.status, [...unresolvedStatuses]))
+      .orderBy(desc(emailDeliveries.createdAt)),
+    db
+      .select()
+      .from(emailDeliveries)
+      .where(inArray(emailDeliveries.status, [...terminalStatuses]))
+      .orderBy(desc(emailDeliveries.createdAt))
+      .limit(100),
+  ]);
+
+  return [...unresolved, ...recentTerminal].sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+  );
+};
 
 export const getEmailDelivery = async (
   id: string,

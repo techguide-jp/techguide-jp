@@ -344,7 +344,6 @@
     {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
     <SettlementApprovalModal
       month={data.month}
-      notificationOperationId={data.notificationOperationId}
       {summary}
       {snapshot}
       {submission}

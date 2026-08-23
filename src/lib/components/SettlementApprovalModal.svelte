@@ -29,7 +29,6 @@
 
   type Props = {
     month: string;
-    notificationOperationId: string;
     summary: SettlementSummary;
     snapshot: SnapshotMeta | undefined;
     submission: SubmissionMeta | undefined;
@@ -46,7 +45,6 @@
 
   let {
     month,
-    notificationOperationId,
     summary,
     snapshot,
     submission,
@@ -263,11 +261,6 @@
           type="hidden"
           name="assigneeLogin"
           value={summary.assigneeLogin}
-        />
-        <input
-          type="hidden"
-          name="notificationOperationId"
-          value={notificationOperationId}
         />
         <label class="approval-date-field">
           支払い予定日

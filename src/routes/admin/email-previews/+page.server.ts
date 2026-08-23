@@ -1,5 +1,5 @@
 import { requireAdmin } from "$lib/server/auth/guards";
-import { listRecentEmailDeliveries } from "$lib/server/notifications/deliveryRepository";
+import { listOperationalEmailDeliveries } from "$lib/server/notifications/deliveryRepository";
 import { listEmailPreviews } from "$lib/server/notifications/previewStore";
 import { env } from "$lib/server/env";
 import { fail } from "@sveltejs/kit";
@@ -21,7 +21,7 @@ export const load = async (event) => {
     deliveries:
       env.emailDeliveryMode === "preview"
         ? []
-        : await listRecentEmailDeliveries(),
+        : await listOperationalEmailDeliveries(),
   };
 };
 

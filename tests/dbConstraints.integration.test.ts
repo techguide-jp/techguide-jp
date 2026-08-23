@@ -23,6 +23,8 @@ import type { PreparedNotificationWrite } from "../src/lib/server/notifications/
 import {
   claimEmailDelivery,
   getEmailDelivery,
+  listOperationalEmailDeliveries,
+  markDeliveryResult,
 } from "../src/lib/server/notifications/deliveryRepository";
 
 const describeDb =
@@ -106,6 +108,73 @@ describeDb("DB constraints", () => {
       status: "sending",
       attemptCount: 1,
     });
+
+    await markDeliveryResult({
+      id: deliveryId,
+      status: "failed",
+      errorCode: "temporary_failure",
+    });
+    expect(await claimEmailDelivery(deliveryId, "failed")).not.toBeNull();
+    await markDeliveryResult({
+      id: deliveryId,
+      status: "accepted",
+      resendEmailId: "resend-1",
+    });
+    await expect(getEmailDelivery(deliveryId)).resolves.toMatchObject({
+      status: "accepted",
+      resendEmailId: "resend-1",
+      errorCode: null,
+    });
+  });
+
+  it("直近100件より古い未解決配送も操作一覧に残す", async () => {
+    const eventId = randomUUID();
+    await db.insert(emailNotificationEvents).values({
+      id: eventId,
+      eventKey: `settlement_paid:2026-06:worker:${randomUUID()}`,
+      type: "settlement_paid",
+      month: "2026-06",
+      assigneeLogin: "worker",
+      occurredAt: new Date("2026-07-14T00:00:00Z"),
+      payload: { paidOn: "2026-07-14" },
+    });
+
+    const pendingId = randomUUID();
+    await db.insert(emailDeliveries).values([
+      {
+        id: pendingId,
+        eventId,
+        recipientLogin: "pending-worker",
+        recipientEmail: "pending@example.com",
+        status: "pending",
+        subject: "subject",
+        textBody: "text",
+        htmlBody: "<p>html</p>",
+        idempotencyKey: `production/settlement-notification/${pendingId}`,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      },
+      ...Array.from({ length: 101 }, (_, index) => {
+        const id = randomUUID();
+        return {
+          id,
+          eventId,
+          recipientLogin: `accepted-${index}`,
+          recipientEmail: `accepted-${index}@example.com`,
+          status: "accepted" as const,
+          subject: "subject",
+          textBody: "text",
+          htmlBody: "<p>html</p>",
+          idempotencyKey: `production/settlement-notification/${id}`,
+          createdAt: new Date(Date.UTC(2026, 6, 1, 0, 0, index)),
+        };
+      }),
+    ]);
+
+    const deliveries = await listOperationalEmailDeliveries();
+    expect(deliveries.some((delivery) => delivery.id === pendingId)).toBe(true);
+    expect(
+      deliveries.filter((delivery) => delivery.status === "accepted"),
+    ).toHaveLength(100);
   });
 
   it("同じassigneeとIssueの未終了ログを二重作成できない", async () => {

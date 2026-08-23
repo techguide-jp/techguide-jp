@@ -33,6 +33,7 @@ import type {
   WorkSession,
 } from "$lib/server/db/schema";
 import {
+  hashSettlementSummary,
   hasSettlementSnapshotChanges,
   settlementSnapshotAmount,
 } from "$lib/server/settlements/settlementSnapshot";
@@ -43,6 +44,7 @@ import {
   dispatchPreparedNotification,
   prepareSettlementNotificationSafely,
 } from "$lib/server/notifications/notificationService";
+import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -250,7 +252,6 @@ export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
   submittedBy: string,
-  notificationOperationId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   if (assigneeLogin !== submittedBy) {
     return { ok: false, message: "本人以外の月次確定申請はできません。" };
@@ -276,12 +277,20 @@ export const submitSettlementWork = async (
         "未完了の入力や未処理の修正申請があるため月次確定申請できません。",
     };
   }
+  if (data.submission && !data.submission.hasChanges) {
+    return { ok: false, message: "この内容はすでに月次確定申請済みです。" };
+  }
 
   const wasSubmitted = Boolean(data.submission);
   const submittedAt = new Date();
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_submitted",
-    operationId: notificationOperationId,
+    // 直前に保存した申請版を起点にし、複数タブは束ねつつ変更後の再申請は別操作にする。
+    operationId: buildNotificationOperationId(
+      "settlement-submitted",
+      data.submission?.submittedAt.toISOString() ?? "new",
+      hashSettlementSummary(summary),
+    ),
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,
@@ -314,7 +323,6 @@ export const approveSettlement = async (
   month: string,
   assigneeLogin: string,
   approvedBy: string,
-  notificationOperationId: string,
   scheduledDateInput?: string | null,
 ): Promise<
   | { ok: true; noticeCreated: boolean; noticeSkippedReason?: NoticeSkipReason }
@@ -374,6 +382,17 @@ export const approveSettlement = async (
   const effectiveScheduledDate = scheduledDate.shouldUpdate
     ? scheduledDate.scheduledDate
     : (payment?.scheduledDate ?? defaultPaymentDueDate(month));
+  if (
+    data.snapshot &&
+    !hasSettlementSnapshotChanges(data.snapshot.snapshot, summary) &&
+    effectiveScheduledDate ===
+      (payment?.scheduledDate ?? defaultPaymentDueDate(month))
+  ) {
+    return {
+      ok: false,
+      message: "承認内容と支払い予定日に変更がありません。",
+    };
+  }
   const prepared = await prepareNoticeWriteInput({
     month,
     assigneeLogin,
@@ -386,7 +405,12 @@ export const approveSettlement = async (
   });
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_approved",
-    operationId: notificationOperationId,
+    operationId: buildNotificationOperationId(
+      "settlement-approved",
+      data.snapshot?.approvedAt.toISOString() ?? "new",
+      hashSettlementSummary(summary),
+      effectiveScheduledDate,
+    ),
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,

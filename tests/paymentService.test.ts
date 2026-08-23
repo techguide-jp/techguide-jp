@@ -17,6 +17,7 @@ import {
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
+import { prepareSettlementNotificationSafely } from "$lib/server/notifications/notificationService";
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
@@ -54,8 +55,6 @@ const paymentRow = (
 const admin = { login: "admin", isAdmin: true };
 const self = { login: "tashua314", isAdmin: false };
 const other = { login: "someoneelse", isAdmin: false };
-const notificationOperationId = "11111111-1111-4111-8111-111111111111";
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getPaymentRow).mockResolvedValue(null);
@@ -163,7 +162,6 @@ describe("markSettlementPaid", () => {
       "2026-06",
       "tashua314",
       "2026-07-14",
-      notificationOperationId,
     );
     expect(result).toMatchObject({ ok: true });
     expect(upsertPaymentPaid).toHaveBeenCalledWith(
@@ -177,12 +175,7 @@ describe("markSettlementPaid", () => {
   });
 
   it("不正な支払日はエラー", async () => {
-    const result = await markSettlementPaid(
-      "2026-06",
-      "tashua314",
-      "invalid",
-      notificationOperationId,
-    );
+    const result = await markSettlementPaid("2026-06", "tashua314", "invalid");
     expect(result).toMatchObject({ ok: false });
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
   });
@@ -197,10 +190,39 @@ describe("markSettlementPaid", () => {
       "2026-06",
       "tashua314",
       "2026-07-14",
-      notificationOperationId,
     );
 
     expect(result).toMatchObject({ ok: false });
+    expect(upsertPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("同じ未処理版からの複数操作は同じ通知操作IDを使う", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(paymentRow());
+
+    await markSettlementPaid("2026-06", "tashua314", "2026-07-14");
+    await markSettlementPaid("2026-06", "tashua314", "2026-07-14");
+
+    const calls = vi.mocked(prepareSettlementNotificationSafely).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].operationId).toBe(calls[1][0].operationId);
+  });
+
+  it("支払い済みの再登録は通知を準備しない", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(
+      paymentRow({ status: "paid", paidOn: "2026-07-14" }),
+    );
+
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "すでに支払い済みとして登録されています。",
+    });
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
   });
 });

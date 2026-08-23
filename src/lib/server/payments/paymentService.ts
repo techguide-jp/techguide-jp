@@ -20,6 +20,7 @@ import {
   dispatchPreparedNotification,
   prepareSettlementNotificationSafely,
 } from "$lib/server/notifications/notificationService";
+import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
 export { normalizeDateInput, defaultPaymentDueDate };
 
@@ -78,7 +79,6 @@ export const markSettlementPaid = async (
   month: string,
   assigneeLogin: string,
   paidOnInput: string,
-  notificationOperationId: string,
 ): Promise<
   { ok: true; payment: MonthlyPaymentView } | { ok: false; message: string }
 > => {
@@ -94,10 +94,19 @@ export const markSettlementPaid = async (
     assigneeLogin,
   );
   if (!eligibility.ok) return eligibility;
+  const current = await getPaymentRow(month, assigneeLogin);
+  if (current?.status === "paid") {
+    return { ok: false, message: "すでに支払い済みとして登録されています。" };
+  }
   const updatedAt = new Date();
   const emailNotification = await prepareSettlementNotificationSafely({
     type: "settlement_paid",
-    operationId: notificationOperationId,
+    // 現在の未処理レコード版を使い、複数タブは束ねつつ取り消し後の再登録は別操作にする。
+    operationId: buildNotificationOperationId(
+      "settlement-paid",
+      current?.updatedAt.toISOString() ?? "new",
+      paidOn,
+    ),
     month,
     assigneeLogin,
     workerDisplayName: assigneeLogin,
