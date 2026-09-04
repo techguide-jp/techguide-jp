@@ -6,10 +6,12 @@ import { parseJstDatetimeLocal } from "$lib/server/time";
 import {
   createChangeRequest,
   createWorkSession,
+  createWorkSessionAndInvalidateCompletion,
   endWorkSession,
   findOpenWorkSession,
   getWorkSessionById,
 } from "$lib/server/work/workRepository";
+import { env } from "$lib/server/env";
 
 const issueInputSchema = z.object({
   repository: z.string().min(1),
@@ -104,7 +106,10 @@ export const startIssueWork = async (
     }
 
     try {
-      await createWorkSession({
+      const create = env.settlementRuleV2Enabled
+        ? createWorkSessionAndInvalidateCompletion
+        : createWorkSession;
+      await create({
         assigneeLogin: userLogin,
         repository: issue.repository,
         issueNumber: issue.number,

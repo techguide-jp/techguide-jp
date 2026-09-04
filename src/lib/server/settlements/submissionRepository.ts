@@ -38,6 +38,9 @@ export const listWorkSubmissionsForMonth = async (
     .where(eq(monthlyWorkSubmissions.month, month));
 };
 
+export const listWorkSubmissions = async (): Promise<MonthlyWorkSubmission[]> =>
+  db.select().from(monthlyWorkSubmissions);
+
 export const upsertWorkSubmission = async (
   summary: SettlementSummary,
   submittedBy: string,

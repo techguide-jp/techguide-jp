@@ -6,6 +6,13 @@ export type AuditAction =
   | "monthly_work_submitted"
   | "monthly_settlement_approved"
   | "work_log_change_reviewed"
+  | "issue_completion_reported"
+  | "issue_completion_invalidated"
+  | "issue_completion_eligible"
+  | "supplemental_payment_created"
+  | "supplemental_payment_scheduled"
+  | "supplemental_payment_paid"
+  | "supplemental_payment_reverted"
   | "expired_sessions_deleted";
 
 export const createAuditLog = async (input: {

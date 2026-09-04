@@ -198,6 +198,106 @@
     </div>
   </section>
 
+  {#if data.settlementRuleV2Enabled}
+    <section class="panel">
+      <h2>成果の帰属月と支払い区分</h2>
+      <p class="muted">
+        固定報酬は最新の有効な完了報告月、時間報酬は実際に稼働した月へ帰属します。
+      </p>
+      {#if summary.completionReports?.length}
+        <table>
+          <thead>
+            <tr>
+              <th>Issue</th>
+              <th>完了報告日時</th>
+              <th>成果の帰属月</th>
+              <th>固定報酬</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each summary.completionReports as report (report.id)}
+              <tr>
+                <td>
+                  <a href={report.issueUrl} target="_blank" rel="noreferrer">
+                    {formatIssueName(report.issueNumber, report.issueTitle)}
+                  </a>
+                </td>
+                <td>{formatDateTime(report.reportedAt)}</td>
+                <td>{formatMonthLabel(report.settlementMonth)}</td>
+                <td>{formatYen(report.fixedRewardYen)}</td>
+                <td>
+                  {report.eligibilityConfirmedAt
+                    ? "PRマージ確認済み"
+                    : "PRマージ待ち"}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <p class="muted">この月に帰属する完了報告はありません。</p>
+      {/if}
+    </section>
+
+    <section class="panel">
+      <h2>追加支払い</h2>
+      {#if data.supplementalPayments.length === 0}
+        <p class="muted">この月に帰属する追加支払いはありません。</p>
+      {:else}
+        <table>
+          <thead>
+            <tr>
+              <th>Issue</th>
+              <th>税込</th>
+              <th>支払い予定日</th>
+              <th>支払日</th>
+              <th>状態</th>
+              <th>通知書</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each data.supplementalPayments as entry (entry.payment.id)}
+              <tr>
+                <td>
+                  <a
+                    href={entry.report.issueUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {formatIssueName(
+                      entry.report.issueNumber,
+                      entry.report.issueTitle,
+                    )}
+                  </a>
+                </td>
+                <td>{formatYen(entry.payment.taxIncludedYen)}</td>
+                <td>{entry.payment.scheduledDate ?? "未設定"}</td>
+                <td>{entry.payment.paidOn ?? "-"}</td>
+                <td
+                  >{entry.payment.status === "paid"
+                    ? "支払い済み"
+                    : "未払い"}</td
+                >
+                <td>
+                  {#if entry.payment.scheduledDate}
+                    <a
+                      href={`/settlements/${data.month}/${data.assignee}/notice?supplemental=${entry.payment.id}`}
+                    >
+                      追加支払い通知書
+                    </a>
+                  {:else}
+                    <span class="bad">支払予定日未設定</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </section>
+  {/if}
+
   <section class="panel">
     <h2>月次確定申請</h2>
     {#if !summary.approvalRequired}

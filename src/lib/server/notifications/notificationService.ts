@@ -151,6 +151,7 @@ export const prepareSettlementNotification = async (
         taxIncludedYen: input.taxIncludedYen,
         isRepeat: input.isRepeat,
         hasPaymentNotice: input.hasPaymentNotice,
+        supplementalPaymentId: input.supplementalPaymentId,
       }),
       deliveries,
     },

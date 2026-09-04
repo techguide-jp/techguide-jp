@@ -12,18 +12,21 @@ import {
   loadSettlementAssignee,
   submitSettlementWork,
 } from "$lib/server/settlements/settlementService";
+import { listSupplementalPaymentViews } from "$lib/server/supplementalPayments/supplementalPaymentService";
+import { env } from "$lib/server/env";
 
 export const load = async (event) => {
   requireSelfOrAdmin(event, event.params.assignee);
   const assignee = event.params.assignee;
   const settlement = await loadSettlementAssignee(event.params.month, assignee);
   const paymentEditable = Boolean(
-    settlement.summary &&
     settlement.snapshot &&
-    !hasSettlementSnapshotChanges(
-      settlement.snapshot.snapshot,
-      settlement.summary,
-    ),
+    (env.settlementRuleV2Enabled ||
+      (settlement.summary &&
+        !hasSettlementSnapshotChanges(
+          settlement.snapshot.snapshot,
+          settlement.summary,
+        ))),
   );
 
   return {
@@ -36,6 +39,10 @@ export const load = async (event) => {
       event.locals.user,
     ),
     paymentEditable,
+    supplementalPayments: env.settlementRuleV2Enabled
+      ? await listSupplementalPaymentViews(event.params.month, assignee)
+      : [],
+    settlementRuleV2Enabled: env.settlementRuleV2Enabled,
     ...settlement,
   };
 };

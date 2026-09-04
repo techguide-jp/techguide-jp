@@ -66,3 +66,14 @@ export const minutesBetween = (startedAt: Date, endedAt: Date): number => {
     Math.round((endedAt.getTime() - startedAt.getTime()) / 60000),
   );
 };
+
+export const minutesOverlappingRange = (
+  startedAt: Date,
+  endedAt: Date,
+  range: { start: Date; end: Date },
+): number => {
+  const overlapStart = Math.max(startedAt.getTime(), range.start.getTime());
+  const overlapEnd = Math.min(endedAt.getTime(), range.end.getTime());
+  if (overlapEnd <= overlapStart) return 0;
+  return Math.round((overlapEnd - overlapStart) / 60000);
+};

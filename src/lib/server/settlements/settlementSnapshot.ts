@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
-export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 1;
+export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 2;
 
 type VersionedSettlementSnapshot = {
-  schemaVersion: typeof SETTLEMENT_SNAPSHOT_SCHEMA_VERSION;
+  schemaVersion: number;
   hash: string;
   totals: {
     fixedRewardYen: number;
@@ -113,6 +113,40 @@ const normalizeRequests = (requests: unknown) => {
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 };
 
+const normalizeCompletionReports = (reports: unknown) => {
+  if (!Array.isArray(reports)) return [];
+
+  return reports
+    .map((report) => {
+      const value =
+        report && typeof report === "object"
+          ? (report as Record<string, unknown>)
+          : {};
+      return {
+        id: value.id ?? null,
+        repository: value.repository ?? null,
+        issueNumber: value.issueNumber ?? null,
+        assigneeLogin: value.assigneeLogin ?? null,
+        settlementMonth: value.settlementMonth ?? null,
+        reportedAt: dateValue(value.reportedAt),
+        rewardMode: value.rewardMode ?? null,
+        fixedRewardYen: value.fixedRewardYen ?? null,
+        source: value.source ?? null,
+        evidenceUrl: value.evidenceUrl ?? null,
+        evidenceNote: value.evidenceNote ?? null,
+        invalidatedAt: dateValue(value.invalidatedAt),
+      };
+    })
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+};
+
+const unwrapSnapshot = (snapshot: unknown): unknown => {
+  if (snapshot && typeof snapshot === "object" && "comparable" in snapshot) {
+    return (snapshot as { comparable: unknown }).comparable;
+  }
+  return snapshot;
+};
+
 export const normalizeSettlementSnapshot = (summary: unknown) => {
   const value =
     summary && typeof summary === "object"
@@ -147,6 +181,17 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
           workMinutes: valueLine.workMinutes ?? null,
           timedRewardYen: valueLine.timedRewardYen ?? null,
           taxExcludedYen: valueLine.taxExcludedYen ?? null,
+          sessionMinutesById:
+            valueLine.sessionMinutesById &&
+            typeof valueLine.sessionMinutesById === "object"
+              ? Object.fromEntries(
+                  Object.entries(
+                    valueLine.sessionMinutesById as Record<string, unknown>,
+                  ).sort(([a], [b]) => a.localeCompare(b)),
+                )
+              : {},
+          hourlyRateYenSnapshot: valueLine.hourlyRateYenSnapshot ?? null,
+          completionReportId: valueLine.completionReportId ?? null,
           warnings,
           sessions: normalizeSessions(valueLine.sessions),
         };
@@ -174,6 +219,7 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
     blockingReasons: Array.isArray(value.blockingReasons)
       ? value.blockingReasons.map(String).sort()
       : [],
+    completionReports: normalizeCompletionReports(value.completionReports),
   };
 };
 
@@ -188,8 +234,8 @@ const isVersionedSettlementSnapshot = (
   return (
     typeof snapshot === "object" &&
     snapshot !== null &&
-    (snapshot as { schemaVersion?: unknown }).schemaVersion ===
-      SETTLEMENT_SNAPSHOT_SCHEMA_VERSION &&
+    typeof (snapshot as { schemaVersion?: unknown }).schemaVersion ===
+      "number" &&
     typeof (snapshot as { hash?: unknown }).hash === "string"
   );
 };
@@ -221,13 +267,86 @@ export const hasSettlementSnapshotChanges = (
   snapshot: unknown,
   summary: SettlementSummary,
 ): boolean => {
-  if (isVersionedSettlementSnapshot(snapshot)) {
+  if (
+    isVersionedSettlementSnapshot(snapshot) &&
+    snapshot.schemaVersion === SETTLEMENT_SNAPSHOT_SCHEMA_VERSION
+  ) {
     return snapshot.hash !== hashSettlementSummary(summary);
   }
 
   return (
-    JSON.stringify(normalizeSettlementSnapshot(snapshot)) !==
+    JSON.stringify(normalizeSettlementSnapshot(unwrapSnapshot(snapshot))) !==
     JSON.stringify(normalizeSettlementSnapshot(summary))
+  );
+};
+
+const normalizeWorkSubmissionSnapshot = (snapshot: unknown) => {
+  const normalized = normalizeSettlementSnapshot(unwrapSnapshot(snapshot));
+  return {
+    month: normalized.month,
+    assigneeLogin: normalized.assigneeLogin,
+    timedRewardYen: normalized.timedRewardYen,
+    lines: normalized.lines
+      .filter(
+        (line) =>
+          Number(line.workMinutes ?? 0) > 0 ||
+          Number(line.timedRewardYen ?? 0) > 0,
+      )
+      .map((line) => ({
+        issue: {
+          repository: line.issue.repository,
+          number: line.issue.number,
+          assignees: line.issue.assignees,
+          rewardMode: line.issue.rewardMode,
+        },
+        workMinutes: line.workMinutes,
+        timedRewardYen: line.timedRewardYen,
+        sessionMinutesById: line.sessionMinutesById,
+        hourlyRateYenSnapshot:
+          line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen,
+        warnings: line.warnings.filter(
+          (warning) => !warning.includes("固定報酬"),
+        ),
+        sessions: line.sessions,
+      })),
+    pendingRequests: normalized.pendingRequests,
+    unsettledProjectIssues: normalized.unsettledProjectIssues.filter(
+      (line) => line.reason !== "merge_waiting",
+    ),
+    unsettledIssueSessions: normalized.unsettledIssueSessions,
+    completionReports: normalized.completionReports,
+  };
+};
+
+/** PRマージ状態だけの変化では、作業者に月次の再申請を求めない。 */
+export const hasWorkSubmissionChanges = (
+  snapshot: unknown,
+  summary: SettlementSummary,
+): boolean =>
+  JSON.stringify(normalizeWorkSubmissionSnapshot(snapshot)) !==
+  JSON.stringify(normalizeWorkSubmissionSnapshot(summary));
+
+export const settlementSnapshotHourlyRates = (
+  snapshot: unknown,
+): Map<string, number | null> => {
+  const normalized = normalizeSettlementSnapshot(unwrapSnapshot(snapshot));
+  return new Map(
+    normalized.lines.map((line) => {
+      const rate = line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen;
+      return [issueKey(line.issue), typeof rate === "number" ? rate : null];
+    }),
+  );
+};
+
+export const settlementSnapshotTimedRewards = (
+  snapshot: unknown,
+): Map<string, number> => {
+  const normalized = normalizeSettlementSnapshot(unwrapSnapshot(snapshot));
+  return new Map(
+    normalized.lines.map((line) => [
+      issueKey(line.issue),
+      typeof line.timedRewardYen === "number" ? line.timedRewardYen : 0,
+    ]),
   );
 };
 

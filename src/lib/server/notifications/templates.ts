@@ -109,6 +109,59 @@ const buildEmailContent = (
     };
   }
 
+  if (input.type === "monthly_submission_reminder") {
+    return {
+      subject: `【TechGuide】${month}の月次確定申請をお願いします`,
+      greeting: `${input.workerDisplayName}さん`,
+      introduction: `${month}の月次確定申請がまだ提出されていません。内容を確認し、3日を目安に申請してください。3日以降も申請できます。`,
+      actionLabel: "月次精算を確認・申請する",
+      details: [
+        { label: "対象月", value: month },
+        { label: "確認日時", value: formatJstDateTime(input.occurredAt) },
+      ],
+    };
+  }
+
+  if (input.type === "supplemental_payment_scheduled") {
+    return {
+      subject: `【TechGuide】${month}の追加支払い予定が確定しました`,
+      greeting: `${input.workerDisplayName}さん`,
+      appreciation: "TechGuideの業務にお力添えいただき、ありがとうございます。",
+      introduction: `${month}に帰属する固定報酬を追加支払いとして計上しました。支払金額と支払い予定日をご確認ください。`,
+      actionLabel: "追加支払いを確認する",
+      details: [
+        { label: "成果の帰属月", value: month },
+        ...amountDetails,
+        ...(input.scheduledDate
+          ? [
+              {
+                label: "支払い予定日",
+                value: formatDate(input.scheduledDate),
+              },
+            ]
+          : []),
+      ],
+    };
+  }
+
+  if (input.type === "supplemental_payment_paid") {
+    return {
+      subject: `【TechGuide】${month}分の追加支払いが完了しました${repeat}`,
+      greeting: `${input.workerDisplayName}さん`,
+      appreciation:
+        "TechGuideの業務にお力添えいただき、ありがとうございました。",
+      introduction: `${month}に帰属する固定報酬の追加支払いが完了しました。`,
+      actionLabel: "追加支払いを確認する",
+      details: [
+        { label: "成果の帰属月", value: month },
+        ...amountDetails,
+        ...(input.paidOn
+          ? [{ label: "支払日", value: formatDate(input.paidOn) }]
+          : []),
+      ],
+    };
+  }
+
   return {
     subject: `【TechGuide】${month}のお支払いが完了しました${repeat}`,
     greeting: `${input.workerDisplayName}さん`,
@@ -135,7 +188,9 @@ export const buildSettlementNotification = (
   replyTo?: string,
 ): NotificationMessage => {
   const detailUrl = `${appOrigin.replace(/\/$/, "")}/settlements/${encodeURIComponent(input.month)}/${encodeURIComponent(input.assigneeLogin)}`;
-  const noticeUrl = `${detailUrl}/notice`;
+  const noticeUrl = input.supplementalPaymentId
+    ? `${detailUrl}/notice?supplemental=${encodeURIComponent(input.supplementalPaymentId)}`
+    : `${detailUrl}/notice`;
   const content = buildEmailContent(input);
   const textDetails = content.details
     .map(({ label, value }) => `${label}: ${value}`)

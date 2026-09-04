@@ -57,6 +57,17 @@
         </p>
       </div>
     </article>
+    {#if data.settlementRuleV2Enabled}
+      <article class="guide-card">
+        <span class="step">4</span>
+        <div>
+          <h2>完了報告を出す</h2>
+          <p>
+            作業が完了したら稼働画面で完了報告を出します。固定報酬はこの報告日時のJST月へ帰属します。レビュー修正で再稼働した場合は旧報告が失効するため、修正後に再報告してください。
+          </p>
+        </div>
+      </article>
+    {/if}
   </div>
 </section>
 
@@ -120,7 +131,13 @@
     <div>
       <h2>自分の精算</h2>
       <ul>
-        <li>Issueのclose月をJSTで判定して月次明細に入れます。</li>
+        {#if data.settlementRuleV2Enabled}
+          <li>
+            固定報酬は完了報告月、ハイブリッドの時間報酬は実際の稼働月に入ります。月またぎログはJST月境界で分割します。
+          </li>
+        {:else}
+          <li>Issueのclose月をJSTで判定して月次明細に入れます。</li>
+        {/if}
         <li>
           明細にはProject名、Issue、報酬方式、固定報酬、稼働分、時間精算額、小計が表示されます。
         </li>
@@ -147,17 +164,31 @@
       </tr>
       <tr>
         <th>精算月</th>
-        <td
-          >IssueのclosedAtをJSTに変換した月です。稼働ログも紐づくIssueのclose月に入ります。</td
-        >
+        <td>
+          {#if data.settlementRuleV2Enabled}
+            固定報酬は最新の有効な完了報告月、時間報酬は実際の稼働月です。PRマージが翌月になっても固定報酬の帰属月は動きません。
+          {:else}
+            IssueのclosedAtをJSTに変換した月です。稼働ログも紐づくIssueのclose月に入ります。
+          {/if}
+        </td>
       </tr>
       <tr>
         <th>時間精算</th>
         <td
           >報酬方式がハイブリッドのIssueだけ金額化します。ログごとに時間単価 ×
-          稼働分 / 60 を四捨五入します。</td
+          稼働分 / 60 を四捨五入します。{data.settlementRuleV2Enabled
+            ? "時間単価は最初の月次確定申請時に固定します。"
+            : ""}</td
         >
       </tr>
+      {#if data.settlementRuleV2Enabled}
+        <tr>
+          <th>追加支払い</th>
+          <td>
+            月次承認後にPRマージが確認された固定報酬は、元の完了報告月に帰属する追加支払いになります。管理者が個別に予定日を設定します。
+          </td>
+        </tr>
+      {/if}
       <tr>
         <th>同時稼働</th>
         <td

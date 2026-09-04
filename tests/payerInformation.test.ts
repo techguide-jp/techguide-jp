@@ -183,6 +183,7 @@ describe("getNoticeForViewer", () => {
   it("表示時の現在値ではなく通知書に凍結した支払い者情報を返す", async () => {
     vi.mocked(getLatestNotice).mockResolvedValue({
       id: 1,
+      supplementalPaymentId: null,
       month: "2026-06",
       assigneeLogin: "worker-user",
       document: {

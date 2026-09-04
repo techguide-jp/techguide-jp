@@ -27,6 +27,16 @@
       ),
     ),
   );
+  const activeCompletionByIssue = $derived(
+    new Map(
+      data.completionReports
+        .filter((report) => !report.invalidatedAt)
+        .map((report) => [
+          `${report.repository}#${report.issueNumber}`,
+          report,
+        ]),
+    ),
+  );
 
   const enhanceAction =
     (name: string, closeDialogOnSuccess = false): SubmitFunction =>
@@ -49,6 +59,9 @@
     issue.state !== "CLOSED" && issue.status !== "Done";
   const issueWorkState = (issue: Issue, key: string): string => {
     if (openKeySet.has(key)) return "稼働中";
+    const report = activeCompletionByIssue.get(key);
+    if (report?.eligibilityConfirmedAt) return "PRマージ確認済み";
+    if (report) return "完了報告済み・PRマージ待ち";
     return canStartIssue(issue) ? "待機" : "完了済み";
   };
   const issueLabel = (issue: Issue): string =>
@@ -244,6 +257,63 @@
                       disabled={openKeySet.has(key) || !canStart}
                     />
                   </form>
+                  {#if data.settlementRuleV2Enabled}
+                    {@const completion = activeCompletionByIssue.get(key)}
+                    {#if completion && !completion.eligibilityConfirmedAt}
+                      <form
+                        method="POST"
+                        action="?/withdrawCompletion"
+                        use:enhance={enhanceAction(
+                          `withdraw-completion-${key}`,
+                        )}
+                      >
+                        <input
+                          type="hidden"
+                          name="repository"
+                          value={issue.repository}
+                        />
+                        <input
+                          type="hidden"
+                          name="issueNumber"
+                          value={issue.number}
+                        />
+                        <ActionSubmit
+                          actionName={`withdraw-completion-${key}`}
+                          {pendingAction}
+                          label="完了報告を取り下げ"
+                          pendingLabel="取り下げ中..."
+                          variant="danger"
+                        />
+                      </form>
+                    {:else if !completion?.eligibilityConfirmedAt}
+                      <form
+                        method="POST"
+                        action="?/reportCompletion"
+                        use:enhance={enhanceAction(`report-completion-${key}`)}
+                      >
+                        <input
+                          type="hidden"
+                          name="repository"
+                          value={issue.repository}
+                        />
+                        <input
+                          type="hidden"
+                          name="issueNumber"
+                          value={issue.number}
+                        />
+                        <ActionSubmit
+                          actionName={`report-completion-${key}`}
+                          {pendingAction}
+                          label="完了報告"
+                          pendingLabel="報告中..."
+                          disabled={openKeySet.has(key) ||
+                            (issue.rewardMode !== "固定" &&
+                              issue.rewardMode !== "ハイブリッド") ||
+                            issue.fixedRewardYen === null}
+                        />
+                      </form>
+                    {/if}
+                  {/if}
                   <button
                     class="button secondary"
                     type="button"

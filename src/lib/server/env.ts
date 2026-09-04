@@ -41,6 +41,10 @@ export const env = {
   emailDeliveryMode: emailDeliveryMode(),
   emailPreviewDir: optional("EMAIL_PREVIEW_DIR") ?? ".local/email-previews",
   emailRecipientOverride: optional("EMAIL_RECIPIENT_OVERRIDE"),
+  cronSecret: optional("CRON_SECRET"),
+  settlementRuleV2Enabled:
+    optional("SETTLEMENT_RULE_V2_ENABLED") === "true" ||
+    optional("E2E_TEST_MODE") === "1",
   vercelEnvironment: optional("VERCEL_ENV"),
   payoutAccountEncryptionKey:
     optional("PAYOUT_ACCOUNT_ENCRYPTION_KEY") ??

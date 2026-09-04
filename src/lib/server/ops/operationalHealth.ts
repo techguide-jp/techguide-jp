@@ -33,6 +33,8 @@ export type OperationalHealth = {
     emailRecipientOverride: boolean;
     productionEmailRuntime: boolean;
     emailDeliveryReady: boolean;
+    cronSecret: boolean;
+    settlementRuleV2Enabled: boolean;
   };
   projectClient: ReturnType<typeof getProjectClientRuntimeHealth>;
 };
@@ -99,6 +101,8 @@ export const loadOperationalHealth = async (): Promise<OperationalHealth> => {
       emailRecipientOverride,
       productionEmailRuntime,
       emailDeliveryReady,
+      cronSecret: Boolean(env.cronSecret),
+      settlementRuleV2Enabled: env.settlementRuleV2Enabled,
     },
     projectClient: getProjectClientRuntimeHealth(),
   };

@@ -1,7 +1,10 @@
 export type NotificationType =
   | "settlement_submitted"
   | "settlement_approved"
-  | "settlement_paid";
+  | "settlement_paid"
+  | "monthly_submission_reminder"
+  | "supplemental_payment_scheduled"
+  | "supplemental_payment_paid";
 
 export type NotificationMessage = {
   subject: string;
@@ -23,4 +26,5 @@ export type SettlementNotificationInput = {
   workerComment?: string;
   isRepeat?: boolean;
   hasPaymentNotice?: boolean;
+  supplementalPaymentId?: string;
 };

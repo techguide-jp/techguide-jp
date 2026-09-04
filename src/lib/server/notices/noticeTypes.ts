@@ -63,6 +63,7 @@ export type PayerInformationResult =
 
 /** 通知書1行として保存する材料。承認確定・再作成のどちらでも同じ形で保存する。 */
 export type PreparedNotice = {
+  supplementalPaymentId?: string;
   month: string;
   assigneeLogin: string;
   document: PaymentNoticeDocument;
@@ -87,6 +88,7 @@ export type NoticeSkipReason =
 
 /** 通知書表示用のビュー。宛先は復号済み。 */
 export type PaymentNoticeView = {
+  supplementalPaymentId: string | null;
   noticeNumber: string;
   month: string;
   assigneeLogin: string;

@@ -11,6 +11,15 @@ import {
   loadSettlementMonth,
   reviewSettlementChangeRequest,
 } from "$lib/server/settlements/settlementService";
+import { env } from "$lib/server/env";
+import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
+import { backfillIssueCompletion } from "$lib/server/completions/completionService";
+import {
+  listSupplementalPaymentViews,
+  markSupplementalPaymentPaid,
+  revertSupplementalPayment,
+  scheduleSupplementalPayment,
+} from "$lib/server/supplementalPayments/supplementalPaymentService";
 
 export const load = async (event) => {
   requireAdmin(event);
@@ -20,10 +29,18 @@ export const load = async (event) => {
     (summary) => summary.assigneeLogin,
   );
 
-  const [payoutAccountStatuses, payments, noticeAssignees] = await Promise.all([
+  const [
+    payoutAccountStatuses,
+    payments,
+    noticeAssignees,
+    supplementalPayments,
+  ] = await Promise.all([
     listPayoutAccountStatuses(assigneeLogins),
     listPaymentViewsForMonth(month, assigneeLogins),
     listAvailableNoticeAssignees(month),
+    env.settlementRuleV2Enabled
+      ? listSupplementalPaymentViews(month)
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -32,6 +49,8 @@ export const load = async (event) => {
     payoutAccountStatuses,
     payments,
     noticeAssignees,
+    supplementalPayments,
+    settlementRuleV2Enabled: env.settlementRuleV2Enabled,
   };
 };
 
@@ -81,5 +100,51 @@ export const actions = {
           ? "修正申請を承認しました。"
           : "修正申請を却下しました。",
     };
+  },
+  backfillCompletion: async (event) => {
+    const user = requireAdmin(event);
+    const project = await fetchProjectIssuesForPage();
+    if (project.projectFetchError) {
+      return fail(503, { message: project.projectFetchError });
+    }
+    const result = await backfillIssueCompletion(
+      await event.request.formData(),
+      project.issues,
+      user.login,
+    );
+    if (!result.ok) return fail(400, { message: result.message });
+    return { message: "証跡付きの完了報告を移行登録しました。" };
+  },
+  scheduleSupplemental: async (event) => {
+    const user = requireAdmin(event);
+    const formData = await event.request.formData();
+    const result = await scheduleSupplementalPayment({
+      id: String(formData.get("supplementalPaymentId") ?? ""),
+      scheduledDateInput: String(formData.get("scheduledDate") ?? ""),
+      actorLogin: user.login,
+    });
+    if (!result.ok) return fail(400, { message: result.message });
+    return { message: "追加支払いの予定日と通知書を確定しました。" };
+  },
+  markSupplementalPaid: async (event) => {
+    const user = requireAdmin(event);
+    const formData = await event.request.formData();
+    const result = await markSupplementalPaymentPaid({
+      id: String(formData.get("supplementalPaymentId") ?? ""),
+      paidOnInput: String(formData.get("paidOn") ?? ""),
+      actorLogin: user.login,
+    });
+    if (!result.ok) return fail(400, { message: result.message });
+    return { message: "追加支払いを支払い済みにしました。" };
+  },
+  revertSupplemental: async (event) => {
+    const user = requireAdmin(event);
+    const formData = await event.request.formData();
+    const result = await revertSupplementalPayment({
+      id: String(formData.get("supplementalPaymentId") ?? ""),
+      actorLogin: user.login,
+    });
+    if (!result.ok) return fail(400, { message: result.message });
+    return { message: "追加支払いを未払いへ戻しました。" };
   },
 };

@@ -5,16 +5,20 @@ import {
   listChangeRequestsForSettlementContext,
   listWorkSessionsForSettlementContext,
   reviewChangeRequest,
+  reviewChangeRequestAndInvalidateCompletion,
 } from "$lib/server/work/workRepository";
 import {
   buildSettlementSummaries,
   findSummary,
 } from "$lib/server/settlements/settlementCalculator";
+import { buildSettlementSummariesV2 } from "$lib/server/settlements/settlementCalculatorV2";
 import {
   getSnapshot,
+  listSnapshots,
   listSnapshotsForMonth,
 } from "$lib/server/settlements/snapshotRepository";
 import {
+  listWorkSubmissions,
   listWorkSubmissionsForMonth,
   upsertWorkSubmission,
 } from "$lib/server/settlements/submissionRepository";
@@ -35,7 +39,10 @@ import type {
 import {
   hashSettlementSummary,
   hasSettlementSnapshotChanges,
+  hasWorkSubmissionChanges,
   settlementSnapshotAmount,
+  settlementSnapshotHourlyRates,
+  settlementSnapshotTimedRewards,
 } from "$lib/server/settlements/settlementSnapshot";
 import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
@@ -45,6 +52,12 @@ import {
   prepareSettlementNotificationSafely,
 } from "$lib/server/notifications/notificationService";
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
+import { reconcileCompletionReports } from "$lib/server/completions/completionService";
+import {
+  listCompletionReportsForMonth,
+  listSupplementalPaymentsForMonth,
+} from "$lib/server/completions/completionRepository";
+import { env } from "$lib/server/env";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -91,6 +104,7 @@ export const getWorkSubmissionBlockingReasons = (
   summary: SettlementSummary,
 ): string[] => {
   return [
+    ...summary.blockingReasons,
     ...summary.pendingRequests.map(
       (request) =>
         `未処理の修正申請: ${request.repository}#${request.issueNumber}`,
@@ -128,7 +142,9 @@ const toSubmissionMeta = (
   submittedBy: submission.submittedBy,
   submittedAt: submission.submittedAt,
   hasChanges: summary
-    ? hasSettlementSnapshotChanges(submission.snapshot, summary)
+    ? env.settlementRuleV2Enabled
+      ? hasWorkSubmissionChanges(submission.snapshot, summary)
+      : hasSettlementSnapshotChanges(submission.snapshot, summary)
     : true,
   blockingReasons: summary
     ? getWorkSubmissionBlockingReasons(summary)
@@ -139,20 +155,91 @@ export const loadSettlementMonth = async (month: string) => {
   const { health, issues, projectFetchError } =
     await fetchProjectIssuesForPage();
   const range = jstMonthRangeUtc(month);
-  const closedIssueRefs = issues
-    .filter((issue) => issue.closedAt && toJstMonth(issue.closedAt) === month)
-    .map((issue) => ({
-      repository: issue.repository,
-      issueNumber: issue.number,
-    }));
+  const completionReports = env.settlementRuleV2Enabled
+    ? await listCompletionReportsForMonth(month)
+    : [];
+  if (env.settlementRuleV2Enabled && !projectFetchError) {
+    await reconcileCompletionReports(issues);
+  }
+  const refreshedCompletionReports = env.settlementRuleV2Enabled
+    ? await listCompletionReportsForMonth(month)
+    : completionReports;
+  const settlementIssueRefs = [
+    ...issues
+      .filter((issue) => issue.closedAt && toJstMonth(issue.closedAt) === month)
+      .map((issue) => ({
+        repository: issue.repository,
+        issueNumber: issue.number,
+      })),
+    ...refreshedCompletionReports.map((report) => ({
+      repository: report.repository,
+      issueNumber: report.issueNumber,
+    })),
+  ].filter(
+    (ref, index, refs) =>
+      refs.findIndex(
+        (candidate) =>
+          candidate.repository === ref.repository &&
+          candidate.issueNumber === ref.issueNumber,
+      ) === index,
+  );
   const [sessions, requests, snapshots, submissions] = await Promise.all([
-    listWorkSessionsForSettlementContext(range, closedIssueRefs),
-    listChangeRequestsForSettlementContext(range, closedIssueRefs),
+    listWorkSessionsForSettlementContext(range, settlementIssueRefs),
+    listChangeRequestsForSettlementContext(range, settlementIssueRefs),
     listSnapshotsForMonth(month),
     listWorkSubmissionsForMonth(month),
   ]);
 
-  const summaries = buildSettlementSummaries(month, issues, sessions, requests);
+  let summaries: SettlementSummary[];
+  if (env.settlementRuleV2Enabled) {
+    const [allSnapshots, allSubmissions, supplementalPayments] =
+      await Promise.all([
+        listSnapshots(),
+        listWorkSubmissions(),
+        listSupplementalPaymentsForMonth(month),
+      ]);
+    const frozenHourlyRates = new Map<string, number | null>();
+    for (const record of [...snapshots, ...submissions]) {
+      for (const [key, rate] of settlementSnapshotHourlyRates(
+        record.snapshot,
+      )) {
+        if (!frozenHourlyRates.has(key)) frozenHourlyRates.set(key, rate);
+      }
+    }
+
+    const approvedKeys = new Set(
+      allSnapshots.map(
+        (snapshot) => `${snapshot.month}:${snapshot.assigneeLogin}`,
+      ),
+    );
+    const priorTimedRewardByIssue = new Map<string, number>();
+    for (const record of [
+      ...allSnapshots,
+      ...allSubmissions.filter(
+        (submission) =>
+          !approvedKeys.has(`${submission.month}:${submission.assigneeLogin}`),
+      ),
+    ]) {
+      if (record.month === month) continue;
+      for (const [key, amount] of settlementSnapshotTimedRewards(
+        record.snapshot,
+      )) {
+        priorTimedRewardByIssue.set(
+          key,
+          (priorTimedRewardByIssue.get(key) ?? 0) + amount,
+        );
+      }
+    }
+
+    summaries = buildSettlementSummariesV2(month, issues, sessions, requests, {
+      completionReports: refreshedCompletionReports,
+      supplementalPayments,
+      frozenHourlyRates,
+      priorTimedRewardByIssue,
+    });
+  } else {
+    summaries = buildSettlementSummaries(month, issues, sessions, requests);
+  }
   const summaryByAssignee = new Map(
     summaries.map((summary) => [summary.assigneeLogin, summary]),
   );
@@ -249,6 +336,30 @@ export const validateSettlementPaymentEligibility = async (
   | { ok: true; taxExcludedYen: number; taxIncludedYen: number }
   | { ok: false; message: string }
 > => {
+  if (env.settlementRuleV2Enabled) {
+    const snapshot = await getSnapshot(month, assigneeLogin);
+    if (!snapshot) {
+      return {
+        ok: false,
+        message: "未承認の月次精算は支払い情報を更新できません。",
+      };
+    }
+    const taxExcludedYen = settlementSnapshotAmount(
+      snapshot.snapshot,
+      "taxExcludedYen",
+    );
+    const taxIncludedYen = settlementSnapshotAmount(
+      snapshot.snapshot,
+      "taxIncludedYen",
+    );
+    if (taxExcludedYen === null || taxIncludedYen === null) {
+      return {
+        ok: false,
+        message: "承認済みスナップショットの金額を確認できません。",
+      };
+    }
+    return { ok: true, taxExcludedYen, taxIncludedYen };
+  }
   const data = await loadSettlementAssignee(month, assigneeLogin);
   const eligibility = validateSettlementPaymentData(data);
   if (!eligibility.ok) return eligibility;
@@ -386,6 +497,13 @@ export const approveSettlement = async (
         "支払い済みの月次精算は再承認できません。先に支払い済み登録を取り消してください。",
     };
   }
+  if (env.settlementRuleV2Enabled && data.snapshot) {
+    return {
+      ok: false,
+      message:
+        "新しい精算ルールでは承認済みスナップショットを変更できません。遅れて対象化した固定報酬は追加支払いへ計上されます。",
+    };
+  }
 
   // 承認時点の宛先・支払い予定日を凍結した通知書スナップショットを、承認確定と
   // 同一トランザクションで保存する。振込先が未登録・復号失敗のときは承認自体は
@@ -514,30 +632,30 @@ export const reviewSettlementChangeRequest = async (
   reviewedBy: string,
   note: string | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const request = await reviewChangeRequest(
-    requestId,
-    status,
-    reviewedBy,
-    note,
-  );
+  const review = env.settlementRuleV2Enabled
+    ? reviewChangeRequestAndInvalidateCompletion
+    : reviewChangeRequest;
+  const request = await review(requestId, status, reviewedBy, note);
   if (!request) {
     return {
       ok: false,
       message: "修正申請が見つからないか、すでに採否決定済みです。",
     };
   }
-  await createAuditLog({
-    actorLogin: reviewedBy,
-    action: "work_log_change_reviewed",
-    targetType: "work_log_change_request",
-    targetId: request.id,
-    details: {
-      status,
-      assigneeLogin: request.assigneeLogin,
-      repository: request.repository,
-      issueNumber: request.issueNumber,
-      note,
-    },
-  });
+  if (!env.settlementRuleV2Enabled) {
+    await createAuditLog({
+      actorLogin: reviewedBy,
+      action: "work_log_change_reviewed",
+      targetType: "work_log_change_request",
+      targetId: request.id,
+      details: {
+        status,
+        assigneeLogin: request.assigneeLogin,
+        repository: request.repository,
+        issueNumber: request.issueNumber,
+        note,
+      },
+    });
+  }
   return { ok: true };
 };
