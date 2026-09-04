@@ -257,7 +257,13 @@ export const reconcileCompletionReports = async (
 
   for (const report of reports) {
     const issue = issueByKey.get(`${report.repository}#${report.issueNumber}`);
-    if (!issue || issue.state !== "CLOSED" || issue.status !== "Done") continue;
+    if (
+      !issue ||
+      issue.state !== "CLOSED" ||
+      issue.status !== "Done" ||
+      issue.assignees.length !== 1
+    )
+      continue;
     const result = await confirmCompletionEligibility({
       report,
       confirmedAt: new Date(),

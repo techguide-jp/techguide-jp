@@ -161,7 +161,18 @@ export const buildSettlementSummariesV2 = (
 
   const sessionsByIssue = new Map<string, WorkSession[]>();
   const minutesByIssue = new Map<string, Record<string, number>>();
+  const sessionAssigneesByIssue = new Map<string, Set<string>>();
   for (const session of effectiveSessions) {
+    const key = issueKey(session.repository, session.issueNumber);
+    if (
+      !session.excludedAt &&
+      session.startedAt < range.end &&
+      (!session.endedAt || session.endedAt > range.start)
+    ) {
+      const assignees = sessionAssigneesByIssue.get(key) ?? new Set<string>();
+      assignees.add(session.assigneeLogin);
+      sessionAssigneesByIssue.set(key, assignees);
+    }
     if (!session.endedAt || session.excludedAt) continue;
     const minutes = minutesOverlappingRange(
       session.startedAt,
@@ -169,7 +180,6 @@ export const buildSettlementSummariesV2 = (
       range,
     );
     if (minutes <= 0) continue;
-    const key = issueKey(session.repository, session.issueNumber);
     sessionsByIssue.set(key, [...(sessionsByIssue.get(key) ?? []), session]);
     minutesByIssue.set(key, {
       ...(minutesByIssue.get(key) ?? {}),
@@ -178,14 +188,18 @@ export const buildSettlementSummariesV2 = (
   }
 
   const linesByAssignee = new Map<string, SettlementIssueLine[]>();
+  const issueBlockingReasonsByAssignee = new Map<string, Set<string>>();
   for (const issue of issues) {
     const key = issueKey(issue.repository, issue.number);
     const issueSessions = sessionsByIssue.get(key) ?? [];
-    const reportAssignees = reportsForMonth
+    const reportsForIssue = reportsForMonth.filter(
+      (report) =>
+        report.repository === issue.repository &&
+        report.issueNumber === issue.number,
+    );
+    const reportAssignees = reportsForIssue
       .filter(
         (report) =>
-          report.repository === issue.repository &&
-          report.issueNumber === issue.number &&
           report.eligibilityConfirmedAt !== null &&
           !supplementalReportIds.has(report.id),
       )
@@ -198,6 +212,20 @@ export const buildSettlementSummariesV2 = (
       assigneeLogin: string;
       line: SettlementIssueLine;
     }> = [];
+    const associatedAssignees = new Set([
+      ...(sessionAssigneesByIssue.get(key) ?? []),
+      ...reportsForIssue.map((report) => report.assigneeLogin),
+    ]);
+    const addIssueBlockingReason = (message: string) => {
+      const reason = `${key}: ${message}`;
+      for (const assigneeLogin of associatedAssignees) {
+        const reasons =
+          issueBlockingReasonsByAssignee.get(assigneeLogin) ??
+          new Set<string>();
+        reasons.add(reason);
+        issueBlockingReasonsByAssignee.set(assigneeLogin, reasons);
+      }
+    };
 
     for (const assigneeLogin of assigneesForLines) {
       const report =
@@ -232,9 +260,7 @@ export const buildSettlementSummariesV2 = (
     }
 
     if (issue.assignees.length !== 1) {
-      for (const { line } of issueLines) {
-        line.warnings.push("assigneeが単一ではありません。");
-      }
+      addIssueBlockingReason("assigneeが単一ではありません。");
     }
 
     // 追加精算上限は担当者単位ではなく、Issue全期間の時間報酬累計へ適用する。
@@ -250,11 +276,12 @@ export const buildSettlementSummariesV2 = (
       (options.priorTimedRewardByIssue?.get(key) ?? 0) + currentTimedRewardYen >
         issue.extraCapYen
     ) {
+      const capWarning =
+        "Issue全期間の時間精算額が追加精算上限を超えています。";
       for (const { line } of issueLines) {
-        line.warnings.push(
-          "Issue全期間の時間精算額が追加精算上限を超えています。",
-        );
+        line.warnings.push(capWarning);
       }
+      addIssueBlockingReason(capWarning);
     }
 
     for (const { assigneeLogin, line } of issueLines) {
@@ -371,17 +398,20 @@ export const buildSettlementSummariesV2 = (
             `${line.issue.repository}#${line.issue.number}: ${warning}`,
         ),
       );
-      const blockingReasons = [
-        ...lineWarnings,
-        ...pendingRequests.map(
-          (request) =>
-            `未処理の修正申請: ${request.repository}#${request.issueNumber}`,
-        ),
-        ...openSessions.map(
-          (session) =>
-            `未終了ログ: ${session.repository}#${session.issueNumber}`,
-        ),
-      ];
+      const blockingReasons = Array.from(
+        new Set([
+          ...(issueBlockingReasonsByAssignee.get(assigneeLogin) ?? []),
+          ...lineWarnings,
+          ...pendingRequests.map(
+            (request) =>
+              `未処理の修正申請: ${request.repository}#${request.issueNumber}`,
+          ),
+          ...openSessions.map(
+            (session) =>
+              `未終了ログ: ${session.repository}#${session.issueNumber}`,
+          ),
+        ]),
+      );
 
       return {
         month,

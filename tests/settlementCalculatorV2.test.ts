@@ -233,6 +233,66 @@ describe("buildSettlementSummariesV2", () => {
     );
   });
 
+  it("複数担当Issueの未マージ完了報告だけを持つ作業者も申請をブロックする", () => {
+    const summaries = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["worker", "replacement"] })],
+      [
+        session({
+          assigneeLogin: "replacement",
+        }),
+      ],
+      [],
+      {
+        completionReports: [report({ eligibilityConfirmedAt: null })],
+        supplementalPayments: [],
+      },
+    );
+    const assignmentWarning =
+      "techguide-jp/example#10: assigneeが単一ではありません。";
+    const reporterSummary = summaries.find(
+      (summary) => summary.assigneeLogin === "worker",
+    );
+    const sessionOwnerSummary = summaries.find(
+      (summary) => summary.assigneeLogin === "replacement",
+    );
+
+    expect(reporterSummary?.unsettledProjectIssues[0].reason).toBe(
+      "merge_waiting",
+    );
+    expect(reporterSummary?.blockingReasons).toContain(assignmentWarning);
+    expect(sessionOwnerSummary?.blockingReasons).toContain(assignmentWarning);
+  });
+
+  it("上限超過Issueの未マージ完了報告だけを持つ作業者も申請をブロックする", () => {
+    const summaries = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["replacement"], extraCapYen: 10_000 })],
+      [
+        session({
+          assigneeLogin: "replacement",
+          endedAt: new Date("2026-08-20T02:00:00Z"),
+        }),
+      ],
+      [],
+      {
+        completionReports: [report({ eligibilityConfirmedAt: null })],
+        supplementalPayments: [],
+      },
+    );
+    const capWarning =
+      "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。";
+
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "worker")
+        ?.blockingReasons,
+    ).toContain(capWarning);
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "replacement")
+        ?.blockingReasons,
+    ).toContain(capWarning);
+  });
+
   it("同じ完了報告のPRマージ反映だけでは再申請扱いにしない", () => {
     const pendingReport = report({ eligibilityConfirmedAt: null });
     const beforeMerge = build("2026-08", {

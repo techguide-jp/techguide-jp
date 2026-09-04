@@ -133,4 +133,27 @@ describe("completionService", () => {
     expect(confirmCompletionEligibility).toHaveBeenCalledOnce();
     expect(result).toEqual({ base: 1, supplemental: 0 });
   });
+
+  it("複数担当Issueは完了報告を対象化しない", async () => {
+    const completion = {
+      repository: issue.repository,
+      issueNumber: issue.number,
+      eligibilityConfirmedAt: null,
+    };
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([
+      completion as never,
+    ]);
+
+    const result = await reconcileCompletionReports([
+      {
+        ...issue,
+        state: "CLOSED",
+        status: "Done",
+        assignees: ["worker", "replacement"],
+      },
+    ]);
+
+    expect(confirmCompletionEligibility).not.toHaveBeenCalled();
+    expect(result).toEqual({ base: 0, supplemental: 0 });
+  });
 });
