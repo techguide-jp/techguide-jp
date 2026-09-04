@@ -63,8 +63,18 @@
   const formatProjectStatus = (status: string | null): string =>
     status === "In Progress" ? "作業中" : (status ?? "-");
   const formatUnsettledReason = (
-    reason: "open_in_progress" | "closed_not_done",
-  ): string => (reason === "closed_not_done" ? "Status未完了" : "未close");
+    reason:
+      | "open_in_progress"
+      | "closed_not_done"
+      | "completion_not_reported"
+      | "merge_waiting",
+  ): string =>
+    ({
+      open_in_progress: "未close",
+      closed_not_done: "Status未完了",
+      completion_not_reported: "完了報告未提出",
+      merge_waiting: "PRマージ待ち",
+    })[reason];
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
   const nextMonth = $derived(addMonths(data.month, 1));
@@ -100,6 +110,82 @@
     </p>
   </section>
 {/if}
+
+<section class="panel">
+  <h2>完了報告の移行登録</h2>
+  <p class="muted">
+    未払いの2026年8月分以降のみ登録できます。実際の完了日時と、レビュー依頼・納品連絡の証跡を保存します。
+  </p>
+  <form
+    method="POST"
+    action="?/backfillCompletion"
+    use:enhance={enhanceAction("backfill-completion")}
+    class="stack-form"
+  >
+    <label>
+      対象Issue
+      <select
+        name="issueRef"
+        required
+        onchange={(event) => {
+          const option = event.currentTarget.selectedOptions[0];
+          const form = event.currentTarget.form;
+          if (!form || !option) return;
+          const [repository, issueNumber, assigneeLogin] =
+            option.value.split("|");
+          (form.elements.namedItem("repository") as { value: string }).value =
+            repository;
+          (form.elements.namedItem("issueNumber") as { value: string }).value =
+            issueNumber;
+          (
+            form.elements.namedItem("assigneeLogin") as { value: string }
+          ).value = assigneeLogin;
+        }}
+      >
+        <option value="">選択してください</option>
+        {#each data.issues.filter((issue) => issue.assignees.length === 1) as issue (`${issue.repository}#${issue.number}`)}
+          <option
+            value={`${issue.repository}|${issue.number}|${issue.assignees[0]}`}
+          >
+            {formatProjectName(issue.repository)} #{issue.number}
+            {issue.title} / {issue.assignees[0]}
+          </option>
+        {/each}
+      </select>
+    </label>
+    <input type="hidden" name="repository" />
+    <input type="hidden" name="issueNumber" />
+    <input type="hidden" name="assigneeLogin" />
+    <label>
+      完了日時（JST）
+      <input
+        type="datetime-local"
+        name="reportedAt"
+        min="2026-08-01T00:00"
+        required
+      />
+    </label>
+    <label>
+      証跡URL
+      <input
+        type="url"
+        name="evidenceUrl"
+        placeholder="https://github.com/..."
+        required
+      />
+    </label>
+    <label>
+      登録理由
+      <textarea name="evidenceNote" rows="3" required></textarea>
+    </label>
+    <ActionSubmit
+      actionName="backfill-completion"
+      {pendingAction}
+      label="証跡付きで移行登録"
+      pendingLabel="登録中..."
+    />
+  </form>
+</section>
 
 <section class="panel">
   <h2>未処理の修正申請</h2>
@@ -179,6 +265,7 @@
 </section>
 
 <section class="panel">
+  <h2>通常支払い</h2>
   <table>
     <thead>
       <tr>
@@ -257,6 +344,16 @@
           <td>
             {#if !summary.approvalRequired}
               <span class="muted">精算対象なし</span>
+            {:else if snapshot && data.settlementRuleV2Enabled}
+              <span class="status-stack">
+                <strong class="ok">承認済み・固定</strong>
+                <small
+                  >{formatDateTime(snapshot.approvedAt)} / {snapshot.approvedBy}</small
+                >
+                {#if snapshot.hasChanges}
+                  <small class="bad">現在表示との差分あり</small>
+                {/if}
+              </span>
             {:else if snapshot && !snapshot.hasChanges}
               <span class="status-stack">
                 <strong class="ok">承認済み</strong>
@@ -309,6 +406,8 @@
               {/if}
               {#if !summary.approvalRequired}
                 {#if !noticeAvailable}<span class="muted">-</span>{/if}
+              {:else if snapshot && data.settlementRuleV2Enabled}
+                {#if !noticeAvailable}<span class="muted">固定済み</span>{/if}
               {:else if snapshot && !snapshot.hasChanges}
                 {#if !noticeAvailable}<span class="muted">-</span>{/if}
               {:else if !submission || submission.hasChanges || submission.blockingReasons.length}
@@ -337,22 +436,171 @@
   </table>
 </section>
 
+{#if data.settlementRuleV2Enabled}
+  <section class="panel">
+    <h2>追加支払い</h2>
+    {#if data.supplementalPayments.length === 0}
+      <p class="muted">この帰属月の追加支払いはありません。</p>
+    {:else}
+      <table>
+        <thead>
+          <tr>
+            <th>成果の帰属月</th>
+            <th>Assignee</th>
+            <th>Issue</th>
+            <th>税抜</th>
+            <th>税込</th>
+            <th>支払い予定日</th>
+            <th>状態</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each data.supplementalPayments as entry (entry.payment.id)}
+            <tr>
+              <td>{formatMonthLabel(entry.payment.month)}</td>
+              <td>{entry.payment.assigneeLogin}</td>
+              <td>
+                <a
+                  href={entry.report.issueUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {formatIssueName(
+                    entry.report.issueNumber,
+                    entry.report.issueTitle,
+                  )}
+                </a>
+              </td>
+              <td>{formatYen(entry.payment.taxExcludedYen)}</td>
+              <td>{formatYen(entry.payment.taxIncludedYen)}</td>
+              <td>
+                {entry.payment.scheduledDate
+                  ? formatDate(entry.payment.scheduledDate)
+                  : "未設定"}
+              </td>
+              <td>
+                {#if entry.payment.status === "paid"}
+                  <strong class="ok">支払い済み</strong>
+                  <small>{formatDate(entry.payment.paidOn)}</small>
+                {:else if entry.payment.scheduledDate}
+                  <span>支払い予定</span>
+                {:else}
+                  <strong class="bad">支払予定日未設定</strong>
+                {/if}
+              </td>
+              <td>
+                <div class="table-actions">
+                  {#if entry.payment.scheduledDate}
+                    <a
+                      class="button secondary"
+                      href={`/settlements/${entry.payment.month}/${entry.payment.assigneeLogin}/notice?supplemental=${entry.payment.id}`}
+                      >通知書を見る</a
+                    >
+                  {/if}
+                  {#if !entry.payment.scheduledDate}
+                    <form
+                      method="POST"
+                      action="?/scheduleSupplemental"
+                      use:enhance={enhanceAction(
+                        `schedule-supplemental-${entry.payment.id}`,
+                      )}
+                    >
+                      <input
+                        type="hidden"
+                        name="supplementalPaymentId"
+                        value={entry.payment.id}
+                      />
+                      <input
+                        type="date"
+                        name="scheduledDate"
+                        required
+                        aria-label="支払い予定日"
+                      />
+                      <ActionSubmit
+                        actionName={`schedule-supplemental-${entry.payment.id}`}
+                        {pendingAction}
+                        label="予定日を確定"
+                        pendingLabel="確定中..."
+                        variant="secondary"
+                      />
+                    </form>
+                  {:else if entry.payment.status === "unpaid"}
+                    <form
+                      method="POST"
+                      action="?/markSupplementalPaid"
+                      use:enhance={enhanceAction(
+                        `pay-supplemental-${entry.payment.id}`,
+                      )}
+                    >
+                      <input
+                        type="hidden"
+                        name="supplementalPaymentId"
+                        value={entry.payment.id}
+                      />
+                      <input
+                        type="date"
+                        name="paidOn"
+                        required
+                        aria-label="支払日"
+                      />
+                      <ActionSubmit
+                        actionName={`pay-supplemental-${entry.payment.id}`}
+                        {pendingAction}
+                        label="支払い済みにする"
+                        pendingLabel="更新中..."
+                      />
+                    </form>
+                  {:else}
+                    <form
+                      method="POST"
+                      action="?/revertSupplemental"
+                      use:enhance={enhanceAction(
+                        `revert-supplemental-${entry.payment.id}`,
+                      )}
+                    >
+                      <input
+                        type="hidden"
+                        name="supplementalPaymentId"
+                        value={entry.payment.id}
+                      />
+                      <ActionSubmit
+                        actionName={`revert-supplemental-${entry.payment.id}`}
+                        {pendingAction}
+                        label="支払い済みを取り消す"
+                        pendingLabel="取消中..."
+                        variant="danger"
+                      />
+                    </form>
+                  {/if}
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </section>
+{/if}
+
 {#each data.summaries as summary (summary.assigneeLogin)}
   {#if summary.approvalRequired}
     {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
     {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
     {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
-    <SettlementApprovalModal
-      month={data.month}
-      {summary}
-      {snapshot}
-      {submission}
-      {payment}
-      forceClosed={closedApprovalLogin === summary.assigneeLogin}
-      {pendingAction}
-      {enhanceAction}
-      {formatProjectStatus}
-      {formatUnsettledReason}
-    />
+    {#if !(snapshot && data.settlementRuleV2Enabled)}
+      <SettlementApprovalModal
+        month={data.month}
+        {summary}
+        {snapshot}
+        {submission}
+        {payment}
+        forceClosed={closedApprovalLogin === summary.assigneeLogin}
+        {pendingAction}
+        {enhanceAction}
+        {formatProjectStatus}
+        {formatUnsettledReason}
+      />
+    {/if}
   {/if}
 {/each}

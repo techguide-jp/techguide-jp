@@ -17,6 +17,12 @@ import {
   startIssueWork,
   stopIssueWork,
 } from "$lib/server/work/workService";
+import {
+  listCompletionReportsForWork,
+  reportIssueCompletion,
+  withdrawIssueCompletion,
+} from "$lib/server/completions/completionService";
+import { env } from "$lib/server/env";
 
 export const load = async (event) => {
   const user = requireUser(event);
@@ -26,12 +32,16 @@ export const load = async (event) => {
     sessions,
     requests,
     statusSyncs,
+    completionReports,
   ] = await Promise.all([
     fetchProjectIssuesForPage(),
     listOpenWorkSessionsForAssignee(user.login),
     listWorkSessionsForAssignee(user.login),
     listChangeRequests(),
     listPendingProjectStatusSyncsForAssignee(user.login),
+    env.settlementRuleV2Enabled
+      ? listCompletionReportsForWork(user.login)
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -44,6 +54,8 @@ export const load = async (event) => {
       (request) => request.assigneeLogin === user.login,
     ),
     statusSyncs,
+    completionReports,
+    settlementRuleV2Enabled: env.settlementRuleV2Enabled,
   };
 };
 
@@ -90,6 +102,44 @@ export const actions = {
     );
     if (!result.ok) return fail(400, { message: result.message });
     return { message: "修正申請を登録しました。" };
+  },
+  reportCompletion: async (event) => {
+    const user = requireUser(event);
+    if (!env.settlementRuleV2Enabled) {
+      return fail(503, {
+        message: "新しい精算ルールはまだ有効ではありません。",
+      });
+    }
+    const projectResult = await fetchProjectIssues()
+      .then((result) => ({ ok: true as const, result }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        message: projectFetchErrorMessage(error),
+      }));
+    if (!projectResult.ok) return fail(503, { message: projectResult.message });
+    const result = await reportIssueCompletion(
+      await event.request.formData(),
+      projectResult.result.issues,
+      user.login,
+    );
+    if (!result.ok) return fail(400, { message: result.message });
+    return {
+      message: `${result.report.settlementMonth}分として完了報告しました。`,
+    };
+  },
+  withdrawCompletion: async (event) => {
+    const user = requireUser(event);
+    if (!env.settlementRuleV2Enabled) {
+      return fail(503, {
+        message: "新しい精算ルールはまだ有効ではありません。",
+      });
+    }
+    const result = await withdrawIssueCompletion(
+      await event.request.formData(),
+      user.login,
+    );
+    if (!result.ok) return fail(400, { message: result.message });
+    return { message: "完了報告を取り下げました。" };
   },
   retryStatusSync: async (event) => {
     const user = requireUser(event);

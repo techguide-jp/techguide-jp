@@ -9,10 +9,12 @@ import {
   emailDeliveries,
   emailNotificationEvents,
   githubProjectStatusSyncs,
+  issueCompletionReports,
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   paymentNotices,
+  supplementalPayments,
   workLogChangeRequests,
   workerPayoutAccounts,
   workerProfiles,
@@ -29,6 +31,16 @@ import {
   listOperationalEmailDeliveries,
   markDeliveryResult,
 } from "../src/lib/server/notifications/deliveryRepository";
+import {
+  confirmCompletionEligibility,
+  replaceActiveCompletionReport,
+} from "../src/lib/server/completions/completionRepository";
+import {
+  markSupplementalPaymentPaid,
+  revertSupplementalPayment,
+  scheduleSupplementalPayment,
+} from "../src/lib/server/supplementalPayments/supplementalPaymentRepository";
+import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -46,6 +58,17 @@ const errorCode = (error: unknown): string | undefined => {
     return error.cause.code;
   }
   return undefined;
+};
+
+const expectConstraintViolation = async (
+  operation: Promise<unknown>,
+): Promise<void> => {
+  try {
+    await operation;
+    throw new Error("check constraint did not fail");
+  } catch (error) {
+    expect(errorCode(error)).toBe("23514");
+  }
 };
 
 const createNotification = (input: {
@@ -87,6 +110,8 @@ beforeEach(async () => {
   await db.delete(emailNotificationEvents);
   await db.delete(auditLogs);
   await db.delete(paymentNotices);
+  await db.delete(supplementalPayments);
+  await db.delete(issueCompletionReports);
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
@@ -99,6 +124,321 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
+    const base = {
+      projectItemId: "item-reported",
+      repository: "techguide-jp/example",
+      issueNumber: 100,
+      issueTitle: "再完了報告",
+      issueUrl: "https://github.com/techguide-jp/example/issues/100",
+      assigneeLogin: "worker",
+      rewardMode: "固定" as const,
+      fixedRewardYen: 30_000,
+      source: "worker" as const,
+      createdBy: "worker",
+    };
+    const first = await replaceActiveCompletionReport({
+      ...base,
+      id: randomUUID(),
+      settlementMonth: "2026-08",
+      reportedAt: new Date("2026-08-31T00:00:00Z"),
+    });
+    const second = await replaceActiveCompletionReport({
+      ...base,
+      id: randomUUID(),
+      settlementMonth: "2026-09",
+      reportedAt: new Date("2026-09-04T00:00:00Z"),
+    });
+
+    const reports = await db.select().from(issueCompletionReports);
+    expect(reports).toHaveLength(2);
+    expect(reports.find((entry) => entry.id === first.id)).toMatchObject({
+      invalidatedBy: "worker",
+      invalidationReason: "新しい完了報告が提出されました。",
+    });
+    expect(reports.find((entry) => entry.id === second.id)?.invalidatedAt).toBe(
+      null,
+    );
+    const actions = (await db.select().from(auditLogs)).map(
+      (entry) => entry.action,
+    );
+    expect(actions).toContain("issue_completion_invalidated");
+  });
+
+  it("完了報告後の新しい稼働開始は同じtransactionで旧報告を失効させる", async () => {
+    const completion = await replaceActiveCompletionReport({
+      id: randomUUID(),
+      projectItemId: "item-new-work",
+      repository: "techguide-jp/example",
+      issueNumber: 105,
+      issueTitle: "再稼働",
+      issueUrl: "https://github.com/techguide-jp/example/issues/105",
+      assigneeLogin: "worker",
+      settlementMonth: "2026-08",
+      reportedAt: new Date("2026-08-31T00:00:00Z"),
+      rewardMode: "ハイブリッド",
+      fixedRewardYen: 20_000,
+      source: "worker",
+      createdBy: "worker",
+    });
+
+    await createWorkSessionAndInvalidateCompletion({
+      assigneeLogin: "worker",
+      repository: "techguide-jp/example",
+      issueNumber: 105,
+      issueTitle: "再稼働",
+      createdBy: "worker",
+    });
+
+    const [invalidated] = await db
+      .select()
+      .from(issueCompletionReports)
+      .where(eq(issueCompletionReports.id, completion.id));
+    expect(invalidated.invalidatedAt).toBeInstanceOf(Date);
+    expect(invalidated.invalidationReason).toBe(
+      "完了報告後に新しい稼働が開始されました。",
+    );
+  });
+
+  it("完了報告のJST帰属月・報酬方式・移行証跡をDB制約で検証する", async () => {
+    const base = {
+      projectItemId: "item-completion",
+      repository: "techguide-jp/example",
+      issueNumber: 101,
+      issueTitle: "完了報告",
+      issueUrl: "https://github.com/techguide-jp/example/issues/101",
+      assigneeLogin: "worker",
+      settlementMonth: "2026-08",
+      reportedAt: new Date("2026-08-31T14:30:00Z"),
+      rewardMode: "固定" as const,
+      fixedRewardYen: 50_000,
+      createdBy: "admin",
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+    };
+
+    await expectConstraintViolation(
+      db.insert(issueCompletionReports).values({
+        ...base,
+        settlementMonth: "2026-09",
+      }),
+    );
+    await expectConstraintViolation(
+      db.insert(issueCompletionReports).values({
+        ...base,
+        rewardMode: "成果報酬" as never,
+      }),
+    );
+    await expectConstraintViolation(
+      db.insert(issueCompletionReports).values({
+        ...base,
+        source: "admin_backfill",
+      }),
+    );
+  });
+
+  it("同じ完了報告を並行確認しても追加支払いを1件だけ作成する", async () => {
+    await db.insert(monthlySettlementSnapshots).values({
+      month: "2026-08",
+      assigneeLogin: "worker",
+      snapshot: {},
+      approvedBy: "admin",
+    });
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-concurrent",
+        repository: "techguide-jp/example",
+        issueNumber: 102,
+        issueTitle: "並行確認",
+        issueUrl: "https://github.com/techguide-jp/example/issues/102",
+        assigneeLogin: "worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-31T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 80_000,
+        createdBy: "worker",
+        createdAt: new Date("2026-08-31T00:00:01Z"),
+      })
+      .returning();
+
+    const results = await Promise.all([
+      confirmCompletionEligibility({
+        report: completion,
+        confirmedAt: new Date("2026-09-10T00:00:00Z"),
+      }),
+      confirmCompletionEligibility({
+        report: completion,
+        confirmedAt: new Date("2026-09-10T00:00:00Z"),
+      }),
+    ]);
+
+    expect(results.sort()).toEqual(["supplemental", "unchanged"]);
+    const payments = await db.select().from(supplementalPayments);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({
+      completionReportId: completion.id,
+      month: "2026-08",
+      taxExcludedYen: 80_000,
+      taxYen: 8_000,
+      taxIncludedYen: 88_000,
+    });
+  });
+
+  it("追加支払いは予定日なしで支払い済みにできない", async () => {
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-paid-check",
+        repository: "techguide-jp/example",
+        issueNumber: 103,
+        issueTitle: "追加支払い制約",
+        issueUrl: "https://github.com/techguide-jp/example/issues/103",
+        assigneeLogin: "worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-20T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 10_000,
+        createdBy: "worker",
+        createdAt: new Date("2026-08-20T00:00:01Z"),
+      })
+      .returning();
+
+    await expectConstraintViolation(
+      db.insert(supplementalPayments).values({
+        completionReportId: completion.id,
+        month: "2026-08",
+        assigneeLogin: "worker",
+        taxExcludedYen: 10_000,
+        taxYen: 1_000,
+        taxIncludedYen: 11_000,
+        status: "paid",
+        paidOn: "2026-09-14",
+      }),
+    );
+  });
+
+  it("追加支払いの予定日・通知書・支払日・取消を監査付きで保持する", async () => {
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-supplemental-lifecycle",
+        repository: "techguide-jp/example",
+        issueNumber: 104,
+        issueTitle: "追加支払いライフサイクル",
+        issueUrl: "https://github.com/techguide-jp/example/issues/104",
+        assigneeLogin: "worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-20T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 10_000,
+        eligibilityConfirmedAt: new Date("2026-09-10T00:00:00Z"),
+        createdBy: "worker",
+        createdAt: new Date("2026-08-20T00:00:01Z"),
+      })
+      .returning();
+    const [payment] = await db
+      .insert(supplementalPayments)
+      .values({
+        completionReportId: completion.id,
+        month: "2026-08",
+        assigneeLogin: "worker",
+        taxExcludedYen: 10_000,
+        taxYen: 1_000,
+        taxIncludedYen: 11_000,
+      })
+      .returning();
+    const scheduledAt = new Date(payment.updatedAt.getTime() + 1);
+    const scheduled = await scheduleSupplementalPayment({
+      id: payment.id,
+      scheduledDate: "2026-09-14",
+      actorLogin: "admin",
+      updatedAt: scheduledAt,
+      expectedUpdatedAt: payment.updatedAt,
+      notice: {
+        supplementalPaymentId: payment.id,
+        month: payment.month,
+        assigneeLogin: payment.assigneeLogin,
+        document: {
+          schemaVersion: 1,
+          totals: {
+            fixedRewardYen: 10_000,
+            timedRewardYen: 0,
+            taxExcludedYen: 10_000,
+            taxYen: 1_000,
+            taxIncludedYen: 11_000,
+          },
+          lines: [],
+          workLogs: [],
+        },
+        workerDisplayName: "Worker",
+        recipientEncryptedPayload: "encrypted-recipient",
+        payerEncryptedPayload: "encrypted-payer",
+        encryptionKeyVersion: 1,
+        scheduledDate: "2026-09-14",
+        approvedBy: "admin",
+        approvedAt: scheduledAt.toISOString(),
+        issuedOn: "2026-09-05",
+        createdBy: "admin",
+      },
+    });
+    expect(scheduled).toBe(true);
+
+    const [scheduledPayment] = await db
+      .select()
+      .from(supplementalPayments)
+      .where(eq(supplementalPayments.id, payment.id));
+    expect(scheduledPayment.scheduledDate).toBe("2026-09-14");
+    expect(
+      await db
+        .select()
+        .from(paymentNotices)
+        .where(eq(paymentNotices.supplementalPaymentId, payment.id)),
+    ).toHaveLength(1);
+
+    const paidAt = new Date(scheduledPayment.updatedAt.getTime() + 1);
+    await expect(
+      markSupplementalPaymentPaid({
+        id: payment.id,
+        paidOn: "2026-09-14",
+        actorLogin: "admin",
+        updatedAt: paidAt,
+        expectedUpdatedAt: scheduledPayment.updatedAt,
+      }),
+    ).resolves.toBe(true);
+    const [paidPayment] = await db
+      .select()
+      .from(supplementalPayments)
+      .where(eq(supplementalPayments.id, payment.id));
+    expect(paidPayment).toMatchObject({
+      status: "paid",
+      paidOn: "2026-09-14",
+    });
+
+    await expect(
+      revertSupplementalPayment({
+        id: payment.id,
+        actorLogin: "admin",
+        updatedAt: new Date(paidPayment.updatedAt.getTime() + 1),
+        expectedUpdatedAt: paidPayment.updatedAt,
+      }),
+    ).resolves.toBe(true);
+    const [reverted] = await db
+      .select()
+      .from(supplementalPayments)
+      .where(eq(supplementalPayments.id, payment.id));
+    expect(reverted).toMatchObject({ status: "unpaid", paidOn: null });
+    const actions = (await db.select().from(auditLogs)).map(
+      (entry) => entry.action,
+    );
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        "supplemental_payment_scheduled",
+        "supplemental_payment_paid",
+        "supplemental_payment_reverted",
+      ]),
+    );
+  });
+
   it("支払い更新と1イベント・複数配送を同一transactionで保存する", async () => {
     const occurredAt = new Date("2026-07-14T00:00:00Z");
     const eventId = randomUUID();

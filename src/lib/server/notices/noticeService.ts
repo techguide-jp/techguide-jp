@@ -10,6 +10,7 @@ import {
 } from "$lib/server/notices/noticeCrypto";
 import {
   getLatestNotice,
+  getSupplementalNotice,
   listNoticeAssigneeLoginsForMonth,
 } from "$lib/server/notices/noticeRepository";
 import {
@@ -112,7 +113,7 @@ export const buildNoticeDocument = (
     rewardMode: line.issue.rewardMode,
     fixedRewardYen: line.fixedRewardYen,
     workMinutes: line.workMinutes,
-    hourlyRateYen: line.issue.hourlyRateYen,
+    hourlyRateYen: line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen,
     timedRewardYen: line.timedRewardYen,
     taxExcludedYen: line.taxExcludedYen,
     warnings: line.warnings,
@@ -131,7 +132,9 @@ export const buildNoticeDocument = (
           endedAt: session.endedAt
             ? new Date(session.endedAt).toISOString()
             : null,
-          workMinutes: sessionWorkMinutes(session.startedAt, session.endedAt),
+          workMinutes:
+            line.sessionMinutesById?.[session.id] ??
+            sessionWorkMinutes(session.startedAt, session.endedAt),
         })),
     )
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
@@ -155,6 +158,7 @@ export const buildNoticeDocument = (
  * 振込先が未登録・復号失敗の場合はスナップショットを保存できない理由を返す。
  */
 export const prepareNoticeWriteInput = async (params: {
+  supplementalPaymentId?: string;
   month: string;
   assigneeLogin: string;
   summary: SettlementSummary;
@@ -197,6 +201,9 @@ export const prepareNoticeWriteInput = async (params: {
   return {
     ok: true,
     notice: {
+      ...(params.supplementalPaymentId
+        ? { supplementalPaymentId: params.supplementalPaymentId }
+        : {}),
       month: params.month,
       assigneeLogin: params.assigneeLogin,
       document: buildNoticeDocument(params.summary),
@@ -254,6 +261,7 @@ const toNoticeView = (row: PaymentNotice): PaymentNoticeView => {
   }
 
   return {
+    supplementalPaymentId: row.supplementalPaymentId,
     noticeNumber: formatNoticeNumber(row.id),
     month: row.month,
     assigneeLogin: row.assigneeLogin,
@@ -282,6 +290,18 @@ export const getNoticeForViewer = async (
     return null;
   }
   const row = await getLatestNotice(month, assigneeLogin);
+  return row ? toNoticeView(row) : null;
+};
+
+export const getSupplementalNoticeForViewer = async (
+  supplementalPaymentId: string,
+  assigneeLogin: string,
+  viewer: { login: string; isAdmin: boolean } | null,
+): Promise<PaymentNoticeView | null> => {
+  if (!viewer || (!viewer.isAdmin && viewer.login !== assigneeLogin)) {
+    return null;
+  }
+  const row = await getSupplementalNotice(supplementalPaymentId, assigneeLogin);
   return row ? toNoticeView(row) : null;
 };
 

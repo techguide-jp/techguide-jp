@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
 import {
   monthlySettlementSnapshots,
@@ -14,6 +14,7 @@ export const insertPaymentNotice = async (
   const [row] = await db
     .insert(paymentNotices)
     .values({
+      supplementalPaymentId: notice.supplementalPaymentId,
       month: notice.month,
       assigneeLogin: notice.assigneeLogin,
       document: notice.document,
@@ -43,6 +44,25 @@ export const getLatestNotice = async (
       and(
         eq(paymentNotices.month, month),
         eq(paymentNotices.assigneeLogin, assigneeLogin),
+        isNull(paymentNotices.supplementalPaymentId),
+      ),
+    )
+    .orderBy(desc(paymentNotices.createdAt), desc(paymentNotices.id))
+    .limit(1);
+  return row ?? null;
+};
+
+export const getSupplementalNotice = async (
+  supplementalPaymentId: string,
+  assigneeLogin: string,
+): Promise<PaymentNotice | null> => {
+  const [row] = await db
+    .select()
+    .from(paymentNotices)
+    .where(
+      and(
+        eq(paymentNotices.supplementalPaymentId, supplementalPaymentId),
+        eq(paymentNotices.assigneeLogin, assigneeLogin),
       ),
     )
     .orderBy(desc(paymentNotices.createdAt), desc(paymentNotices.id))
@@ -68,6 +88,11 @@ export const listNoticeAssigneeLoginsForMonth = async (
         eq(monthlySettlementSnapshots.approvedAt, paymentNotices.approvedAt),
       ),
     )
-    .where(eq(paymentNotices.month, month));
+    .where(
+      and(
+        eq(paymentNotices.month, month),
+        isNull(paymentNotices.supplementalPaymentId),
+      ),
+    );
   return rows.map((row) => row.assigneeLogin);
 };

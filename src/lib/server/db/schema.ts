@@ -38,10 +38,23 @@ export const monthlyPaymentStatus = pgEnum("monthly_payment_status", [
   "paid",
 ]);
 
+export const completionReportSource = pgEnum("completion_report_source", [
+  "worker",
+  "admin_backfill",
+]);
+
+export const supplementalPaymentStatus = pgEnum("supplemental_payment_status", [
+  "unpaid",
+  "paid",
+]);
+
 export const emailNotificationType = pgEnum("email_notification_type", [
   "settlement_submitted",
   "settlement_approved",
   "settlement_paid",
+  "monthly_submission_reminder",
+  "supplemental_payment_scheduled",
+  "supplemental_payment_paid",
 ]);
 
 export const emailDeliveryStatus = pgEnum("email_delivery_status", [
@@ -224,6 +237,84 @@ export const workLogChangeRequests = pgTable(
   ],
 );
 
+export const issueCompletionReports = pgTable(
+  "issue_completion_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectItemId: text("project_item_id").notNull(),
+    repository: text("repository").notNull(),
+    issueNumber: integer("issue_number").notNull(),
+    issueTitle: text("issue_title").notNull(),
+    issueUrl: text("issue_url").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    settlementMonth: text("settlement_month").notNull(),
+    reportedAt: timestamp("reported_at", { withTimezone: true }).notNull(),
+    rewardMode: text("reward_mode").$type<"固定" | "ハイブリッド">().notNull(),
+    fixedRewardYen: integer("fixed_reward_yen").notNull(),
+    source: completionReportSource("source").notNull().default("worker"),
+    evidenceUrl: text("evidence_url"),
+    evidenceNote: text("evidence_note"),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+    invalidatedBy: text("invalidated_by"),
+    invalidationReason: text("invalidation_reason"),
+    eligibilityConfirmedAt: timestamp("eligibility_confirmed_at", {
+      withTimezone: true,
+    }),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("issue_completion_reports_month_assignee_idx").on(
+      table.settlementMonth,
+      table.assigneeLogin,
+    ),
+    index("issue_completion_reports_issue_idx").on(
+      table.repository,
+      table.issueNumber,
+    ),
+    uniqueIndex("issue_completion_reports_active_unique_idx")
+      .on(table.repository, table.issueNumber, table.assigneeLogin)
+      .where(sql`${table.invalidatedAt} IS NULL`),
+    check(
+      "issue_completion_reports_month_chk",
+      sql`${table.settlementMonth} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "issue_completion_reports_fixed_reward_chk",
+      sql`${table.fixedRewardYen} >= 0`,
+    ),
+    check(
+      "issue_completion_reports_reward_mode_chk",
+      sql`${table.rewardMode} IN ('固定', 'ハイブリッド')`,
+    ),
+    check(
+      "issue_completion_reports_reported_month_chk",
+      sql`to_char(${table.reportedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') = ${table.settlementMonth}`,
+    ),
+    check(
+      "issue_completion_reports_reported_before_created_chk",
+      sql`${table.reportedAt} <= ${table.createdAt}`,
+    ),
+    check(
+      "issue_completion_reports_backfill_evidence_chk",
+      sql`${table.source} = 'worker' OR (${table.settlementMonth} >= '2026-08' AND ${table.evidenceUrl} IS NOT NULL AND ${table.evidenceNote} IS NOT NULL)`,
+    ),
+    check(
+      "issue_completion_reports_invalidation_chk",
+      sql`
+        (${table.invalidatedAt} IS NULL AND ${table.invalidatedBy} IS NULL AND ${table.invalidationReason} IS NULL)
+        OR (${table.invalidatedAt} IS NOT NULL AND ${table.invalidatedBy} IS NOT NULL AND ${table.invalidationReason} IS NOT NULL)
+      `,
+    ),
+    check(
+      "issue_completion_reports_eligibility_chk",
+      sql`${table.eligibilityConfirmedAt} IS NULL OR ${table.invalidatedAt} IS NULL`,
+    ),
+  ],
+);
+
 export const monthlySettlementSnapshots = pgTable(
   "monthly_settlement_snapshots",
   {
@@ -295,6 +386,54 @@ export const monthlyPayments = pgTable(
   ],
 );
 
+export const supplementalPayments = pgTable(
+  "supplemental_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    completionReportId: uuid("completion_report_id")
+      .notNull()
+      .references(() => issueCompletionReports.id),
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    taxExcludedYen: integer("tax_excluded_yen").notNull(),
+    taxYen: integer("tax_yen").notNull(),
+    taxIncludedYen: integer("tax_included_yen").notNull(),
+    scheduledDate: date("scheduled_date"),
+    status: supplementalPaymentStatus("status").notNull().default("unpaid"),
+    paidOn: date("paid_on"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("supplemental_payments_completion_report_unique_idx").on(
+      table.completionReportId,
+    ),
+    index("supplemental_payments_month_assignee_idx").on(
+      table.month,
+      table.assigneeLogin,
+    ),
+    check(
+      "supplemental_payments_month_chk",
+      sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "supplemental_payments_amount_chk",
+      sql`${table.taxExcludedYen} >= 0 AND ${table.taxYen} >= 0 AND ${table.taxIncludedYen} = ${table.taxExcludedYen} + ${table.taxYen}`,
+    ),
+    check(
+      "supplemental_payments_paid_chk",
+      sql`
+        (${table.status} = 'paid' AND ${table.paidOn} IS NOT NULL AND ${table.scheduledDate} IS NOT NULL)
+        OR (${table.status} = 'unpaid' AND ${table.paidOn} IS NULL)
+      `,
+    ),
+  ],
+);
+
 export const paymentNotices = pgTable(
   "payment_notices",
   {
@@ -315,6 +454,9 @@ export const paymentNotices = pgTable(
     approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
     issuedOn: date("issued_on").notNull(),
     createdBy: text("created_by").notNull(),
+    supplementalPaymentId: uuid("supplemental_payment_id").references(
+      () => supplementalPayments.id,
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -324,6 +466,9 @@ export const paymentNotices = pgTable(
       table.month,
       table.assigneeLogin,
     ),
+    uniqueIndex("payment_notices_supplemental_payment_unique_idx")
+      .on(table.supplementalPaymentId)
+      .where(sql`${table.supplementalPaymentId} IS NOT NULL`),
     check(
       "payment_notices_month_chk",
       sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
@@ -450,12 +595,14 @@ export const emailDeliveries = pgTable(
 
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
+export type IssueCompletionReport = typeof issueCompletionReports.$inferSelect;
 export type WorkerProfile = typeof workerProfiles.$inferSelect;
 export type WorkerPayoutAccount = typeof workerPayoutAccounts.$inferSelect;
 export type MonthlySettlementSnapshot =
   typeof monthlySettlementSnapshots.$inferSelect;
 export type MonthlyWorkSubmission = typeof monthlyWorkSubmissions.$inferSelect;
 export type MonthlyPayment = typeof monthlyPayments.$inferSelect;
+export type SupplementalPayment = typeof supplementalPayments.$inferSelect;
 export type PaymentNotice = typeof paymentNotices.$inferSelect;
 export type GithubProjectStatusSync =
   typeof githubProjectStatusSyncs.$inferSelect;

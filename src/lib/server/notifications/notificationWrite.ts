@@ -78,5 +78,6 @@ export const notificationInsertQuery = <TResult>(
       "errorCode" text
     )
     ON CONFLICT (event_id, recipient_login) DO NOTHING
+    RETURNING id
   `;
 };

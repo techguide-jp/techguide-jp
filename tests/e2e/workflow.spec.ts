@@ -46,6 +46,34 @@ test("稼働開始と終了を記録できる", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("稼働画面で完了報告を提出・取り下げできる", async ({ page }) => {
+  const month = currentJstMonth();
+  await page.goto("/__e2e/login");
+  const issueRow = page.getByRole("row").filter({
+    hasText: "#501 E2E: 稼働開始と終了を確認する",
+  });
+
+  await issueRow.getByRole("button", { name: "開始", exact: true }).click();
+  await page.getByRole("button", { name: "終了", exact: true }).click();
+  await issueRow.getByRole("button", { name: "完了報告", exact: true }).click();
+
+  await expect(
+    page.getByText(`${month}分として完了報告しました。`),
+  ).toBeVisible();
+  await expect(
+    issueRow.getByRole("button", { name: "完了報告を取り下げ" }),
+  ).toBeVisible();
+  await page.goto(`/settlements/${month}/tashua314`);
+  await expect(page.getByText("PRマージ待ち").first()).toBeVisible();
+
+  await page.goto("/work");
+  await issueRow.getByRole("button", { name: "完了報告を取り下げ" }).click();
+  await expect(page.getByText("完了報告を取り下げました。")).toBeVisible();
+  await expect(
+    issueRow.getByRole("button", { name: "完了報告", exact: true }),
+  ).toBeVisible();
+});
+
 test("本人申請後に管理者が月次承認できる", async ({ page }) => {
   const month = currentJstMonth();
   await page.goto("/__e2e/login");
@@ -65,10 +93,21 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await page.getByRole("button", { name: "振込先情報を保存" }).click();
   await expect(page.getByText("振込先情報を保存しました。")).toBeVisible();
 
+  await page.goto("/work");
+  const completedIssueRow = page.getByRole("row").filter({
+    hasText: "#502 E2E: 月次申請と承認を確認する",
+  });
+  await completedIssueRow
+    .getByRole("button", { name: "完了報告", exact: true })
+    .click();
+  await expect(
+    page.getByText(`${month}分として完了報告しました。`),
+  ).toBeVisible();
+
   await page.goto(`/settlements/${month}/tashua314`);
 
   await expect(
-    page.getByText("#502 E2E: 月次申請と承認を確認する"),
+    page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "この月の稼働を確定して申請" })

@@ -10,6 +10,8 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 - 複数Issueの同時稼働記録
 - 後追い追加、時刻修正、除外申請
 - assignee別の月次精算表示
+- 完了報告月に固定報酬、実稼働月にハイブリッド時間報酬を帰属
+- 月次承認後に対象化した固定報酬の追加支払い管理
 - 管理者による月次承認スナップショット保存
 - 月次精算ごとの支払い状態（未処理／支払い済み）・支払い予定日の管理
 - Projectフィールドのヘルスチェック
@@ -35,6 +37,8 @@ GITHUB_CLIENT_SECRET=...
 GITHUB_PROJECT_TOKEN=github_pat_...
 SESSION_SECRET=change-me
 ADMIN_GITHUB_LOGINS=tashua314
+CRON_SECRET=change-me
+SETTLEMENT_RULE_V2_ENABLED=false
 # 任意: OAuth callback originを固定したい場合のみ
 PUBLIC_APP_ORIGIN=https://techguide-jp.vercel.app
 ```
@@ -43,6 +47,8 @@ PUBLIC_APP_ORIGIN=https://techguide-jp.vercel.app
 GitHub OAuthで認証できたユーザーはログインできます。管理者画面の権限は `ADMIN_GITHUB_LOGINS` に記載されたGitHubログインで判定します。
 GitHub OAuth AppのAuthorization callback URLには、本番URLの `/auth/github/callback` を登録してください。
 `PUBLIC_APP_ORIGIN` が未設定の場合はリクエストURLからOAuth callback originを自動判定します。誤って localhost が設定された本番環境では、実際のリクエストURLを優先します。
+
+`SETTLEMENT_RULE_V2_ENABLED` はmigrationと環境変数の準備後に `true` へ切り替えます。Vercel Cronは毎日00:00 UTC（09:00 JST）に `/api/cron/settlement-maintenance` を呼び、`CRON_SECRET` のBearer認証で保護します。
 
 ## Vercel Analytics
 

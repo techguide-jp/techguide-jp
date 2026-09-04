@@ -163,6 +163,22 @@
         <small>{data.operationalHealth.projectClient.lastFetchError}</small>
       {/if}
     </div>
+    <div class="health-card">
+      <span>新精算ルール / Cron</span>
+      <strong
+        class={data.operationalHealth.environment.settlementRuleV2Enabled &&
+        data.operationalHealth.environment.cronSecret
+          ? "ok"
+          : "bad"}
+      >
+        {data.operationalHealth.environment.settlementRuleV2Enabled
+          ? "有効"
+          : "無効"}
+      </strong>
+      <small>
+        CRON_SECRET: {mark(data.operationalHealth.environment.cronSecret)}
+      </small>
+    </div>
   </div>
 </section>
 

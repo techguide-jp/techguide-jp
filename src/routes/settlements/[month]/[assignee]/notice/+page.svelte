@@ -64,13 +64,16 @@
 </script>
 
 <svelte:head>
-  <title>支払い通知書 / {data.assignee} / {formatMonthLabel(data.month)}</title>
+  <title
+    >{data.isSupplemental ? "追加支払い通知書" : "支払い通知書"} / {data.assignee}
+    / {formatMonthLabel(data.month)}</title
+  >
 </svelte:head>
 
 <section class="page-heading no-print">
   <div>
     <p class="eyebrow">payment notice</p>
-    <h1>支払い通知書</h1>
+    <h1>{data.isSupplemental ? "追加支払い通知書" : "支払い通知書"}</h1>
   </div>
   <div class="notice-toolbar">
     {#if notice}
@@ -92,7 +95,7 @@
     >
       月次精算に戻る
     </a>
-    {#if isAdmin && data.approved}
+    {#if isAdmin && data.approved && !data.isSupplemental}
       <form method="POST" action="?/recreate" use:enhance>
         <button type="submit" class="button ghost">通知書を再作成</button>
       </form>
@@ -144,7 +147,7 @@
   <article class="notice-document">
     <header class="notice-head">
       <p class="notice-eyebrow">techguide-jp settlement</p>
-      <h1>支払い通知書</h1>
+      <h1>{data.isSupplemental ? "追加支払い通知書" : "支払い通知書"}</h1>
     </header>
 
     <dl class="notice-meta">
@@ -165,7 +168,7 @@
         <dd>{formatDateTime(notice.createdAt)}</dd>
       </div>
       <div>
-        <dt>管理者承認日時</dt>
+        <dt>{data.isSupplemental ? "追加支払い確定日時" : "管理者承認日時"}</dt>
         <dd>{formatDateTime(notice.approvedAt)}</dd>
       </div>
       <div>

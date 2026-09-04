@@ -31,7 +31,9 @@
         line.sessions.map((session) => ({
           line,
           session,
-          workMinutes: sessionMinutes(session.startedAt, session.endedAt),
+          workMinutes:
+            line.sessionMinutesById?.[session.id] ??
+            sessionMinutes(session.startedAt, session.endedAt),
           source: session.id.startsWith("request-") ? "追加申請" : "記録",
         })),
       )

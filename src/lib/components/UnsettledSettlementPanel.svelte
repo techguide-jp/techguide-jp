@@ -17,9 +17,13 @@
 
   const formatProjectStatus = (status: string | null): string =>
     status === "In Progress" ? "作業中" : (status ?? "-");
-  const formatUnsettledReason = (
-    reason: UnsettledProjectIssueReason,
-  ): string => (reason === "closed_not_done" ? "Status未完了" : "未close");
+  const formatUnsettledReason = (reason: UnsettledProjectIssueReason): string =>
+    ({
+      open_in_progress: "未close",
+      closed_not_done: "Status未完了",
+      completion_not_reported: "完了報告未提出",
+      merge_waiting: "PRマージ待ち",
+    })[reason];
   const sessionMinutes = (
     startedAt: Date | string,
     endedAt: Date | string | null,
