@@ -254,7 +254,9 @@ export const buildSettlementSummariesV2 = (
         assigneeLogin,
         sessions: assigneeSessions,
         sessionMinutesById,
-        frozenHourlyRate: options.frozenHourlyRates?.get(key),
+        frozenHourlyRate: options.frozenHourlyRates?.get(
+          issueAssigneeKey(issue.repository, issue.number, assigneeLogin),
+        ),
       });
       issueLines.push({ assigneeLogin, line });
     }

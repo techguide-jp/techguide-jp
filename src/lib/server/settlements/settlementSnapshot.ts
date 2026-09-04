@@ -34,6 +34,11 @@ const issueKey = (
   return `${String(issue?.repository ?? "")}#${String(issue?.number ?? "")}`;
 };
 
+const issueAssigneeKey = (
+  issue: { repository?: unknown; number?: unknown } | undefined,
+  assigneeLogin: unknown,
+): string => `${issueKey(issue)}#${String(assigneeLogin ?? "")}`;
+
 const normalizeIssue = (issue: unknown) => {
   const value =
     issue && typeof issue === "object"
@@ -333,7 +338,10 @@ export const settlementSnapshotHourlyRates = (
   return new Map(
     normalized.lines.map((line) => {
       const rate = line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen;
-      return [issueKey(line.issue), typeof rate === "number" ? rate : null];
+      return [
+        issueAssigneeKey(line.issue, normalized.assigneeLogin),
+        typeof rate === "number" ? rate : null,
+      ];
     }),
   );
 };

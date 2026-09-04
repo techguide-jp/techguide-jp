@@ -6,6 +6,7 @@ import { getWorkSubmissionBlockingReasons } from "$lib/server/settlements/settle
 import {
   createSettlementSnapshotPayload,
   hasWorkSubmissionChanges,
+  settlementSnapshotHourlyRates,
 } from "$lib/server/settlements/settlementSnapshot";
 
 const issue = (overrides: Partial<ProjectIssue> = {}): ProjectIssue => ({
@@ -166,11 +167,53 @@ describe("buildSettlementSummariesV2", () => {
     const summary = build("2026-08", {
       completionReports: [],
       supplementalPayments: [],
-      frozenHourlyRates: new Map([["techguide-jp/example#10", 4_000]]),
+      frozenHourlyRates: new Map([["techguide-jp/example#10#worker", 4_000]]),
     });
 
     expect(summary?.timedRewardYen).toBe(4_000);
     expect(summary?.lines[0].hourlyRateYenSnapshot).toBe(4_000);
+  });
+
+  it("申請済みの時間単価を作業者ごとに分離する", () => {
+    const summaries = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["replacement"], hourlyRateYen: 5_000 })],
+      [
+        session(),
+        session({
+          id: "10000000-0000-4000-8000-000000000002",
+          assigneeLogin: "replacement",
+        }),
+      ],
+      [],
+      {
+        completionReports: [],
+        supplementalPayments: [],
+        frozenHourlyRates: new Map([["techguide-jp/example#10#worker", 4_000]]),
+      },
+    );
+
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "worker")
+        ?.timedRewardYen,
+    ).toBe(4_000);
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "replacement")
+        ?.timedRewardYen,
+    ).toBe(5_000);
+  });
+
+  it("申請スナップショットの時間単価をIssueと作業者の組で復元する", () => {
+    const summary = build("2026-08", {
+      completionReports: [],
+      supplementalPayments: [],
+    });
+    const rates = settlementSnapshotHourlyRates(
+      createSettlementSnapshotPayload(summary!),
+    );
+
+    expect(rates.get("techguide-jp/example#10#worker")).toBe(6_000);
+    expect(rates.has("techguide-jp/example#10")).toBe(false);
   });
 
   it("他月を含む時間報酬累計が追加精算上限を超えたらブロックする", () => {

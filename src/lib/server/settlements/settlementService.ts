@@ -198,28 +198,30 @@ export const loadSettlementMonth = async (month: string) => {
         listWorkSubmissions(),
         listSupplementalPaymentsForMonth(month),
       ]);
-    const frozenHourlyRates = new Map<string, number | null>();
-    for (const record of [...snapshots, ...submissions]) {
-      for (const [key, rate] of settlementSnapshotHourlyRates(
-        record.snapshot,
-      )) {
-        if (!frozenHourlyRates.has(key)) frozenHourlyRates.set(key, rate);
-      }
-    }
-
     const approvedKeys = new Set(
       allSnapshots.map(
         (snapshot) => `${snapshot.month}:${snapshot.assigneeLogin}`,
       ),
     );
-    const priorTimedRewardByIssue = new Map<string, number>();
-    for (const record of [
+    const settledRecords = [
       ...allSnapshots,
       ...allSubmissions.filter(
         (submission) =>
           !approvedKeys.has(`${submission.month}:${submission.assigneeLogin}`),
       ),
-    ]) {
+    ].sort((a, b) => a.month.localeCompare(b.month));
+    const frozenHourlyRates = new Map<string, number | null>();
+    for (const record of settledRecords) {
+      for (const [key, rate] of settlementSnapshotHourlyRates(
+        record.snapshot,
+      )) {
+        // 作業者ごとにIssueを初めて申請した月の単価を、以後の月と再申請でも維持する。
+        if (!frozenHourlyRates.has(key)) frozenHourlyRates.set(key, rate);
+      }
+    }
+
+    const priorTimedRewardByIssue = new Map<string, number>();
+    for (const record of settledRecords) {
       if (record.month === month) continue;
       for (const [key, amount] of settlementSnapshotTimedRewards(
         record.snapshot,
