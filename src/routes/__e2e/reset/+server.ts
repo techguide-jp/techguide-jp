@@ -2,11 +2,14 @@ import { error, json } from "@sveltejs/kit";
 import {
   auditLogs,
   authSessions,
+  emailDeliveries,
+  emailNotificationEvents,
   githubProjectStatusSyncs,
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
   paymentNotices,
+  userNotificationContacts,
   workLogChangeRequests,
   workerPayoutAccounts,
   workerProfiles,
@@ -14,6 +17,7 @@ import {
 } from "$lib/server/db/schema";
 import { db } from "$lib/server/db/client";
 import { env } from "$lib/server/env";
+import { cleanupEmailPreviews } from "$lib/server/notifications/previewStore";
 
 export const POST = async () => {
   if (!env.e2eTestMode) {
@@ -21,6 +25,8 @@ export const POST = async () => {
   }
 
   await db.delete(auditLogs);
+  await db.delete(emailDeliveries);
+  await db.delete(emailNotificationEvents);
   await db.delete(paymentNotices);
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
@@ -31,6 +37,8 @@ export const POST = async () => {
   await db.delete(authSessions);
   await db.delete(workerPayoutAccounts);
   await db.delete(workerProfiles);
+  await db.delete(userNotificationContacts);
+  await cleanupEmailPreviews(0, 0);
 
   return json({ ok: true });
 };

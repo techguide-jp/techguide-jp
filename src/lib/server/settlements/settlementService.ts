@@ -33,12 +33,18 @@ import type {
   WorkSession,
 } from "$lib/server/db/schema";
 import {
+  hashSettlementSummary,
   hasSettlementSnapshotChanges,
   settlementSnapshotAmount,
 } from "$lib/server/settlements/settlementSnapshot";
 import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { jstMonthRangeUtc, toJstMonth } from "$lib/server/time";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
+import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -204,7 +210,9 @@ type SettlementAssigneeData = Awaited<
 /** 取得済みデータが、支払い情報を更新できる承認済み精算かを確認する。 */
 const validateSettlementPaymentData = (
   data: SettlementAssigneeData,
-): { ok: true } | { ok: false; message: string } => {
+):
+  | { ok: true; summary: SettlementSummary }
+  | { ok: false; message: string } => {
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
   }
@@ -230,17 +238,26 @@ const validateSettlementPaymentData = (
         "承認後に内容が変更されています。再承認後に支払い情報を更新してください。",
     };
   }
-  return { ok: true };
+  return { ok: true, summary: data.summary };
 };
 
 /** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
 export const validateSettlementPaymentEligibility = async (
   month: string,
   assigneeLogin: string,
-): Promise<{ ok: true } | { ok: false; message: string }> =>
-  validateSettlementPaymentData(
-    await loadSettlementAssignee(month, assigneeLogin),
-  );
+): Promise<
+  | { ok: true; taxExcludedYen: number; taxIncludedYen: number }
+  | { ok: false; message: string }
+> => {
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  const eligibility = validateSettlementPaymentData(data);
+  if (!eligibility.ok) return eligibility;
+  return {
+    ok: true,
+    taxExcludedYen: eligibility.summary.taxExcludedYen,
+    taxIncludedYen: eligibility.summary.taxIncludedYen,
+  };
+};
 
 export const submitSettlementWork = async (
   month: string,
@@ -271,8 +288,34 @@ export const submitSettlementWork = async (
         "未完了の入力や未処理の修正申請があるため月次確定申請できません。",
     };
   }
+  if (data.submission && !data.submission.hasChanges) {
+    return { ok: false, message: "この内容はすでに月次確定申請済みです。" };
+  }
 
-  await upsertWorkSubmission(summary, submittedBy);
+  const wasSubmitted = Boolean(data.submission);
+  const submittedAt = new Date();
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_submitted",
+    // 直前に保存した申請版を起点にし、複数タブは束ねつつ変更後の再申請は別操作にする。
+    operationId: buildNotificationOperationId(
+      "settlement-submitted",
+      data.submission?.submittedAt.toISOString() ?? "new",
+      hashSettlementSummary(summary),
+    ),
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: submittedAt,
+    taxExcludedYen: summary.taxExcludedYen,
+    taxIncludedYen: summary.taxIncludedYen,
+    isRepeat: wasSubmitted,
+  });
+  await upsertWorkSubmission(summary, submittedBy, {
+    submittedAt,
+    ...(emailNotification.mode === "resend"
+      ? { notification: emailNotification.write }
+      : {}),
+  });
   await createAuditLog({
     actorLogin: submittedBy,
     action: "monthly_work_submitted",
@@ -285,6 +328,7 @@ export const submitSettlementWork = async (
       taxIncludedYen: summary.taxIncludedYen,
     },
   });
+  await dispatchPreparedNotification(emailNotification);
   return { ok: true };
 };
 
@@ -346,11 +390,24 @@ export const approveSettlement = async (
   // 承認時点の宛先・支払い予定日を凍結した通知書スナップショットを、承認確定と
   // 同一トランザクションで保存する。振込先が未登録・復号失敗のときは承認自体は
   // 成立させ、通知書のみスキップする。承認日時は1つだけ生成して両レコードで共有する。
-  const now = new Date();
+  const now = new Date(
+    Math.max(Date.now(), (data.snapshot?.approvedAt.getTime() ?? -1) + 1),
+  );
   const approvedAt = now.toISOString();
   const effectiveScheduledDate = scheduledDate.shouldUpdate
     ? scheduledDate.scheduledDate
     : (payment?.scheduledDate ?? defaultPaymentDueDate(month));
+  if (
+    data.snapshot &&
+    !hasSettlementSnapshotChanges(data.snapshot.snapshot, summary) &&
+    effectiveScheduledDate ===
+      (payment?.scheduledDate ?? defaultPaymentDueDate(month))
+  ) {
+    return {
+      ok: false,
+      message: "承認内容と支払い予定日に変更がありません。",
+    };
+  }
   const prepared = await prepareNoticeWriteInput({
     month,
     assigneeLogin,
@@ -361,16 +418,48 @@ export const approveSettlement = async (
     issuedOn: jstDateString(now),
     createdBy: approvedBy,
   });
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_approved",
+    operationId: buildNotificationOperationId(
+      "settlement-approved",
+      data.snapshot?.approvedAt.toISOString() ?? "new",
+      hashSettlementSummary(summary),
+      effectiveScheduledDate,
+    ),
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: now,
+    taxExcludedYen: summary.taxExcludedYen,
+    taxIncludedYen: summary.taxIncludedYen,
+    scheduledDate: effectiveScheduledDate,
+    hasPaymentNotice: prepared.ok,
+    isRepeat: Boolean(data.snapshot),
+  });
 
-  await recordSettlementApproval({
+  const approvalRecorded = await recordSettlementApproval({
     summary,
     approvedBy,
     approvedAt,
+    expectedApprovedAt: data.snapshot?.approvedAt.toISOString() ?? null,
     ...(scheduledDate.shouldUpdate
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
     ...(prepared.ok ? { notice: prepared.notice } : {}),
+    ...(emailNotification.mode === "resend"
+      ? { notification: emailNotification.write }
+      : {}),
   });
+
+  if (!approvalRecorded) {
+    return {
+      ok: false,
+      message:
+        "承認状態が別の操作で更新されました。画面を再読み込みしてください。",
+    };
+  }
+
+  await dispatchPreparedNotification(emailNotification);
 
   return prepared.ok
     ? { ok: true, noticeCreated: true }

@@ -38,6 +38,21 @@ export const monthlyPaymentStatus = pgEnum("monthly_payment_status", [
   "paid",
 ]);
 
+export const emailNotificationType = pgEnum("email_notification_type", [
+  "settlement_submitted",
+  "settlement_approved",
+  "settlement_paid",
+]);
+
+export const emailDeliveryStatus = pgEnum("email_delivery_status", [
+  "pending",
+  "sending",
+  "accepted",
+  "skipped",
+  "failed",
+  "unknown",
+]);
+
 export const workerProfiles = pgTable(
   "worker_profiles",
   {
@@ -71,6 +86,16 @@ export const workerProfiles = pgTable(
     ),
   ],
 );
+
+export const userNotificationContacts = pgTable("user_notification_contacts", {
+  githubLogin: text("github_login").primaryKey(),
+  email: text("email").notNull(),
+  source: text("source").notNull().default("github"),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const workerPayoutAccounts = pgTable("worker_payout_accounts", {
   login: text("login")
@@ -362,6 +387,67 @@ export const auditLogs = pgTable(
   ],
 );
 
+export const emailNotificationEvents = pgTable(
+  "email_notification_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventKey: text("event_key").notNull(),
+    type: emailNotificationType("type").notNull(),
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("email_notification_events_event_key_unique_idx").on(
+      table.eventKey,
+    ),
+    index("email_notification_events_month_idx").on(table.month),
+    check(
+      "email_notification_events_month_chk",
+      sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+  ],
+);
+
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => emailNotificationEvents.id, { onDelete: "cascade" }),
+    recipientLogin: text("recipient_login").notNull(),
+    recipientEmail: text("recipient_email"),
+    status: emailDeliveryStatus("status").notNull().default("pending"),
+    subject: text("subject").notNull(),
+    textBody: text("text_body").notNull(),
+    htmlBody: text("html_body").notNull(),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    resendEmailId: text("resend_email_id"),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    errorCode: text("error_code"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("email_deliveries_event_recipient_unique_idx").on(
+      table.eventId,
+      table.recipientLogin,
+    ),
+    index("email_deliveries_status_idx").on(table.status),
+  ],
+);
+
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkLogChangeRequest = typeof workLogChangeRequests.$inferSelect;
 export type WorkerProfile = typeof workerProfiles.$inferSelect;
@@ -374,3 +460,8 @@ export type PaymentNotice = typeof paymentNotices.$inferSelect;
 export type GithubProjectStatusSync =
   typeof githubProjectStatusSyncs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type UserNotificationContact =
+  typeof userNotificationContacts.$inferSelect;
+export type EmailNotificationEvent =
+  typeof emailNotificationEvents.$inferSelect;
+export type EmailDelivery = typeof emailDeliveries.$inferSelect;

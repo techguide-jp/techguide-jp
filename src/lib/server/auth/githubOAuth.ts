@@ -13,6 +13,12 @@ type GitHubUserResponse = {
   avatar_url: string | null;
 };
 
+type GitHubEmailResponse = {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+};
+
 export const githubStateCookieName = "tg_github_oauth_state";
 
 const localHostnames = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -51,9 +57,29 @@ export const createGithubAuthorization = (
     requireEnv(env.githubClientId, "GITHUB_CLIENT_ID"),
   );
   url.searchParams.set("redirect_uri", `${appOrigin}/auth/github/callback`);
-  url.searchParams.set("scope", "read:user");
+  url.searchParams.set("scope", "read:user user:email");
   url.searchParams.set("state", state);
   return { state, url: url.toString() };
+};
+
+export const fetchGithubPrimaryEmail = async (
+  accessToken: string,
+): Promise<string | null> => {
+  const response = await fetch("https://api.github.com/user/emails", {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${accessToken}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub email fetch failed: ${response.status}`);
+  }
+  const emails = (await response.json()) as GitHubEmailResponse[];
+  return (
+    emails.find((entry) => entry.primary && entry.verified)?.email.trim() ??
+    null
+  );
 };
 
 export const exchangeGithubCode = async (

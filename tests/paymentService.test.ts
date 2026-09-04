@@ -17,6 +17,10 @@ import {
   updatePaymentScheduledDate,
 } from "$lib/server/payments/paymentService";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
   getPaymentRow: vi.fn(),
@@ -28,6 +32,14 @@ vi.mock("$lib/server/payments/paymentRepository", () => ({
 
 vi.mock("$lib/server/settlements/settlementService", () => ({
   validateSettlementPaymentEligibility: vi.fn(),
+}));
+
+vi.mock("$lib/server/notifications/notificationService", () => ({
+  prepareSettlementNotificationSafely: vi.fn(async () => ({
+    mode: "preview",
+    entries: [],
+  })),
+  dispatchPreparedNotification: vi.fn(),
 }));
 
 const paymentRow = (
@@ -46,12 +58,13 @@ const paymentRow = (
 const admin = { login: "admin", isAdmin: true };
 const self = { login: "tashua314", isAdmin: false };
 const other = { login: "someoneelse", isAdmin: false };
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getPaymentRow).mockResolvedValue(null);
   vi.mocked(validateSettlementPaymentEligibility).mockResolvedValue({
     ok: true,
+    taxExcludedYen: 100_000,
+    taxIncludedYen: 110_000,
   });
   vi.mocked(listPaymentRowsForMonth).mockResolvedValue([]);
   vi.mocked(upsertPaymentPaid).mockImplementation(async (input) =>
@@ -156,11 +169,20 @@ describe("markSettlementPaid", () => {
       "2026-07-14",
     );
     expect(result).toMatchObject({ ok: true });
-    expect(upsertPaymentPaid).toHaveBeenCalledWith({
-      month: "2026-06",
-      assigneeLogin: "tashua314",
-      paidOn: "2026-07-14",
-    });
+    expect(upsertPaymentPaid).toHaveBeenCalledWith(
+      {
+        month: "2026-06",
+        assigneeLogin: "tashua314",
+        paidOn: "2026-07-14",
+      },
+      expect.objectContaining({ updatedAt: expect.any(Date) }),
+    );
+    expect(prepareSettlementNotificationSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taxExcludedYen: 100_000,
+        taxIncludedYen: 110_000,
+      }),
+    );
   });
 
   it("不正な支払日はエラー", async () => {
@@ -183,6 +205,54 @@ describe("markSettlementPaid", () => {
 
     expect(result).toMatchObject({ ok: false });
     expect(upsertPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("同じ未処理版からの複数操作は同じ通知操作IDを使う", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(paymentRow());
+
+    await markSettlementPaid("2026-06", "tashua314", "2026-07-14");
+    await markSettlementPaid("2026-06", "tashua314", "2026-07-14");
+
+    const calls = vi.mocked(prepareSettlementNotificationSafely).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].operationId).toBe(calls[1][0].operationId);
+  });
+
+  it("支払い済みの再登録は通知を準備しない", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(
+      paymentRow({ status: "paid", paidOn: "2026-07-14" }),
+    );
+
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "すでに支払い済みとして登録されています。",
+    });
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
+    expect(upsertPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("別操作が先に支払い状態を更新した場合は通知しない", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(paymentRow());
+    vi.mocked(upsertPaymentPaid).mockResolvedValueOnce(null);
+
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "支払い状態が別の操作で更新されました。画面を再読み込みしてください。",
+    });
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
   });
 });
 

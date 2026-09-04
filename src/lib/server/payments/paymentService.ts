@@ -16,6 +16,11 @@ import {
   type MonthlyPaymentView,
 } from "$lib/server/payments/paymentTypes";
 import { validateSettlementPaymentEligibility } from "$lib/server/settlements/settlementService";
+import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
+import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 
 export { normalizeDateInput, defaultPaymentDueDate };
 
@@ -89,7 +94,47 @@ export const markSettlementPaid = async (
     assigneeLogin,
   );
   if (!eligibility.ok) return eligibility;
-  const row = await upsertPaymentPaid({ month, assigneeLogin, paidOn });
+  const current = await getPaymentRow(month, assigneeLogin);
+  if (current?.status === "paid") {
+    return { ok: false, message: "すでに支払い済みとして登録されています。" };
+  }
+  const updatedAt = new Date(
+    Math.max(Date.now(), (current?.updatedAt.getTime() ?? -1) + 1),
+  );
+  const emailNotification = await prepareSettlementNotificationSafely({
+    type: "settlement_paid",
+    // 現在の未処理レコード版を使い、複数タブは束ねつつ取り消し後の再登録は別操作にする。
+    operationId: buildNotificationOperationId(
+      "settlement-paid",
+      current?.updatedAt.toISOString() ?? "new",
+      paidOn,
+    ),
+    month,
+    assigneeLogin,
+    workerDisplayName: assigneeLogin,
+    occurredAt: updatedAt,
+    taxExcludedYen: eligibility.taxExcludedYen,
+    taxIncludedYen: eligibility.taxIncludedYen,
+    paidOn,
+  });
+  const row = await upsertPaymentPaid(
+    { month, assigneeLogin, paidOn },
+    {
+      updatedAt,
+      expectedUpdatedAt: current?.updatedAt ?? null,
+      ...(emailNotification.mode === "resend"
+        ? { notification: emailNotification.write }
+        : {}),
+    },
+  );
+  if (!row) {
+    return {
+      ok: false,
+      message:
+        "支払い状態が別の操作で更新されました。画面を再読み込みしてください。",
+    };
+  }
+  await dispatchPreparedNotification(emailNotification);
   return { ok: true, payment: toPaymentView(month, assigneeLogin, row) };
 };
 
