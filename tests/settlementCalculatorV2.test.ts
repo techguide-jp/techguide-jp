@@ -89,6 +89,35 @@ describe("buildSettlementSummariesV2", () => {
     expect(summary?.lines[0].completionReportId).toBe(report().id);
   });
 
+  it("Issue再割り当て後も完了報告ごとの作業者へ固定報酬を帰属させる", () => {
+    const summaries = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["replacement"] })],
+      [],
+      [],
+      {
+        completionReports: [
+          report(),
+          report({
+            id: "20000000-0000-4000-8000-000000000002",
+            assigneeLogin: "replacement",
+            fixedRewardYen: 30_000,
+          }),
+        ],
+        supplementalPayments: [],
+      },
+    );
+
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "worker")
+        ?.fixedRewardYen,
+    ).toBe(50_000);
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "replacement")
+        ?.fixedRewardYen,
+    ).toBe(30_000);
+  });
+
   it("9月の再稼働・再報告では固定報酬だけ9月へ移し、8月の時間報酬を残す", () => {
     const oldReport = report({
       invalidatedAt: new Date("2026-09-02T00:00:00Z"),

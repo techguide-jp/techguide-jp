@@ -255,8 +255,15 @@ export const confirmCompletionEligibility = async (input: {
                 '[]'::jsonb
               )
             ) AS line
-            WHERE line->>'completionReportId' = eligible.id::text
-              AND COALESCE((line->>'fixedRewardYen')::integer, 0) > 0
+            WHERE COALESCE((line->>'fixedRewardYen')::integer, 0) > 0
+              AND (
+                line->>'completionReportId' = eligible.id::text
+                OR (
+                  line->>'completionReportId' IS NULL
+                  AND line->'issue'->>'repository' = eligible.repository
+                  AND line->'issue'->>'number' = eligible.issue_number::text
+                )
+              )
           )
       )
       ON CONFLICT (completion_report_id) DO NOTHING

@@ -32,6 +32,12 @@ type CalculatorOptions = {
 const issueKey = (repository: string, issueNumber: number): string =>
   `${repository}#${issueNumber}`;
 
+const issueAssigneeKey = (
+  repository: string,
+  issueNumber: number,
+  assigneeLogin: string,
+): string => `${issueKey(repository, issueNumber)}#${assigneeLogin}`;
+
 const requestTouchesMonth = (
   request: WorkLogChangeRequest,
   month: string,
@@ -61,6 +67,7 @@ const requestTouchesMonth = (
 const buildIssueLine = (input: {
   issue: ProjectIssue;
   report: IssueCompletionReport | null;
+  assigneeLogin: string;
   sessions: WorkSession[];
   sessionMinutesById: Record<string, number>;
   frozenHourlyRate: number | null | undefined;
@@ -74,8 +81,6 @@ const buildIssueLine = (input: {
         fixedRewardYen: input.report.fixedRewardYen,
       }
     : input.issue;
-  const assigneeLogin =
-    issue.assignees.length === 1 ? issue.assignees[0] : null;
   const workMinutes = Object.values(input.sessionMinutesById).reduce(
     (total, minutes) => total + minutes,
     0,
@@ -94,7 +99,6 @@ const buildIssueLine = (input: {
         )
       : 0;
 
-  if (!assigneeLogin) warnings.push("assigneeが単一ではありません。");
   if (issue.rewardMode !== "固定" && issue.rewardMode !== "ハイブリッド") {
     warnings.push("報酬方式が未入力または不正です。");
   }
@@ -115,7 +119,7 @@ const buildIssueLine = (input: {
 
   return {
     issue,
-    assigneeLogin,
+    assigneeLogin: input.assigneeLogin,
     fixedRewardYen,
     workMinutes,
     timedRewardYen,
@@ -147,7 +151,7 @@ export const buildSettlementSummariesV2 = (
     (report) =>
       report.settlementMonth === month && report.invalidatedAt === null,
   );
-  const eligibleBaseReportByIssue = new Map(
+  const eligibleBaseReportByIssueAssignee = new Map(
     reportsForMonth
       .filter(
         (report) =>
@@ -155,7 +159,11 @@ export const buildSettlementSummariesV2 = (
           !supplementalReportIds.has(report.id),
       )
       .map((report) => [
-        issueKey(report.repository, report.issueNumber),
+        issueAssigneeKey(
+          report.repository,
+          report.issueNumber,
+          report.assigneeLogin,
+        ),
         report,
       ]),
   );
@@ -182,39 +190,56 @@ export const buildSettlementSummariesV2 = (
   const globalBlockingReasons: string[] = [];
   for (const issue of issues) {
     const key = issueKey(issue.repository, issue.number);
-    const report = eligibleBaseReportByIssue.get(key) ?? null;
-    const issueSessions = (sessionsByIssue.get(key) ?? []).filter((session) =>
-      issue.assignees.includes(session.assigneeLogin),
-    );
-    const sessionMinutesById = Object.fromEntries(
-      issueSessions.map((session) => [
-        session.id,
-        minutesByIssue.get(key)?.[session.id] ?? 0,
-      ]),
-    );
-    const hasMonthlyWork = Object.values(sessionMinutesById).some(
-      (minutes) => minutes > 0,
-    );
-    if (!report && !hasMonthlyWork) continue;
-
-    const line = buildIssueLine({
-      issue,
-      report,
-      sessions: issueSessions,
-      sessionMinutesById,
-      frozenHourlyRate: options.frozenHourlyRates?.get(key),
-      priorTimedRewardYen: options.priorTimedRewardByIssue?.get(key) ?? 0,
-    });
-    if (!line.assigneeLogin) {
-      globalBlockingReasons.push(
-        `${issue.repository}#${issue.number}: assigneeが単一ではありません。`,
-      );
-      continue;
-    }
-    linesByAssignee.set(line.assigneeLogin, [
-      ...(linesByAssignee.get(line.assigneeLogin) ?? []),
-      line,
+    const issueSessions = sessionsByIssue.get(key) ?? [];
+    const reportAssignees = reportsForMonth
+      .filter(
+        (report) =>
+          report.repository === issue.repository &&
+          report.issueNumber === issue.number &&
+          report.eligibilityConfirmedAt !== null &&
+          !supplementalReportIds.has(report.id),
+      )
+      .map((report) => report.assigneeLogin);
+    const assigneesForLines = new Set([
+      ...issueSessions.map((session) => session.assigneeLogin),
+      ...reportAssignees,
     ]);
+
+    for (const assigneeLogin of assigneesForLines) {
+      const report =
+        eligibleBaseReportByIssueAssignee.get(
+          issueAssigneeKey(issue.repository, issue.number, assigneeLogin),
+        ) ?? null;
+      const assigneeSessions = issueSessions.filter(
+        (session) => session.assigneeLogin === assigneeLogin,
+      );
+      const sessionMinutesById = Object.fromEntries(
+        assigneeSessions.map((session) => [
+          session.id,
+          minutesByIssue.get(key)?.[session.id] ?? 0,
+        ]),
+      );
+      const hasMonthlyWork = Object.values(sessionMinutesById).some(
+        (minutes) => minutes > 0,
+      );
+      if (!report && !hasMonthlyWork) continue;
+
+      // Project上で再割り当てされても、報告済み固定報酬と稼働時間は
+      // それぞれ保存済みの作業者へ帰属させる。
+      const line = buildIssueLine({
+        issue,
+        report,
+        assigneeLogin,
+        sessions: assigneeSessions,
+        sessionMinutesById,
+        frozenHourlyRate: options.frozenHourlyRates?.get(key),
+        priorTimedRewardYen: options.priorTimedRewardByIssue?.get(key) ?? 0,
+      });
+      linesByAssignee.set(assigneeLogin, [
+        ...(linesByAssignee.get(assigneeLogin) ?? []),
+        line,
+      ]);
+    }
   }
 
   const assignees = new Set<string>([
@@ -246,17 +271,29 @@ export const buildSettlementSummariesV2 = (
           session.startedAt < range.end,
       );
       const unsettledProjectIssues = issues
-        .filter((issue) => issue.assignees.includes(assigneeLogin))
+        .filter(
+          (issue) =>
+            issue.assignees.includes(assigneeLogin) ||
+            completionReports.some(
+              (report) =>
+                report.repository === issue.repository &&
+                report.issueNumber === issue.number,
+            ),
+        )
         .reduce<UnsettledProjectIssueLine[]>((result, issue) => {
           const key = issueKey(issue.repository, issue.number);
           const report = completionReports.find(
             (candidate) =>
               issueKey(candidate.repository, candidate.issueNumber) === key,
           );
-          const issueSessions = sessionsByIssue.get(key) ?? [];
-          const workMinutes = Object.values(
-            minutesByIssue.get(key) ?? {},
-          ).reduce((total, minutes) => total + minutes, 0);
+          const issueSessions = (sessionsByIssue.get(key) ?? []).filter(
+            (session) => session.assigneeLogin === assigneeLogin,
+          );
+          const workMinutes = issueSessions.reduce(
+            (total, session) =>
+              total + (minutesByIssue.get(key)?.[session.id] ?? 0),
+            0,
+          );
           if (report && !report.eligibilityConfirmedAt) {
             result.push({
               issue,
@@ -268,6 +305,7 @@ export const buildSettlementSummariesV2 = (
           }
           const needsCompletionReport =
             !report &&
+            issue.assignees.includes(assigneeLogin) &&
             (issue.rewardMode === "固定" ||
               issue.rewardMode === "ハイブリッド") &&
             (issue.status === "Done" ||

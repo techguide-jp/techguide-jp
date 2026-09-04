@@ -284,6 +284,69 @@ describeDb("DB constraints", () => {
     });
   });
 
+  it("旧形式の承認済み明細に同じIssueの固定報酬があれば追加支払いを作らない", async () => {
+    await db.insert(monthlySettlementSnapshots).values({
+      month: "2026-08",
+      assigneeLogin: "worker",
+      snapshot: {
+        schemaVersion: 1,
+        hash: "legacy-snapshot",
+        totals: {
+          fixedRewardYen: 80_000,
+          timedRewardYen: 0,
+          taxExcludedYen: 80_000,
+          taxYen: 8_000,
+          taxIncludedYen: 88_000,
+        },
+        comparable: {
+          lines: [
+            {
+              issue: {
+                repository: "techguide-jp/example",
+                number: 106,
+              },
+              fixedRewardYen: 80_000,
+            },
+          ],
+        },
+        generatedAt: "2026-09-03T00:00:00.000Z",
+      },
+      approvedBy: "admin",
+    });
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-legacy-approved",
+        repository: "techguide-jp/example",
+        issueNumber: 106,
+        issueTitle: "旧形式の承認済みIssue",
+        issueUrl: "https://github.com/techguide-jp/example/issues/106",
+        assigneeLogin: "worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-31T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 80_000,
+        createdBy: "admin",
+        createdAt: new Date("2026-09-04T00:00:00Z"),
+      })
+      .returning();
+
+    const result = await confirmCompletionEligibility({
+      report: completion,
+      confirmedAt: new Date("2026-09-10T00:00:00Z"),
+    });
+
+    expect(result).toBe("base");
+    expect(await db.select().from(supplementalPayments)).toHaveLength(0);
+    const [confirmed] = await db
+      .select()
+      .from(issueCompletionReports)
+      .where(eq(issueCompletionReports.id, completion.id));
+    expect(confirmed.eligibilityConfirmedAt).toEqual(
+      new Date("2026-09-10T00:00:00Z"),
+    );
+  });
+
   it("追加支払いは予定日なしで支払い済みにできない", async () => {
     const [completion] = await db
       .insert(issueCompletionReports)
