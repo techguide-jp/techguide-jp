@@ -346,6 +346,20 @@ export const settlementSnapshotHourlyRates = (
   );
 };
 
+export const settlementSnapshotCompletionReportIds = (
+  snapshot: unknown,
+): Set<string> => {
+  const normalized = normalizeSettlementSnapshot(unwrapSnapshot(snapshot));
+  return new Set(
+    normalized.lines.flatMap((line) =>
+      Number(line.fixedRewardYen ?? 0) > 0 &&
+      typeof line.completionReportId === "string"
+        ? [line.completionReportId]
+        : [],
+    ),
+  );
+};
+
 export const settlementSnapshotTimedRewards = (
   snapshot: unknown,
 ): Map<string, number> => {

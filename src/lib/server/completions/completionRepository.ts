@@ -246,25 +246,28 @@ export const confirmCompletionEligibility = async (input: {
         SELECT 1 FROM monthly_settlement_snapshots snapshot
         WHERE snapshot.month = eligible.settlement_month
           AND snapshot.assignee_login = eligible.assignee_login
-          AND NOT EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements(
-              COALESCE(
-                snapshot.snapshot->'comparable'->'lines',
-                snapshot.snapshot->'lines',
-                '[]'::jsonb
+      )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM monthly_settlement_snapshots settled_snapshot
+          CROSS JOIN LATERAL jsonb_array_elements(
+            COALESCE(
+              settled_snapshot.snapshot->'comparable'->'lines',
+              settled_snapshot.snapshot->'lines',
+              '[]'::jsonb
+            )
+          ) AS line
+          WHERE COALESCE((line->>'fixedRewardYen')::integer, 0) > 0
+            AND (
+              line->>'completionReportId' = eligible.id::text
+              OR (
+                settled_snapshot.month = eligible.settlement_month
+                AND settled_snapshot.assignee_login = eligible.assignee_login
+                AND line->>'completionReportId' IS NULL
+                AND line->'issue'->>'repository' = eligible.repository
+                AND line->'issue'->>'number' = eligible.issue_number::text
               )
-            ) AS line
-            WHERE COALESCE((line->>'fixedRewardYen')::integer, 0) > 0
-              AND (
-                line->>'completionReportId' = eligible.id::text
-                OR (
-                  line->>'completionReportId' IS NULL
-                  AND line->'issue'->>'repository' = eligible.repository
-                  AND line->'issue'->>'number' = eligible.issue_number::text
-                )
-              )
-          )
+            )
       )
       ON CONFLICT (completion_report_id) DO NOTHING
       RETURNING id

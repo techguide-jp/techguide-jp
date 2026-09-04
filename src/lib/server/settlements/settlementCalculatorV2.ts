@@ -27,6 +27,7 @@ type CalculatorOptions = {
   supplementalPayments: SupplementalPayment[];
   frozenHourlyRates?: Map<string, number | null>;
   priorTimedRewardByIssue?: Map<string, number>;
+  settledCompletionReportIds?: Set<string>;
 };
 
 const issueKey = (repository: string, issueNumber: number): string =>
@@ -138,6 +139,10 @@ export const buildSettlementSummariesV2 = (
   const supplementalReportIds = new Set(
     options.supplementalPayments.map((payment) => payment.completionReportId),
   );
+  const settledReportIds = new Set([
+    ...supplementalReportIds,
+    ...(options.settledCompletionReportIds ?? []),
+  ]);
   const reportsForMonth = options.completionReports.filter(
     (report) =>
       report.settlementMonth === month && report.invalidatedAt === null,
@@ -147,7 +152,7 @@ export const buildSettlementSummariesV2 = (
       .filter(
         (report) =>
           report.eligibilityConfirmedAt !== null &&
-          !supplementalReportIds.has(report.id),
+          !settledReportIds.has(report.id),
       )
       .map((report) => [
         issueAssigneeKey(
@@ -201,7 +206,7 @@ export const buildSettlementSummariesV2 = (
       .filter(
         (report) =>
           report.eligibilityConfirmedAt !== null &&
-          !supplementalReportIds.has(report.id),
+          !settledReportIds.has(report.id),
       )
       .map((report) => report.assigneeLogin);
     const assigneesForLines = new Set([

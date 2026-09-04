@@ -6,6 +6,7 @@ import { getWorkSubmissionBlockingReasons } from "$lib/server/settlements/settle
 import {
   createSettlementSnapshotPayload,
   hasWorkSubmissionChanges,
+  settlementSnapshotCompletionReportIds,
   settlementSnapshotHourlyRates,
 } from "$lib/server/settlements/settlementSnapshot";
 
@@ -119,6 +120,17 @@ describe("buildSettlementSummariesV2", () => {
     ).toBe(30_000);
   });
 
+  it("別作業者の承認済みスナップショットに含まれる完了報告を再計上しない", () => {
+    const summary = build("2026-08", {
+      completionReports: [report()],
+      supplementalPayments: [],
+      settledCompletionReportIds: new Set([report().id]),
+    });
+
+    expect(summary?.fixedRewardYen).toBe(0);
+    expect(summary?.lines[0].completionReportId).toBeNull();
+  });
+
   it("9月の再稼働・再報告では固定報酬だけ9月へ移し、8月の時間報酬を残す", () => {
     const oldReport = report({
       invalidatedAt: new Date("2026-09-02T00:00:00Z"),
@@ -214,6 +226,18 @@ describe("buildSettlementSummariesV2", () => {
 
     expect(rates.get("techguide-jp/example#10#worker")).toBe(6_000);
     expect(rates.has("techguide-jp/example#10")).toBe(false);
+  });
+
+  it("承認済みスナップショットから固定報酬の完了報告IDを復元する", () => {
+    const summary = build("2026-08", {
+      completionReports: [report()],
+      supplementalPayments: [],
+    });
+    const reportIds = settlementSnapshotCompletionReportIds(
+      createSettlementSnapshotPayload(summary!),
+    );
+
+    expect(reportIds).toEqual(new Set([report().id]));
   });
 
   it("他月を含む時間報酬累計が追加精算上限を超えたらブロックする", () => {

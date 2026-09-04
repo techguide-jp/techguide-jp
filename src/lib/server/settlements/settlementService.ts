@@ -41,6 +41,7 @@ import {
   hasSettlementSnapshotChanges,
   hasWorkSubmissionChanges,
   settlementSnapshotAmount,
+  settlementSnapshotCompletionReportIds,
   settlementSnapshotHourlyRates,
   settlementSnapshotTimedRewards,
 } from "$lib/server/settlements/settlementSnapshot";
@@ -210,6 +211,11 @@ export const loadSettlementMonth = async (month: string) => {
           !approvedKeys.has(`${submission.month}:${submission.assigneeLogin}`),
       ),
     ].sort((a, b) => a.month.localeCompare(b.month));
+    const settledCompletionReportIds = new Set(
+      allSnapshots.flatMap((snapshot) => [
+        ...settlementSnapshotCompletionReportIds(snapshot.snapshot),
+      ]),
+    );
     const frozenHourlyRates = new Map<string, number | null>();
     for (const record of settledRecords) {
       for (const [key, rate] of settlementSnapshotHourlyRates(
@@ -238,6 +244,7 @@ export const loadSettlementMonth = async (month: string) => {
       supplementalPayments,
       frozenHourlyRates,
       priorTimedRewardByIssue,
+      settledCompletionReportIds,
     });
   } else {
     summaries = buildSettlementSummaries(month, issues, sessions, requests);
