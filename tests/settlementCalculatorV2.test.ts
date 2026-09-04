@@ -215,6 +215,24 @@ describe("buildSettlementSummariesV2", () => {
     ).toContain(capWarning);
   });
 
+  it("現在のIssueが複数担当者なら保存済みログの帰属を保ったまま申請をブロックする", () => {
+    const summary = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["worker", "replacement"] })],
+      [session()],
+      [],
+      { completionReports: [], supplementalPayments: [] },
+    ).find((candidate) => candidate.assigneeLogin === "worker");
+
+    expect(summary?.timedRewardYen).toBe(6_000);
+    expect(summary?.blockingReasons).toContain(
+      "techguide-jp/example#10: assigneeが単一ではありません。",
+    );
+    expect(getWorkSubmissionBlockingReasons(summary!)).toContain(
+      "techguide-jp/example#10: assigneeが単一ではありません。",
+    );
+  });
+
   it("同じ完了報告のPRマージ反映だけでは再申請扱いにしない", () => {
     const pendingReport = report({ eligibilityConfirmedAt: null });
     const beforeMerge = build("2026-08", {

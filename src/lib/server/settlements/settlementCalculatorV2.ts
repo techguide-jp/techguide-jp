@@ -178,7 +178,6 @@ export const buildSettlementSummariesV2 = (
   }
 
   const linesByAssignee = new Map<string, SettlementIssueLine[]>();
-  const globalBlockingReasons: string[] = [];
   for (const issue of issues) {
     const key = issueKey(issue.repository, issue.number);
     const issueSessions = sessionsByIssue.get(key) ?? [];
@@ -230,6 +229,12 @@ export const buildSettlementSummariesV2 = (
         frozenHourlyRate: options.frozenHourlyRates?.get(key),
       });
       issueLines.push({ assigneeLogin, line });
+    }
+
+    if (issue.assignees.length !== 1) {
+      for (const { line } of issueLines) {
+        line.warnings.push("assigneeが単一ではありません。");
+      }
     }
 
     // 追加精算上限は担当者単位ではなく、Issue全期間の時間報酬累計へ適用する。
@@ -367,7 +372,6 @@ export const buildSettlementSummariesV2 = (
         ),
       );
       const blockingReasons = [
-        ...globalBlockingReasons,
         ...lineWarnings,
         ...pendingRequests.map(
           (request) =>
