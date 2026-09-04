@@ -188,6 +188,33 @@ describe("buildSettlementSummariesV2", () => {
     );
   });
 
+  it("複数作業者の当月時間報酬をIssue単位で合算して上限判定する", () => {
+    const summaries = buildSettlementSummariesV2(
+      "2026-08",
+      [issue({ assignees: ["replacement"], extraCapYen: 10_000 })],
+      [
+        session(),
+        session({
+          id: "10000000-0000-4000-8000-000000000002",
+          assigneeLogin: "replacement",
+        }),
+      ],
+      [],
+      { completionReports: [], supplementalPayments: [] },
+    );
+    const capWarning =
+      "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。";
+
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "worker")
+        ?.blockingReasons,
+    ).toContain(capWarning);
+    expect(
+      summaries.find((summary) => summary.assigneeLogin === "replacement")
+        ?.blockingReasons,
+    ).toContain(capWarning);
+  });
+
   it("同じ完了報告のPRマージ反映だけでは再申請扱いにしない", () => {
     const pendingReport = report({ eligibilityConfirmedAt: null });
     const beforeMerge = build("2026-08", {

@@ -71,7 +71,6 @@ const buildIssueLine = (input: {
   sessions: WorkSession[];
   sessionMinutesById: Record<string, number>;
   frozenHourlyRate: number | null | undefined;
-  priorTimedRewardYen: number;
 }): SettlementIssueLine => {
   const warnings: string[] = [];
   const issue = input.report
@@ -109,14 +108,6 @@ const buildIssueLine = (input: {
   ) {
     warnings.push("ハイブリッドIssueの時間単価が未入力です。");
   }
-  if (
-    issue.rewardMode === "ハイブリッド" &&
-    issue.extraCapYen !== null &&
-    input.priorTimedRewardYen + timedRewardYen > issue.extraCapYen
-  ) {
-    warnings.push("Issue全期間の時間精算額が追加精算上限を超えています。");
-  }
-
   return {
     issue,
     assigneeLogin: input.assigneeLogin,
@@ -204,6 +195,10 @@ export const buildSettlementSummariesV2 = (
       ...issueSessions.map((session) => session.assigneeLogin),
       ...reportAssignees,
     ]);
+    const issueLines: Array<{
+      assigneeLogin: string;
+      line: SettlementIssueLine;
+    }> = [];
 
     for (const assigneeLogin of assigneesForLines) {
       const report =
@@ -233,8 +228,31 @@ export const buildSettlementSummariesV2 = (
         sessions: assigneeSessions,
         sessionMinutesById,
         frozenHourlyRate: options.frozenHourlyRates?.get(key),
-        priorTimedRewardYen: options.priorTimedRewardByIssue?.get(key) ?? 0,
       });
+      issueLines.push({ assigneeLogin, line });
+    }
+
+    // 追加精算上限は担当者単位ではなく、Issue全期間の時間報酬累計へ適用する。
+    const currentTimedRewardYen = issueLines.reduce(
+      (total, entry) => total + entry.line.timedRewardYen,
+      0,
+    );
+    if (
+      issueLines.some(
+        (entry) => entry.line.issue.rewardMode === "ハイブリッド",
+      ) &&
+      issue.extraCapYen !== null &&
+      (options.priorTimedRewardByIssue?.get(key) ?? 0) + currentTimedRewardYen >
+        issue.extraCapYen
+    ) {
+      for (const { line } of issueLines) {
+        line.warnings.push(
+          "Issue全期間の時間精算額が追加精算上限を超えています。",
+        );
+      }
+    }
+
+    for (const { assigneeLogin, line } of issueLines) {
       linesByAssignee.set(assigneeLogin, [
         ...(linesByAssignee.get(assigneeLogin) ?? []),
         line,
