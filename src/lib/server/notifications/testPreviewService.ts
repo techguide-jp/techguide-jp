@@ -58,6 +58,8 @@ export const createTestEmailPreview = async (
     assigneeLogin: actorLogin,
     workerDisplayName: profile?.displayName ?? actorLogin,
     occurredAt: now,
+    taxExcludedYen: 100_000,
+    taxIncludedYen: 110_000,
     ...(type === "settlement_approved"
       ? {
           scheduledDate: defaultPaymentDueDate(month),

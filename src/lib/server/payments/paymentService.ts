@@ -113,6 +113,8 @@ export const markSettlementPaid = async (
     assigneeLogin,
     workerDisplayName: assigneeLogin,
     occurredAt: updatedAt,
+    taxExcludedYen: eligibility.taxExcludedYen,
+    taxIncludedYen: eligibility.taxIncludedYen,
     paidOn,
   });
   const row = await upsertPaymentPaid(

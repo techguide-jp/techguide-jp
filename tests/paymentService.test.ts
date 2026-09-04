@@ -63,6 +63,8 @@ beforeEach(() => {
   vi.mocked(getPaymentRow).mockResolvedValue(null);
   vi.mocked(validateSettlementPaymentEligibility).mockResolvedValue({
     ok: true,
+    taxExcludedYen: 100_000,
+    taxIncludedYen: 110_000,
   });
   vi.mocked(listPaymentRowsForMonth).mockResolvedValue([]);
   vi.mocked(upsertPaymentPaid).mockImplementation(async (input) =>
@@ -174,6 +176,12 @@ describe("markSettlementPaid", () => {
         paidOn: "2026-07-14",
       },
       expect.objectContaining({ updatedAt: expect.any(Date) }),
+    );
+    expect(prepareSettlementNotificationSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taxExcludedYen: 100_000,
+        taxIncludedYen: 110_000,
+      }),
     );
   });
 

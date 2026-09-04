@@ -26,13 +26,21 @@ describe("email notification templates", () => {
         assigneeLogin: "worker",
         workerDisplayName: "<Worker>",
         occurredAt: new Date("2026-08-21T01:02:03Z"),
+        taxExcludedYen: 100_000,
+        taxIncludedYen: 110_000,
       },
       "https://example.com",
     );
-    expect(message.subject).toContain("月次確定申請");
-    expect(message.text).toContain("2026-08");
+    expect(message.subject).toBe(
+      "【要確認】<Worker>さんが2026年8月分の月次確定申請を提出しました",
+    );
+    expect(message.text).toContain("TechGuide管理者のみなさま");
+    expect(message.text).toContain("支払金額（税込）: 110,000円");
+    expect(message.text).toContain("申請日時: 2026年8月21日 10:02");
+    expect(message.text).toContain("申請内容を確認・承認する");
     expect(message.text).toContain("@worker");
     expect(message.html).toContain("&lt;Worker&gt;");
+    expect(message.html).toContain("background:#0052cc");
     expect(message.html).toContain(
       "https://example.com/settlements/2026-08/worker",
     );
@@ -47,15 +55,82 @@ describe("email notification templates", () => {
         assigneeLogin: "worker",
         workerDisplayName: "Worker",
         occurredAt: new Date("2026-08-21T01:02:03Z"),
+        taxExcludedYen: 100_000,
+        taxIncludedYen: 110_000,
         scheduledDate: "2026-09-14",
         hasPaymentNotice: true,
       },
       "https://example.com/",
       "support@example.com",
     );
-    expect(message.text).toContain("支払い予定日: 2026-09-14");
+    expect(message.subject).toBe(
+      "【TechGuide】2026年8月分の月次精算が承認されました",
+    );
+    expect(message.text).toContain("Workerさん");
+    expect(message.text).toContain(
+      "今月もTechGuideの業務にお力添えいただき、ありがとうございます。",
+    );
+    expect(message.text).toContain("支払金額（税込）: 110,000円");
+    expect(message.text).toContain("支払い予定日: 2026年9月14日");
     expect(message.text).toContain("/notice");
     expect(message.text).not.toContain("返信できません");
+    expect(message.text).toContain("このメールへの返信でお問い合わせください");
+  });
+
+  it("支払い完了メールに支払額・支払日・確認導線を含める", () => {
+    const message = buildSettlementNotification(
+      {
+        type: "settlement_paid",
+        operationId,
+        month: "2026-08",
+        assigneeLogin: "worker",
+        workerDisplayName: "Worker",
+        occurredAt: new Date("2026-09-14T01:02:03Z"),
+        taxExcludedYen: 100_000,
+        taxIncludedYen: 110_000,
+        paidOn: "2026-09-14",
+      },
+      "https://example.com",
+    );
+
+    expect(message.subject).toBe(
+      "【TechGuide】2026年8月分のお支払いが完了しました",
+    );
+    expect(message.text).toContain("支払金額（税込）: 110,000円");
+    expect(message.text).toContain("支払日: 2026年9月14日");
+    expect(message.text).toContain("支払い内容を確認する");
+    expect(message.text).toContain(
+      "今月もTechGuideの業務にお力添えいただき、ありがとうございました。",
+    );
+    expect(message.text).toContain(
+      "TechGuideの稼働精算システムから自動送信されています",
+    );
+  });
+
+  it("再申請・再承認を件名で区別する", () => {
+    const base = {
+      operationId,
+      month: "2026-08",
+      assigneeLogin: "worker",
+      workerDisplayName: "Worker",
+      occurredAt: new Date("2026-08-21T01:02:03Z"),
+      taxExcludedYen: 100_000,
+      taxIncludedYen: 110_000,
+      isRepeat: true,
+    };
+
+    expect(
+      buildSettlementNotification(
+        { ...base, type: "settlement_submitted" },
+        "https://example.com",
+      ).subject,
+    ).toContain("（再申請）");
+    expect(
+      buildSettlementNotification(
+        { ...base, type: "settlement_approved" },
+        "https://example.com",
+      ).subject,
+    ).toContain("（再承認）");
   });
 });
 
@@ -112,6 +187,8 @@ describe("email notification idempotency", () => {
       month: "2026-08",
       assigneeLogin: "Hiro3737",
       workerDisplayName: "Hiro",
+      taxExcludedYen: 100_000,
+      taxIncludedYen: 110_000,
       paidOn: "2026-09-14",
     };
     const first = buildNotificationEventKey({

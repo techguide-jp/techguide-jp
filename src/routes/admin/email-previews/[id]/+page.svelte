@@ -37,7 +37,7 @@
       title="HTMLメールプレビュー"
       sandbox="allow-popups allow-popups-to-escape-sandbox"
       srcdoc={data.safeHtml}
-      style="width: 100%; min-height: 32rem; border: 1px solid var(--border);"
+      style="width: 100%; min-height: 44rem; border: 1px solid var(--border);"
     ></iframe>
   {/if}
 </section>

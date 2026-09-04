@@ -210,7 +210,9 @@ type SettlementAssigneeData = Awaited<
 /** 取得済みデータが、支払い情報を更新できる承認済み精算かを確認する。 */
 const validateSettlementPaymentData = (
   data: SettlementAssigneeData,
-): { ok: true } | { ok: false; message: string } => {
+):
+  | { ok: true; summary: SettlementSummary }
+  | { ok: false; message: string } => {
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
   }
@@ -236,17 +238,26 @@ const validateSettlementPaymentData = (
         "承認後に内容が変更されています。再承認後に支払い情報を更新してください。",
     };
   }
-  return { ok: true };
+  return { ok: true, summary: data.summary };
 };
 
 /** 支払い情報を更新できる、内容変更のない承認済み精算かを確認する。 */
 export const validateSettlementPaymentEligibility = async (
   month: string,
   assigneeLogin: string,
-): Promise<{ ok: true } | { ok: false; message: string }> =>
-  validateSettlementPaymentData(
-    await loadSettlementAssignee(month, assigneeLogin),
-  );
+): Promise<
+  | { ok: true; taxExcludedYen: number; taxIncludedYen: number }
+  | { ok: false; message: string }
+> => {
+  const data = await loadSettlementAssignee(month, assigneeLogin);
+  const eligibility = validateSettlementPaymentData(data);
+  if (!eligibility.ok) return eligibility;
+  return {
+    ok: true,
+    taxExcludedYen: eligibility.summary.taxExcludedYen,
+    taxIncludedYen: eligibility.summary.taxIncludedYen,
+  };
+};
 
 export const submitSettlementWork = async (
   month: string,
@@ -295,6 +306,8 @@ export const submitSettlementWork = async (
     assigneeLogin,
     workerDisplayName: assigneeLogin,
     occurredAt: submittedAt,
+    taxExcludedYen: summary.taxExcludedYen,
+    taxIncludedYen: summary.taxIncludedYen,
     isRepeat: wasSubmitted,
   });
   await upsertWorkSubmission(summary, submittedBy, {
@@ -417,6 +430,8 @@ export const approveSettlement = async (
     assigneeLogin,
     workerDisplayName: assigneeLogin,
     occurredAt: now,
+    taxExcludedYen: summary.taxExcludedYen,
+    taxIncludedYen: summary.taxIncludedYen,
     scheduledDate: effectiveScheduledDate,
     hasPaymentNotice: prepared.ok,
     isRepeat: Boolean(data.snapshot),

@@ -423,6 +423,12 @@ describe("monthly settlement actions", () => {
       createdBy: "admin",
     });
     expect(prepareArg.approvedAt).toBe(approvalArg.approvedAt);
+    expect(prepareSettlementNotificationSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taxExcludedYen: 1000,
+        taxIncludedYen: 1100,
+      }),
+    );
   });
 
   it("承認時の予定日未指定なら通知書の予定日はデフォルト(翌月14日)になる", async () => {

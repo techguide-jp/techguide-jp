@@ -16,6 +16,8 @@ export type SettlementNotificationInput = {
   assigneeLogin: string;
   workerDisplayName: string;
   occurredAt: Date;
+  taxExcludedYen: number;
+  taxIncludedYen: number;
   scheduledDate?: string;
   paidOn?: string;
   workerComment?: string;

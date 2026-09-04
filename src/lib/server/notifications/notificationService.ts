@@ -147,6 +147,8 @@ export const prepareSettlementNotification = async (
       payloadJson: JSON.stringify({
         scheduledDate: input.scheduledDate,
         paidOn: input.paidOn,
+        taxExcludedYen: input.taxExcludedYen,
+        taxIncludedYen: input.taxIncludedYen,
         isRepeat: input.isRepeat,
         hasPaymentNotice: input.hasPaymentNotice,
       }),
