@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { settlementSnapshotV1 } from "./fixtures/settlementSnapshotV1";
 import type {
   IssueCompletionReport,
   MonthlySettlementSnapshot,
@@ -506,6 +507,44 @@ describe("V2 月次処理の回帰", () => {
       (await recreateSettlementNotice("2026-08", "worker", "admin")).ok,
     ).toBe(false);
     expect(state.prepareNotice).not.toHaveBeenCalled();
+  });
+
+  it("v1の承認済み明細から通知書を再作成し、GitHub障害時にも保存結果を表示する", async () => {
+    await approveSaved();
+    state.snapshots[0].snapshot = structuredClone(settlementSnapshotV1);
+    expect(
+      await recreateSettlementNotice("2026-08", "worker", "admin"),
+    ).toEqual({ ok: true });
+    expect(state.prepareNotice.mock.calls[0][0].summary.taxIncludedYen).toBe(
+      6600,
+    );
+    expect(state.insertNotice).toHaveBeenCalledOnce();
+    state.projectError = "GitHub error";
+    expect((await loadSettlementMonth("2026-08")).summaries[0]).toMatchObject({
+      dataSource: "approved",
+      taxIncludedYen: 6600,
+    });
+  });
+
+  it("v1の明細と集計額が整合していてもハッシュ不一致なら通知書・保存結果を使わない", async () => {
+    await approveSaved();
+    const snapshot = structuredClone(settlementSnapshotV1);
+    snapshot.comparable.lines[0].timedRewardYen = 12000;
+    snapshot.comparable.lines[0].taxExcludedYen = 12000;
+    snapshot.comparable.timedRewardYen = snapshot.totals.timedRewardYen = 12000;
+    snapshot.comparable.taxExcludedYen = snapshot.totals.taxExcludedYen = 12000;
+    snapshot.comparable.taxYen = snapshot.totals.taxYen = 1200;
+    snapshot.comparable.taxIncludedYen = snapshot.totals.taxIncludedYen = 13200;
+    state.snapshots[0].snapshot = snapshot;
+    expect(
+      (await recreateSettlementNotice("2026-08", "worker", "admin")).ok,
+    ).toBe(false);
+    expect(state.prepareNotice).not.toHaveBeenCalled();
+    expect(state.insertNotice).not.toHaveBeenCalled();
+    state.projectError = "GitHub error";
+    expect((await loadSettlementMonth("2026-08")).summaries[0].dataSource).toBe(
+      "unavailable",
+    );
   });
 
   it("GitHub取得失敗でもログがない作業者の承認済み結果を表示する", async () => {

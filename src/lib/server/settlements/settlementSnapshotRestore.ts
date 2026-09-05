@@ -89,6 +89,34 @@ const summarySchema = z.object({
   ),
 });
 
+const normalizeV1Snapshot = (snapshot: unknown) => {
+  const value = normalizeSettlementSnapshot(snapshot);
+  // v1のハッシュには後から増えた単価・分割分数・完了報告を含めず、当時のキー順も維持する。
+  return {
+    month: value.month,
+    assigneeLogin: value.assigneeLogin,
+    fixedRewardYen: value.fixedRewardYen,
+    timedRewardYen: value.timedRewardYen,
+    taxExcludedYen: value.taxExcludedYen,
+    taxYen: value.taxYen,
+    taxIncludedYen: value.taxIncludedYen,
+    approvalRequired: value.approvalRequired,
+    lines: value.lines.map((line) => ({
+      issue: line.issue,
+      fixedRewardYen: line.fixedRewardYen,
+      workMinutes: line.workMinutes,
+      timedRewardYen: line.timedRewardYen,
+      taxExcludedYen: line.taxExcludedYen,
+      warnings: line.warnings,
+      sessions: line.sessions,
+    })),
+    pendingRequests: value.pendingRequests,
+    unsettledProjectIssues: value.unsettledProjectIssues,
+    unsettledIssueSessions: value.unsettledIssueSessions,
+    blockingReasons: value.blockingReasons,
+  };
+};
+
 /** 保存された明細だけで表示・通知書を復元する。破損・金額不整合は0円にせず失敗する。 */
 export const restoreSettlementSummary = (
   snapshot: unknown,
@@ -106,11 +134,15 @@ export const restoreSettlementSummary = (
     ("source" in value || "sourceHash" in value)
   )
     return null;
-  if (typeof value.schemaVersion === "number" && value.schemaVersion >= 2) {
+  let restoreSource = value.source ?? value.comparable ?? value;
+  if (typeof value.schemaVersion === "number" && value.schemaVersion >= 1) {
     // 金額が同じでも、明細だけ壊れた原本を通知書へ転記しない。
     try {
       if (!value.comparable || typeof value.hash !== "string") return null;
-      const normalized = normalizeSettlementSnapshot(value.comparable);
+      const normalized =
+        value.schemaVersion === 1
+          ? normalizeV1Snapshot(value.comparable)
+          : normalizeSettlementSnapshot(value.comparable);
       const hash = (content: unknown) =>
         createHash("sha256").update(JSON.stringify(content)).digest("hex");
       const legacy = {
@@ -130,6 +162,8 @@ export const restoreSettlementSummary = (
         !(value.schemaVersion === 2 && hash(legacy) === value.hash)
       )
         return null;
+      // v1に存在しなかった未検証の追加項目を、通知書へ持ち込まない。
+      if (value.schemaVersion === 1) restoreSource = normalized;
       if (
         value.schemaVersion >= 3 &&
         (!value.source ||
@@ -147,9 +181,7 @@ export const restoreSettlementSummary = (
       return null;
     }
   }
-  const parsed = summarySchema.safeParse(
-    value.source ?? value.comparable ?? value,
-  );
+  const parsed = summarySchema.safeParse(restoreSource);
   if (!parsed.success) return null;
   const summary = parsed.data;
   const sum = (key: "fixedRewardYen" | "timedRewardYen" | "taxExcludedYen") =>
