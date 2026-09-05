@@ -10,6 +10,7 @@ import {
   emailNotificationEvents,
   githubProjectStatusSyncs,
   issueCompletionReports,
+  issueHourlyRates,
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
@@ -41,6 +42,7 @@ import {
   scheduleSupplementalPayment,
 } from "../src/lib/server/supplementalPayments/supplementalPaymentRepository";
 import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
+import { registerSettlementWriteDbTests } from "./settlementWrite.dbCases";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -115,6 +117,7 @@ beforeEach(async () => {
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
+  await db.delete(issueHourlyRates);
   await db.delete(workLogChangeRequests);
   await db.delete(workSessions);
   await db.delete(githubProjectStatusSyncs);
@@ -124,6 +127,7 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  registerSettlementWriteDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
     const base = {
       projectItemId: "item-reported",

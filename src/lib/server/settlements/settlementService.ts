@@ -64,6 +64,8 @@ import { env } from "$lib/server/env";
 import { buildLifetimeTimedRewards } from "$lib/server/settlements/settlementLifetimeRewards";
 import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
 import { restoreSettlementFallback } from "$lib/server/settlements/settlementFallback";
+import { listFrozenHourlyRates } from "$lib/server/settlements/hourlyRateRepository";
+import { readSettlementSourceToken } from "$lib/server/settlements/settlementWriteGuard";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -173,6 +175,11 @@ export const loadSettlementMonth = async (month: string) => {
   if (env.settlementRuleV2Enabled && !projectFetchError) {
     await reconcileCompletionReports(issues);
   }
+  // ここから保存までにDB入力が変わった場合は、計算結果を確定せず再読み込みを求める。
+  const sourceToken =
+    env.settlementRuleV2Enabled && !projectFetchError
+      ? await readSettlementSourceToken()
+      : null;
   const refreshedCompletionReports = env.settlementRuleV2Enabled
     ? await listCompletionReportsForMonth(month)
     : completionReports;
@@ -219,18 +226,14 @@ export const loadSettlementMonth = async (month: string) => {
       listChangeRequests(),
       listActiveCompletionReports(),
     ]);
-    const approvedKeys = new Set(
-      allSnapshots.map(
-        (snapshot) => `${snapshot.month}:${snapshot.assigneeLogin}`,
-      ),
+    // 旧データも帰属月順ではなく、現存する保存証跡の日時順で単価を継承する。
+    const settledRecords = [...allSnapshots, ...allSubmissions].sort(
+      (a, b) =>
+        ("submittedAt" in a ? a.submittedAt : a.approvedAt).getTime() -
+          ("submittedAt" in b ? b.submittedAt : b.approvedAt).getTime() ||
+        a.month.localeCompare(b.month) ||
+        Number("submittedAt" in a) - Number("submittedAt" in b),
     );
-    const settledRecords = [
-      ...allSnapshots,
-      ...allSubmissions.filter(
-        (submission) =>
-          !approvedKeys.has(`${submission.month}:${submission.assigneeLogin}`),
-      ),
-    ].sort((a, b) => a.month.localeCompare(b.month));
     const settledCompletionReportAssignees = new Map<string, Set<string>>();
     for (const snapshot of allSnapshots) {
       for (const reportId of settlementSnapshotCompletionReportIds(
@@ -242,7 +245,7 @@ export const loadSettlementMonth = async (month: string) => {
         settledCompletionReportAssignees.set(reportId, assignees);
       }
     }
-    const frozenHourlyRates = new Map<string, number | null>();
+    const frozenHourlyRates = await listFrozenHourlyRates();
     for (const record of settledRecords) {
       for (const [key, rate] of settlementSnapshotHourlyRates(
         record.snapshot,
@@ -291,6 +294,7 @@ export const loadSettlementMonth = async (month: string) => {
     requests,
     summaries,
     projectFetchError,
+    sourceToken,
     snapshots: snapshots.map((snapshot) =>
       toSnapshotMeta(
         snapshot,
@@ -466,24 +470,34 @@ export const submitSettlementWork = async (
     taxIncludedYen: summary.taxIncludedYen,
     isRepeat: wasSubmitted,
   });
-  await upsertWorkSubmission(summary, submittedBy, {
+  const recorded = await upsertWorkSubmission(summary, submittedBy, {
     submittedAt,
+    ...(env.settlementRuleV2Enabled
+      ? { expectedSourceToken: data.sourceToken ?? "" }
+      : {}),
     ...(emailNotification.mode === "resend"
       ? { notification: emailNotification.write }
       : {}),
   });
-  await createAuditLog({
-    actorLogin: submittedBy,
-    action: "monthly_work_submitted",
-    targetType: "monthly_work_submission",
-    targetId: `${month}:${assigneeLogin}`,
-    details: {
-      month,
-      assigneeLogin,
-      taxExcludedYen: summary.taxExcludedYen,
-      taxIncludedYen: summary.taxIncludedYen,
-    },
-  });
+  if (!recorded)
+    return {
+      ok: false,
+      message:
+        "精算元データが別の操作で変更されました。画面を再読み込みして再申請してください。",
+    };
+  if (!env.settlementRuleV2Enabled)
+    await createAuditLog({
+      actorLogin: submittedBy,
+      action: "monthly_work_submitted",
+      targetType: "monthly_work_submission",
+      targetId: `${month}:${assigneeLogin}`,
+      details: {
+        month,
+        assigneeLogin,
+        taxExcludedYen: summary.taxExcludedYen,
+        taxIncludedYen: summary.taxIncludedYen,
+      },
+    });
   await dispatchPreparedNotification(emailNotification);
   return { ok: true };
 };
@@ -605,6 +619,9 @@ export const approveSettlement = async (
     approvedBy,
     approvedAt,
     expectedApprovedAt: data.snapshot?.approvedAt.toISOString() ?? null,
+    ...(env.settlementRuleV2Enabled
+      ? { expectedSourceToken: data.sourceToken ?? "" }
+      : {}),
     ...(scheduledDate.shouldUpdate
       ? { scheduledDate: scheduledDate.scheduledDate }
       : {}),
@@ -618,7 +635,7 @@ export const approveSettlement = async (
     return {
       ok: false,
       message:
-        "承認状態が別の操作で更新されました。画面を再読み込みしてください。",
+        "精算元データまたは承認状態が別の操作で更新されました。画面を再読み込みしてください。",
     };
   }
 

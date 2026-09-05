@@ -22,6 +22,10 @@ import {
 import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
 import { buildNoticeDocument } from "$lib/server/notices/noticeService";
 import {
+  dispatchPreparedNotification,
+  prepareSettlementNotificationSafely,
+} from "$lib/server/notifications/notificationService";
+import {
   settlementAmountLabel,
   settlementSourceLabel,
 } from "$lib/settlementDisplay";
@@ -34,6 +38,8 @@ const state = vi.hoisted(() => ({
   snapshots: [] as MonthlySettlementSnapshot[],
   submissions: [] as MonthlyWorkSubmission[],
   supplemental: [] as SupplementalPayment[],
+  frozenRates: new Map<string, number | null>(),
+  sourceToken: "unchanged",
   projectError: null as string | null,
   fetch: vi.fn(),
   persistSubmission: vi.fn(),
@@ -42,6 +48,12 @@ const state = vi.hoisted(() => ({
   insertNotice: vi.fn(),
 }));
 vi.mock("$lib/server/env", () => ({ env: { settlementRuleV2Enabled: true } }));
+vi.mock("$lib/server/settlements/hourlyRateRepository", () => ({
+  listFrozenHourlyRates: async () => new Map(state.frozenRates),
+}));
+vi.mock("$lib/server/settlements/settlementWriteGuard", () => ({
+  readSettlementSourceToken: async () => state.sourceToken,
+}));
 vi.mock("$lib/server/audit/auditRepository", () => ({
   createAuditLog: vi.fn(),
 }));
@@ -197,10 +209,125 @@ beforeEach(() => {
   state.submissions = [];
   state.supplemental = [];
   state.projectError = null;
+  state.frozenRates = new Map();
+  state.sourceToken = "unchanged";
   state.prepareNotice.mockResolvedValue({ ok: true, notice: { id: "notice" } });
+  vi.mocked(prepareSettlementNotificationSafely).mockResolvedValue({
+    mode: "preview",
+    entries: [],
+  });
 });
 
 describe("V2 月次処理の回帰", () => {
+  it("申請明細からIssueを除外しても永続保存した本人の単価を維持する", async () => {
+    state.frozenRates.set("example/repo#1#worker", 6000);
+    state.issues[0].hourlyRateYen = 9000;
+    state.sessions = [session("2026-09")];
+    expect((await saved("2026-09")).summary.timedRewardYen).toBe(6000);
+    state.sessions[0].assigneeLogin = "replacement";
+    const data = await loadSettlementMonth("2026-09");
+    expect(
+      data.summaries.find((s) => s.assigneeLogin === "replacement")
+        ?.timedRewardYen,
+    ).toBe(9000);
+  });
+
+  it("計算開始時の版でDBが承認を拒否した場合は成功通知を出さない", async () => {
+    const { snapshot } = await saved();
+    state.submissions = [
+      {
+        month: "2026-08",
+        assigneeLogin: "worker",
+        snapshot,
+        submittedBy: "worker",
+        submittedAt: new Date(),
+      },
+    ];
+    state.prepareNotice.mockImplementationOnce(async () => {
+      state.sourceToken = "changed-during-notice-preparation";
+      return { ok: true, notice: { id: "notice" } };
+    });
+    state.persistApproval.mockResolvedValueOnce(false);
+    const result = await approveSettlement("2026-08", "worker", "admin");
+    expect(result.ok).toBe(false);
+    expect(state.persistApproval.mock.calls[0][0].expectedSourceToken).toBe(
+      "unchanged",
+    );
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
+  });
+
+  it("申請の競合時も古い単価・申請を保存せず成功通知を出さない", async () => {
+    state.persistSubmission.mockResolvedValueOnce(false);
+    expect((await submitSettlementWork("2026-08", "worker", "worker")).ok).toBe(
+      false,
+    );
+    expect(state.persistSubmission.mock.calls[0][2].expectedSourceToken).toBe(
+      "unchanged",
+    );
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "minutes",
+    "session",
+    "issue",
+    "title",
+    "url",
+    "comparable",
+    "hash",
+    "sourceHash",
+  ])(
+    "保存原本の%sが壊れた場合は金額が同じでも通知書を作らない",
+    async (field) => {
+      await approveSaved();
+      const payload = state.snapshots[0].snapshot as ReturnType<
+        typeof createSettlementSnapshotPayload
+      >;
+      if (field === "minutes") payload.source.lines[0].workMinutes = 9999;
+      if (field === "session")
+        payload.source.lines[0].sessions[0].startedAt = new Date(
+          "2026-08-01T00:00:00Z",
+        );
+      if (field === "issue") payload.source.lines[0].issue.number = 999;
+      if (field === "title") payload.source.lines[0].issue.title = "破損";
+      if (field === "url")
+        payload.source.lines[0].issue.url = "https://example.com/wrong";
+      if (field === "comparable") payload.comparable = {};
+      if (field === "hash") payload.hash = "wrong";
+      if (field === "sourceHash") payload.sourceHash = "wrong";
+      expect(restoreSettlementSummary(payload)).toBeNull();
+      expect(
+        (await recreateSettlementNotice("2026-08", "worker", "admin")).ok,
+      ).toBe(false);
+      expect(state.prepareNotice).not.toHaveBeenCalled();
+      state.projectError = "GitHub error";
+      expect(
+        (await loadSettlementMonth("2026-08")).summaries[0].dataSource,
+      ).toBe("unavailable");
+    },
+  );
+
+  it("jsonbのキー並べ替えとv3互換を保ち、v3原本の分数破損を拒否する", async () => {
+    const { snapshot } = await saved();
+    const reorder = (value: unknown): unknown =>
+      Array.isArray(value)
+        ? value.map(reorder)
+        : value && typeof value === "object"
+          ? Object.fromEntries(
+              Object.entries(value)
+                .reverse()
+                .map(([key, entry]) => [key, reorder(entry)]),
+            )
+          : value;
+    expect(restoreSettlementSummary(reorder(snapshot))?.timedRewardYen).toBe(
+      6000,
+    );
+    snapshot.schemaVersion = 3;
+    delete snapshot.sourceHash;
+    expect(restoreSettlementSummary(snapshot)?.timedRewardYen).toBe(6000);
+    snapshot.source.lines[0].workMinutes = 9999;
+    expect(restoreSettlementSummary(snapshot)).toBeNull();
+  });
   it("未申請の8月6000円＋9月6000円で1万円上限を超えたら両月の申請・承認を止める", async () => {
     state.sessions.push(session("2026-09"));
     for (const month of ["2026-08", "2026-09"]) {
@@ -466,6 +593,7 @@ describe("V2 月次処理の回帰", () => {
     state.reports = [pendingReport()];
     const { summary, snapshot } = await saved();
     delete snapshot.source;
+    delete snapshot.sourceHash;
     snapshot.schemaVersion = 2;
     snapshot.comparable.unsettledProjectIssues[0].reason = "merge_waiting";
     const restored = restoreSettlementSummary(snapshot)!;

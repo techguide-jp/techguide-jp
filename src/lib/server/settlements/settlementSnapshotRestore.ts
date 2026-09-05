@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import {
+  hashSettlementSource,
+  normalizeSettlementSnapshot,
+} from "$lib/server/settlements/settlementSnapshot";
 import type { WorkSession } from "$lib/server/db/schema";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
@@ -90,6 +95,58 @@ export const restoreSettlementSummary = (
 ): SettlementSummary | null => {
   if (!snapshot || typeof snapshot !== "object") return null;
   const value = snapshot as Record<string, unknown>;
+  if (
+    ("source" in value || "comparable" in value || "hash" in value) &&
+    (typeof value.schemaVersion !== "number" ||
+      ![1, 2, 3, 4].includes(value.schemaVersion))
+  )
+    return null;
+  if (
+    Number(value.schemaVersion) < 3 &&
+    ("source" in value || "sourceHash" in value)
+  )
+    return null;
+  if (typeof value.schemaVersion === "number" && value.schemaVersion >= 2) {
+    // 金額が同じでも、明細だけ壊れた原本を通知書へ転記しない。
+    try {
+      if (!value.comparable || typeof value.hash !== "string") return null;
+      const normalized = normalizeSettlementSnapshot(value.comparable);
+      const hash = (content: unknown) =>
+        createHash("sha256").update(JSON.stringify(content)).digest("hex");
+      const legacy = {
+        ...normalized,
+        unsettledProjectIssues: normalized.unsettledProjectIssues.map(
+          (line) => ({
+            ...line,
+            reason:
+              line.reason === "completion_waiting"
+                ? "merge_waiting"
+                : line.reason,
+          }),
+        ),
+      };
+      if (
+        hash(normalized) !== value.hash &&
+        !(value.schemaVersion === 2 && hash(legacy) === value.hash)
+      )
+        return null;
+      if (
+        value.schemaVersion >= 3 &&
+        (!value.source ||
+          hashSettlementSource(normalizeSettlementSnapshot(value.source)) !==
+            hashSettlementSource(normalized))
+      )
+        return null;
+      if (
+        (value.schemaVersion >= 4 || "sourceHash" in value) &&
+        (typeof value.sourceHash !== "string" ||
+          hashSettlementSource(value.source) !== value.sourceHash)
+      )
+        return null;
+    } catch {
+      return null;
+    }
+  }
   const parsed = summarySchema.safeParse(
     value.source ?? value.comparable ?? value,
   );

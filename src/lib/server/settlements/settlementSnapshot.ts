@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
-export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 3;
+export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 4;
 
 type VersionedSettlementSnapshot = {
   schemaVersion: number;
@@ -15,6 +15,7 @@ type VersionedSettlementSnapshot = {
   };
   comparable: unknown;
   source: SettlementSummary;
+  sourceHash: string;
   generatedAt: string;
 };
 
@@ -270,8 +271,26 @@ export const createSettlementSnapshotPayload = (
     },
     comparable,
     source: structuredClone(summary),
+    sourceHash: hashSettlementSource(summary),
     generatedAt: new Date().toISOString(),
   };
+};
+
+/** jsonbによるキー並べ替えとDateのJSON変換を許容し、件名を含む保存原本全体を照合する。 */
+export const hashSettlementSource = (source: unknown): string => {
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([key, entry]) => [key, canonical(entry)]),
+      );
+    return value;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(canonical(JSON.parse(JSON.stringify(source)))))
+    .digest("hex");
 };
 
 export const hasSettlementSnapshotChanges = (
