@@ -211,11 +211,17 @@ export const loadSettlementMonth = async (month: string) => {
           !approvedKeys.has(`${submission.month}:${submission.assigneeLogin}`),
       ),
     ].sort((a, b) => a.month.localeCompare(b.month));
-    const settledCompletionReportIds = new Set(
-      allSnapshots.flatMap((snapshot) => [
-        ...settlementSnapshotCompletionReportIds(snapshot.snapshot),
-      ]),
-    );
+    const settledCompletionReportAssignees = new Map<string, Set<string>>();
+    for (const snapshot of allSnapshots) {
+      for (const reportId of settlementSnapshotCompletionReportIds(
+        snapshot.snapshot,
+      )) {
+        const assignees =
+          settledCompletionReportAssignees.get(reportId) ?? new Set<string>();
+        assignees.add(snapshot.assigneeLogin);
+        settledCompletionReportAssignees.set(reportId, assignees);
+      }
+    }
     const frozenHourlyRates = new Map<string, number | null>();
     for (const record of settledRecords) {
       for (const [key, rate] of settlementSnapshotHourlyRates(
@@ -244,7 +250,7 @@ export const loadSettlementMonth = async (month: string) => {
       supplementalPayments,
       frozenHourlyRates,
       priorTimedRewardByIssue,
-      settledCompletionReportIds,
+      settledCompletionReportAssignees,
     });
   } else {
     summaries = buildSettlementSummaries(month, issues, sessions, requests);

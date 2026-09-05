@@ -124,11 +124,26 @@ describe("buildSettlementSummariesV2", () => {
     const summary = build("2026-08", {
       completionReports: [report()],
       supplementalPayments: [],
-      settledCompletionReportIds: new Set([report().id]),
+      settledCompletionReportAssignees: new Map([
+        [report().id, new Set(["replacement-worker"])],
+      ]),
     });
 
     expect(summary?.fixedRewardYen).toBe(0);
     expect(summary?.lines[0].completionReportId).toBeNull();
+  });
+
+  it("同じ作業者の承認済みスナップショットに含まれる完了報告は現在明細に残す", () => {
+    const summary = build("2026-08", {
+      completionReports: [report()],
+      supplementalPayments: [],
+      settledCompletionReportAssignees: new Map([
+        [report().id, new Set([report().assigneeLogin])],
+      ]),
+    });
+
+    expect(summary?.fixedRewardYen).toBe(50_000);
+    expect(summary?.lines[0].completionReportId).toBe(report().id);
   });
 
   it("9月の再稼働・再報告では固定報酬だけ9月へ移し、8月の時間報酬を残す", () => {
