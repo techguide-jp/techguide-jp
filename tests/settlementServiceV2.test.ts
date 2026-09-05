@@ -425,6 +425,34 @@ describe("V2 月次処理の回帰", () => {
     ).toBeUndefined();
   });
 
+  it("保存金額を表示する間もDBの未処理修正申請を隠さない", async () => {
+    await approveSaved();
+    state.requests = [
+      {
+        id: "pending-request",
+        assigneeLogin: "worker",
+        repository: "example/repo",
+        issueNumber: 1,
+        issueTitle: "保存時の件名",
+        requestType: "exclude",
+        targetSessionId: "session-2026-08",
+        requestedStartedAt: null,
+        requestedEndedAt: null,
+        reason: "重複",
+        status: "pending",
+        requestedBy: "worker",
+        reviewedBy: null,
+        reviewNote: null,
+        createdAt: new Date("2026-08-31T00:00:00Z"),
+        reviewedAt: null,
+      },
+    ];
+    state.projectError = "GitHub error";
+    const data = await loadSettlementMonth("2026-08");
+    expect(data.summaries[0].timedRewardYen).toBe(6000);
+    expect(data.summaries[0].pendingRequests).toEqual(state.requests);
+  });
+
   it("保存結果がない場合は金額と差分を0円扱いにしない", async () => {
     state.projectError = "GitHub error";
     const data = await loadSettlementMonth("2026-08");

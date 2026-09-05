@@ -39,6 +39,8 @@ export const restoreSettlementFallback = (
       return {
         ...restored,
         dataSource: snapshot ? ("approved" as const) : ("submitted" as const),
+        // GitHubとは独立して取得できた未処理申請は、保存時点の空一覧に置き換えない。
+        pendingRequests: current?.pendingRequests ?? [],
         completionReports: current?.completionReports,
         supplementalPayments: current?.supplementalPayments,
       };
