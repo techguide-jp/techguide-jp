@@ -3,6 +3,8 @@ import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import { normalizeDateInput } from "$lib/server/payments/paymentDate";
 import {
   listChangeRequestsForSettlementContext,
+  listChangeRequests,
+  listWorkSessions,
   listWorkSessionsForSettlementContext,
   reviewChangeRequest,
   reviewChangeRequestAndInvalidateCompletion,
@@ -43,7 +45,6 @@ import {
   settlementSnapshotAmount,
   settlementSnapshotCompletionReportIds,
   settlementSnapshotHourlyRates,
-  settlementSnapshotTimedRewards,
 } from "$lib/server/settlements/settlementSnapshot";
 import { recordSettlementApproval } from "$lib/server/settlements/settlementApprovalRepository";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
@@ -55,10 +56,14 @@ import {
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 import { reconcileCompletionReports } from "$lib/server/completions/completionService";
 import {
+  listActiveCompletionReports,
   listCompletionReportsForMonth,
   listSupplementalPaymentsForMonth,
 } from "$lib/server/completions/completionRepository";
 import { env } from "$lib/server/env";
+import { buildLifetimeTimedRewards } from "$lib/server/settlements/settlementLifetimeRewards";
+import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
+import { restoreSettlementFallback } from "$lib/server/settlements/settlementFallback";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -87,15 +92,18 @@ const parseApprovalScheduledDate = (
 const toSnapshotMeta = (
   snapshot: MonthlySettlementSnapshot,
   summary: SettlementSummary | undefined,
+  comparisonAvailable = true,
 ) => ({
   assigneeLogin: snapshot.assigneeLogin,
   approvedBy: snapshot.approvedBy,
   approvedAt: snapshot.approvedAt,
   taxExcludedYen: settlementSnapshotAmount(snapshot.snapshot, "taxExcludedYen"),
   taxIncludedYen: settlementSnapshotAmount(snapshot.snapshot, "taxIncludedYen"),
-  hasChanges: summary
-    ? hasSettlementSnapshotChanges(snapshot.snapshot, summary)
-    : true,
+  hasChanges: !comparisonAvailable
+    ? null
+    : summary
+      ? hasSettlementSnapshotChanges(snapshot.snapshot, summary)
+      : true,
 });
 
 const isOpenSession = (session: WorkSession): boolean =>
@@ -138,15 +146,18 @@ export const getWorkSubmissionBlockingReasons = (
 const toSubmissionMeta = (
   submission: MonthlyWorkSubmission,
   summary: SettlementSummary | undefined,
+  comparisonAvailable = true,
 ) => ({
   assigneeLogin: submission.assigneeLogin,
   submittedBy: submission.submittedBy,
   submittedAt: submission.submittedAt,
-  hasChanges: summary
-    ? env.settlementRuleV2Enabled
-      ? hasWorkSubmissionChanges(submission.snapshot, summary)
-      : hasSettlementSnapshotChanges(submission.snapshot, summary)
-    : true,
+  hasChanges: !comparisonAvailable
+    ? null
+    : summary
+      ? env.settlementRuleV2Enabled
+        ? hasWorkSubmissionChanges(submission.snapshot, summary)
+        : hasSettlementSnapshotChanges(submission.snapshot, summary)
+      : true,
   blockingReasons: summary
     ? getWorkSubmissionBlockingReasons(summary)
     : ["対象assigneeの精算データがありません。"],
@@ -193,12 +204,21 @@ export const loadSettlementMonth = async (month: string) => {
 
   let summaries: SettlementSummary[];
   if (env.settlementRuleV2Enabled) {
-    const [allSnapshots, allSubmissions, supplementalPayments] =
-      await Promise.all([
-        listSnapshots(),
-        listWorkSubmissions(),
-        listSupplementalPaymentsForMonth(month),
-      ]);
+    const [
+      allSnapshots,
+      allSubmissions,
+      supplementalPayments,
+      allSessions,
+      allRequests,
+      allCompletionReports,
+    ] = await Promise.all([
+      listSnapshots(),
+      listWorkSubmissions(),
+      listSupplementalPaymentsForMonth(month),
+      listWorkSessions(),
+      listChangeRequests(),
+      listActiveCompletionReports(),
+    ]);
     const approvedKeys = new Set(
       allSnapshots.map(
         (snapshot) => `${snapshot.month}:${snapshot.assigneeLogin}`,
@@ -232,28 +252,33 @@ export const loadSettlementMonth = async (month: string) => {
       }
     }
 
-    const priorTimedRewardByIssue = new Map<string, number>();
-    for (const record of settledRecords) {
-      if (record.month === month) continue;
-      for (const [key, amount] of settlementSnapshotTimedRewards(
-        record.snapshot,
-      )) {
-        priorTimedRewardByIssue.set(
-          key,
-          (priorTimedRewardByIssue.get(key) ?? 0) + amount,
-        );
-      }
-    }
+    const lifetimeTimedRewardByIssue = buildLifetimeTimedRewards({
+      issues,
+      sessions: allSessions,
+      requests: allRequests,
+      snapshots: allSnapshots,
+      frozenHourlyRates,
+      completionReports: allCompletionReports,
+      settledCompletionReportAssignees,
+    });
 
     summaries = buildSettlementSummariesV2(month, issues, sessions, requests, {
       completionReports: refreshedCompletionReports,
       supplementalPayments,
       frozenHourlyRates,
-      priorTimedRewardByIssue,
+      lifetimeTimedRewardByIssue,
       settledCompletionReportAssignees,
     });
   } else {
     summaries = buildSettlementSummaries(month, issues, sessions, requests);
+  }
+  if (projectFetchError) {
+    summaries = restoreSettlementFallback(
+      month,
+      summaries,
+      snapshots,
+      submissions,
+    );
   }
   const summaryByAssignee = new Map(
     summaries.map((summary) => [summary.assigneeLogin, summary]),
@@ -267,12 +292,17 @@ export const loadSettlementMonth = async (month: string) => {
     summaries,
     projectFetchError,
     snapshots: snapshots.map((snapshot) =>
-      toSnapshotMeta(snapshot, summaryByAssignee.get(snapshot.assigneeLogin)),
+      toSnapshotMeta(
+        snapshot,
+        summaryByAssignee.get(snapshot.assigneeLogin),
+        !projectFetchError,
+      ),
     ),
     submissions: submissions.map((submission) =>
       toSubmissionMeta(
         submission,
         summaryByAssignee.get(submission.assigneeLogin),
+        !projectFetchError,
       ),
     ),
   };
@@ -613,12 +643,36 @@ export const recreateSettlementNotice = async (
   assigneeLogin: string,
   actor: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
-  const data = await loadSettlementAssignee(month, assigneeLogin);
-  const eligibility = validateSettlementPaymentData(data);
-  if (!eligibility.ok) return eligibility;
+  // V2の通常支払いは承認時点で固定されるため、その後のIssue状態や追加支払いと比較しない。
+  let data: Pick<SettlementAssigneeData, "snapshot" | "summary">;
+  if (env.settlementRuleV2Enabled) {
+    const snapshot = await getSnapshot(month, assigneeLogin);
+    data = {
+      snapshot,
+      summary: snapshot ? restoreSettlementSummary(snapshot.snapshot) : null,
+    };
+  } else {
+    const current = await loadSettlementAssignee(month, assigneeLogin);
+    const eligibility = validateSettlementPaymentData(current);
+    if (!eligibility.ok) return eligibility;
+    data = current;
+  }
 
   if (!data.summary || !data.snapshot) {
-    return { ok: false, message: "承認済みの月次精算がありません。" };
+    return {
+      ok: false,
+      message:
+        "承認済みの月次精算を復元できません。保存内容を確認してください。",
+    };
+  }
+  if (
+    data.summary.month !== month ||
+    data.summary.assigneeLogin !== assigneeLogin
+  ) {
+    return {
+      ok: false,
+      message: "承認済みスナップショットの対象が一致しません。",
+    };
   }
 
   const payment = await getPaymentRow(month, assigneeLogin);

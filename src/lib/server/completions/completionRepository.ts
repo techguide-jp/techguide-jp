@@ -202,7 +202,7 @@ export const confirmCompletionEligibility = async (input: {
   report: IssueCompletionReport;
   confirmedAt: Date;
 }): Promise<"base" | "supplemental" | "unchanged"> => {
-  // 承認とマージ確認が競合した場合も、承認スナップショットに固定報酬行が無ければ
+  // 承認とIssue完了確認が競合した場合も、承認スナップショットに固定報酬行が無ければ
   // 次回の照合で追加支払いを補完する。報告ID入りの通常支払い行があれば二重計上しない。
   const taxYen = Math.round(input.report.fixedRewardYen * 0.1);
   const taxIncludedYen = input.report.fixedRewardYen + taxYen;

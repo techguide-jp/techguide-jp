@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
-export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 2;
+export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 3;
 
 type VersionedSettlementSnapshot = {
   schemaVersion: number;
@@ -14,6 +14,7 @@ type VersionedSettlementSnapshot = {
     taxIncludedYen: number;
   };
   comparable: unknown;
+  source: SettlementSummary;
   generatedAt: string;
 };
 
@@ -215,7 +216,11 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
         return {
           issue: normalizeIssue(valueLine.issue),
           workMinutes: valueLine.workMinutes ?? null,
-          reason: valueLine.reason ?? null,
+          // 旧スナップショットのキーもIssue完了待ちとして比較する。
+          reason:
+            valueLine.reason === "merge_waiting"
+              ? "completion_waiting"
+              : (valueLine.reason ?? null),
           sessions: normalizeSessions(valueLine.sessions),
         };
       })
@@ -264,6 +269,7 @@ export const createSettlementSnapshotPayload = (
       taxIncludedYen: summary.taxIncludedYen,
     },
     comparable,
+    source: structuredClone(summary),
     generatedAt: new Date().toISOString(),
   };
 };
@@ -316,14 +322,14 @@ const normalizeWorkSubmissionSnapshot = (snapshot: unknown) => {
       })),
     pendingRequests: normalized.pendingRequests,
     unsettledProjectIssues: normalized.unsettledProjectIssues.filter(
-      (line) => line.reason !== "merge_waiting",
+      (line) => line.reason !== "completion_waiting",
     ),
     unsettledIssueSessions: normalized.unsettledIssueSessions,
     completionReports: normalized.completionReports,
   };
 };
 
-/** PRマージ状態だけの変化では、作業者に月次の再申請を求めない。 */
+/** Issue完了状態だけの変化では、作業者に月次の再申請を求めない。 */
 export const hasWorkSubmissionChanges = (
   snapshot: unknown,
   summary: SettlementSummary,

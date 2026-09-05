@@ -27,6 +27,7 @@ type CalculatorOptions = {
   supplementalPayments: SupplementalPayment[];
   frozenHourlyRates?: Map<string, number | null>;
   priorTimedRewardByIssue?: Map<string, number>;
+  lifetimeTimedRewardByIssue?: Map<string, number>;
   settledCompletionReportAssignees?: Map<string, Set<string>>;
 };
 
@@ -275,12 +276,14 @@ export const buildSettlementSummariesV2 = (
       0,
     );
     if (
-      issueLines.some(
-        (entry) => entry.line.issue.rewardMode === "ハイブリッド",
-      ) &&
+      (issue.rewardMode === "ハイブリッド" ||
+        issueLines.some(
+          (entry) => entry.line.issue.rewardMode === "ハイブリッド",
+        )) &&
       issue.extraCapYen !== null &&
-      (options.priorTimedRewardByIssue?.get(key) ?? 0) + currentTimedRewardYen >
-        issue.extraCapYen
+      (options.lifetimeTimedRewardByIssue?.get(key) ??
+        (options.priorTimedRewardByIssue?.get(key) ?? 0) +
+          currentTimedRewardYen) > issue.extraCapYen
     ) {
       const capWarning =
         "Issue全期間の時間精算額が追加精算上限を超えています。";
@@ -355,7 +358,7 @@ export const buildSettlementSummariesV2 = (
               issue,
               sessions: issueSessions,
               workMinutes,
-              reason: "merge_waiting",
+              reason: "completion_waiting",
             });
             return result;
           }
@@ -431,7 +434,7 @@ export const buildSettlementSummariesV2 = (
         pendingRequests,
         unsettledProjectIssues,
         unsettledIssueSessions,
-        // 未マージの完了報告も、作業者が3日までに月次確定できる対象に含める。
+        // 完了確認待ちの完了報告も、作業者が3日までに月次確定できる対象に含める。
         approvalRequired:
           taxExcludedYen > 0 ||
           completionReports.length > 0 ||

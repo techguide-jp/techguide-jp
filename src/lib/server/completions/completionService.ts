@@ -110,7 +110,7 @@ export const reportIssueCompletion = async (
     if (current?.eligibilityConfirmedAt) {
       return {
         ok: false,
-        message: "PRマージ確認済みの完了報告は変更できません。",
+        message: "Issue完了確認済みの完了報告は変更できません。",
       };
     }
     const report = await writeReport({
@@ -144,7 +144,7 @@ export const withdrawIssueCompletion = async (
     if (current?.eligibilityConfirmedAt) {
       return {
         ok: false,
-        message: "PRマージ確認済みの完了報告は取り下げできません。",
+        message: "Issue完了確認済みの完了報告は取り下げできません。",
       };
     }
     const count = await invalidateActiveCompletionReport({
@@ -257,6 +257,7 @@ export const reconcileCompletionReports = async (
 
   for (const report of reports) {
     const issue = issueByKey.get(`${report.repository}#${report.issueNumber}`);
+    // 支払対象の完了条件はIssueのclosedかつDone。関連PRの有無・状態は条件に含めない。
     if (
       !issue ||
       issue.state !== "CLOSED" ||

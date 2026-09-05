@@ -1,7 +1,7 @@
 import type { IssueCompletionReport } from "$lib/server/db/schema";
 
 export type CompletionReportView = IssueCompletionReport & {
-  state: "reported" | "merge_waiting" | "eligible" | "superseded";
+  state: "reported" | "completion_waiting" | "eligible" | "superseded";
 };
 
 export type CompletionReportWriteInput = {

@@ -115,7 +115,7 @@ describe("completionService", () => {
     expect(replaceActiveCompletionReport).not.toHaveBeenCalled();
   });
 
-  it("closedかつDoneだけをGitHub完了確認する", async () => {
+  it("関連PRがなくてもclosedかつDoneならGitHub完了確認する", async () => {
     const completion = {
       repository: issue.repository,
       issueNumber: issue.number,
@@ -132,6 +132,19 @@ describe("completionService", () => {
 
     expect(confirmCompletionEligibility).toHaveBeenCalledOnce();
     expect(result).toEqual({ base: 1, supplemental: 0 });
+  });
+
+  it.each([
+    { state: "OPEN" as const, status: "Done" },
+    { state: "CLOSED" as const, status: "In Progress" },
+  ])("closedとDoneの両方を満たさなければ完了確認しない: %o", async (status) => {
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([
+      { repository: issue.repository, issueNumber: issue.number } as never,
+    ]);
+    expect(await reconcileCompletionReports([{ ...issue, ...status }])).toEqual(
+      { base: 0, supplemental: 0 },
+    );
+    expect(confirmCompletionEligibility).not.toHaveBeenCalled();
   });
 
   it("複数担当Issueは完了報告を対象化しない", async () => {

@@ -17,13 +17,13 @@
   type SnapshotMeta = {
     approvedBy: string;
     approvedAt: Date | string;
-    hasChanges: boolean;
+    hasChanges: boolean | null;
   };
 
   type SubmissionMeta = {
     submittedBy: string;
     submittedAt: Date | string;
-    hasChanges: boolean;
+    hasChanges: boolean | null;
     blockingReasons: string[];
   };
 

@@ -80,7 +80,7 @@ const build = (
   );
 
 describe("buildSettlementSummariesV2", () => {
-  it("8月完了報告を9月にマージしても固定報酬を8月へ帰属させる", () => {
+  it("8月完了報告を9月に完了確認しても固定報酬を8月へ帰属させる", () => {
     const summary = build("2026-08", {
       completionReports: [report()],
       supplementalPayments: [],
@@ -315,7 +315,7 @@ describe("buildSettlementSummariesV2", () => {
     );
   });
 
-  it("複数担当Issueの未マージ完了報告だけを持つ作業者も申請をブロックする", () => {
+  it("複数担当Issueの完了確認待ち完了報告だけを持つ作業者も申請をブロックする", () => {
     const summaries = buildSettlementSummariesV2(
       "2026-08",
       [issue({ assignees: ["worker", "replacement"] })],
@@ -340,13 +340,13 @@ describe("buildSettlementSummariesV2", () => {
     );
 
     expect(reporterSummary?.unsettledProjectIssues[0].reason).toBe(
-      "merge_waiting",
+      "completion_waiting",
     );
     expect(reporterSummary?.blockingReasons).toContain(assignmentWarning);
     expect(sessionOwnerSummary?.blockingReasons).toContain(assignmentWarning);
   });
 
-  it("上限超過Issueの未マージ完了報告だけを持つ作業者も申請をブロックする", () => {
+  it("上限超過Issueの完了確認待ち完了報告だけを持つ作業者も申請をブロックする", () => {
     const summaries = buildSettlementSummariesV2(
       "2026-08",
       [issue({ assignees: ["replacement"], extraCapYen: 10_000 })],
@@ -375,20 +375,20 @@ describe("buildSettlementSummariesV2", () => {
     ).toContain(capWarning);
   });
 
-  it("同じ完了報告のPRマージ反映だけでは再申請扱いにしない", () => {
+  it("同じ完了報告のIssue完了反映だけでは再申請扱いにしない", () => {
     const pendingReport = report({ eligibilityConfirmedAt: null });
-    const beforeMerge = build("2026-08", {
+    const beforeCompletion = build("2026-08", {
       completionReports: [pendingReport],
       supplementalPayments: [],
     });
-    const afterMerge = build("2026-08", {
+    const afterCompletion = build("2026-08", {
       completionReports: [report()],
       supplementalPayments: [],
     });
-    expect(beforeMerge).toBeDefined();
-    expect(afterMerge).toBeDefined();
+    expect(beforeCompletion).toBeDefined();
+    expect(afterCompletion).toBeDefined();
 
-    const snapshot = createSettlementSnapshotPayload(beforeMerge!);
-    expect(hasWorkSubmissionChanges(snapshot, afterMerge!)).toBe(false);
+    const snapshot = createSettlementSnapshotPayload(beforeCompletion!);
+    expect(hasWorkSubmissionChanges(snapshot, afterCompletion!)).toBe(false);
   });
 });

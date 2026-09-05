@@ -25,7 +25,7 @@ export const runSettlementMaintenance = async (
 ): Promise<SettlementMaintenanceResult> => {
   const project = await fetchProjectIssuesForPage();
   if (project.projectFetchError) {
-    // GitHub障害を「未マージ」と誤認して既存の対象状態を後退させない。
+    // GitHub障害を「完了確認待ち」と誤認して既存の対象状態を後退させない。
     throw new Error(project.projectFetchError);
   }
   const reconciled = await reconcileCompletionReports(project.issues);
