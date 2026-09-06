@@ -19,9 +19,11 @@
 
 <input type="hidden" name="feedbackVersion" value={input.version} />
 <label
-  ><span
-    >{feedbackQuestions.operatorComment} <small>任意・運営にも表示</small></span
+  ><span class="form-field-label"
+    >{feedbackQuestions.operatorComment}
+    <small class="form-optional">任意</small></span
   >
+  <small class="form-hint">運営にも表示されます。</small>
   <textarea
     name="operatorComment"
     rows="3"
@@ -31,10 +33,11 @@
   ></textarea>
 </label>
 <label
-  ><span
+  ><span class="form-field-label"
     >{feedbackQuestions.privateReflection}
-    <small>任意・本人だけが閲覧できます</small></span
+    <small class="form-optional">任意</small></span
   >
+  <small class="form-hint">本人だけが閲覧できます。</small>
   <textarea
     name="privateReflection"
     rows="3"
@@ -53,9 +56,5 @@
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
-  }
-  small {
-    color: #526174;
-    font-weight: normal;
   }
 </style>

@@ -1,0 +1,69 @@
+@layer base {
+  input:not(
+    [type="hidden"],
+    [type="radio"],
+    [type="checkbox"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="image"]
+  ),
+  textarea,
+  select {
+    @apply min-h-11 rounded-md border border-slate-400 bg-white px-3 py-2 text-base font-normal text-slate-900 shadow-xs;
+  }
+
+  textarea {
+    @apply resize-y leading-6;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-slate-500 opacity-100;
+  }
+
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  button:focus-visible,
+  summary:focus-visible {
+    @apply outline-2 outline-offset-2 outline-teal-600;
+  }
+
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  input[type="radio"],
+  input[type="checkbox"] {
+    @apply size-4 shrink-0 accent-teal-700;
+  }
+}
+
+@layer components {
+  .form-field-label {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-slate-700;
+  }
+
+  .form-optional,
+  .form-required {
+    @apply inline-flex shrink-0 rounded px-1.5 py-0.5 text-xs font-normal;
+  }
+
+  .form-optional {
+    @apply bg-slate-100 text-slate-600;
+  }
+
+  .form-required {
+    @apply bg-teal-50 text-teal-800;
+  }
+
+  .form-hint {
+    @apply text-sm font-normal leading-6 text-slate-600;
+  }
+}

@@ -20,7 +20,10 @@
 
 <input type="hidden" name="preferencesVersion" value={initial.version} />
 <label>
-  <span>{preferenceQuestions.availabilityNote} <small>任意</small></span>
+  <span class="form-field-label"
+    >{preferenceQuestions.availabilityNote}
+    <small class="form-optional">任意</small></span
+  >
   <textarea
     name="availabilityNote"
     rows="3"
@@ -30,7 +33,10 @@
   ></textarea>
 </label>
 <label>
-  <span>{preferenceQuestions.selfAssignmentNote} <small>任意</small></span>
+  <span class="form-field-label"
+    >{preferenceQuestions.selfAssignmentNote}
+    <small class="form-optional">任意</small></span
+  >
   <textarea
     name="selfAssignmentNote"
     rows="3"
@@ -41,38 +47,55 @@
 </label>
 <details>
   <summary>希望例を見る</summary>
+  <p class="form-hint">
+    例文を押すと、上の「取り組みたい仕事」の入力欄に追加されます。追加後に編集できます。
+  </p>
   {#each preferenceExampleGroups as group (group.title)}
-    <p>{group.title}</p>
+    <p class="example-heading">{group.title}</p>
     <div class="examples">
       {#each group.examples as example (example)}
         <button
           type="button"
           onclick={() => appendExample(example)}
           disabled={workPreference.split("\n").includes(example)}
-          >{example}</button
         >
+          <span aria-hidden="true"
+            >{workPreference.split("\n").includes(example) ? "✓" : "＋"}</span
+          >
+          <span>{example}</span>
+        </button>
       {/each}
     </div>
   {/each}
 </details>
 <fieldset>
-  <legend>{preferenceQuestions.partnerInterest} <small>必須</small></legend>
-  {#each partnerInterestOptions as option (option.value)}
-    <label class="choice"
-      ><input
-        type="radio"
-        name="partnerInterest"
-        value={option.value}
-        bind:group={interest}
-        required
-      />{option.label}</label
-    >
-  {/each}
-  <p class="muted">回答は案件紹介や参画を確約するものではありません。</p>
+  <legend
+    ><span class="form-field-label"
+      >{preferenceQuestions.partnerInterest}
+      <small class="form-required">必須</small></span
+    ></legend
+  >
+  <div class="choices">
+    {#each partnerInterestOptions as option (option.value)}
+      <label class="choice" class:selected={interest === option.value}
+        ><input
+          type="radio"
+          name="partnerInterest"
+          value={option.value}
+          bind:group={interest}
+          required
+        />{option.label}</label
+      >
+    {/each}
+  </div>
+  <p class="form-hint">回答は案件紹介や参画を確約するものではありません。</p>
 </fieldset>
 {#if interest === "interested" || interest === "conditional"}
   <label>
-    <span>{preferenceQuestions.partnerConditions} <small>任意</small></span>
+    <span class="form-field-label"
+      >{preferenceQuestions.partnerConditions}
+      <small class="form-optional">任意</small></span
+    >
     <textarea
       name="partnerConditions"
       rows="3"
@@ -94,31 +117,79 @@
   }
   fieldset {
     min-width: 0;
-    border: 1px solid #d9e1e8;
-    border-radius: 0.5rem;
-    padding: 1rem;
   }
   legend {
     max-width: 100%;
   }
+  .choices {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+  }
   .choice {
     display: flex;
     align-items: center;
-    margin: 0.65rem 0;
+    min-height: 3rem;
+    padding: 0.75rem;
+    border: 1px solid #94a3b8;
+    border-radius: 0.375rem;
+    cursor: pointer;
+  }
+  .choice:hover {
+    background: #f8fafc;
+  }
+  .choice.selected {
+    border-color: #0f766e;
+    background: #f0fdfa;
   }
   .choice input {
-    width: auto;
+    width: 1rem;
   }
-  small {
-    color: #526174;
-    font-weight: normal;
+  details {
+    padding: 0.75rem 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    background: #f8fafc;
+  }
+  summary {
+    cursor: pointer;
+    color: #0f766e;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+  details[open] summary {
+    margin-bottom: 0.75rem;
+  }
+  .example-heading {
+    margin: 1rem 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
   }
   .examples {
     display: grid;
     gap: 0.4rem;
   }
   .examples button {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid #94a3b8;
+    border-radius: 0.375rem;
+    background: white;
+    cursor: pointer;
+    font-size: 0.875rem;
     text-align: left;
     white-space: normal;
+  }
+  .examples button:hover:not(:disabled) {
+    border-color: #0f766e;
+    background: #f0fdfa;
+  }
+  .examples button:disabled {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: default;
   }
 </style>
