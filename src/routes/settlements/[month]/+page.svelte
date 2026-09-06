@@ -4,6 +4,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import CompletionBackfillModal from "$lib/components/CompletionBackfillModal.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
   import {
     formatDate,
@@ -90,15 +91,24 @@
     <p class="eyebrow">settlement</p>
     <h1>{formatMonthLabel(data.month)} 月次一覧</h1>
   </div>
-  <nav class="month-nav" aria-label="月移動">
-    <a href={`/settlements/${previousMonth}`}>前月</a>
-    <a href={`/settlements/${currentMonth}`}>今月</a>
-    {#if canGoNext}
-      <a href={`/settlements/${nextMonth}`}>翌月</a>
-    {:else}
-      <span>翌月</span>
-    {/if}
-  </nav>
+  <div class="flex flex-wrap items-center gap-3">
+    <nav class="month-nav" aria-label="月移動">
+      <a href={`/settlements/${previousMonth}`}>前月</a>
+      <a href={`/settlements/${currentMonth}`}>今月</a>
+      {#if canGoNext}
+        <a href={`/settlements/${nextMonth}`}>翌月</a>
+      {:else}
+        <span>翌月</span>
+      {/if}
+    </nav>
+    {#key data.month}
+      <CompletionBackfillModal
+        candidates={data.completionBackfillCandidates}
+        settlementRuleV2Enabled={data.settlementRuleV2Enabled}
+        projectFetchError={data.projectFetchError}
+      />
+    {/key}
+  </div>
 </section>
 
 {#if actionMessage}
@@ -114,82 +124,6 @@
     </p>
   </section>
 {/if}
-
-<section class="panel">
-  <h2>完了報告の移行登録</h2>
-  <p class="muted">
-    未払いの2026年8月分以降のみ登録できます。実際の完了日時と、レビュー依頼・納品連絡の証跡を保存します。
-  </p>
-  <form
-    method="POST"
-    action="?/backfillCompletion"
-    use:enhance={enhanceAction("backfill-completion")}
-    class="stack-form"
-  >
-    <label>
-      対象Issue
-      <select
-        name="issueRef"
-        required
-        onchange={(event) => {
-          const option = event.currentTarget.selectedOptions[0];
-          const form = event.currentTarget.form;
-          if (!form || !option) return;
-          const [repository, issueNumber, assigneeLogin] =
-            option.value.split("|");
-          (form.elements.namedItem("repository") as { value: string }).value =
-            repository;
-          (form.elements.namedItem("issueNumber") as { value: string }).value =
-            issueNumber;
-          (
-            form.elements.namedItem("assigneeLogin") as { value: string }
-          ).value = assigneeLogin;
-        }}
-      >
-        <option value="">選択してください</option>
-        {#each data.issues.filter((issue) => issue.assignees.length === 1) as issue (`${issue.repository}#${issue.number}`)}
-          <option
-            value={`${issue.repository}|${issue.number}|${issue.assignees[0]}`}
-          >
-            {formatProjectName(issue.repository)} #{issue.number}
-            {issue.title} / {issue.assignees[0]}
-          </option>
-        {/each}
-      </select>
-    </label>
-    <input type="hidden" name="repository" />
-    <input type="hidden" name="issueNumber" />
-    <input type="hidden" name="assigneeLogin" />
-    <label>
-      完了日時（JST）
-      <input
-        type="datetime-local"
-        name="reportedAt"
-        min="2026-08-01T00:00"
-        required
-      />
-    </label>
-    <label>
-      証跡URL
-      <input
-        type="url"
-        name="evidenceUrl"
-        placeholder="https://github.com/..."
-        required
-      />
-    </label>
-    <label>
-      登録理由
-      <textarea name="evidenceNote" rows="3" required></textarea>
-    </label>
-    <ActionSubmit
-      actionName="backfill-completion"
-      {pendingAction}
-      label="証跡付きで移行登録"
-      pendingLabel="登録中..."
-    />
-  </form>
-</section>
 
 <section class="panel">
   <h2>未処理の修正申請</h2>

@@ -1,10 +1,12 @@
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
+import { registerCompletionBackfillTests } from "./completionBackfillCases";
 import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
+registerCompletionBackfillTests();
 
 const currentJstMonth = (): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {

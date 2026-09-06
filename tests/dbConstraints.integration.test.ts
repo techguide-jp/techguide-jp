@@ -46,6 +46,7 @@ import {
 import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
 import { registerSettlementWriteDbTests } from "./settlementWrite.dbCases";
 import { registerCompletionOwnershipDbTests } from "./completionOwnership.dbCases";
+import { registerCompletionBackfillDbTests } from "./completionBackfill.dbCases";
 import { registerPaymentCommentDbTests } from "./paymentComment.dbCases";
 
 const describeDb =
@@ -134,6 +135,7 @@ beforeEach(async () => {
 describeDb("DB constraints", () => {
   registerSettlementWriteDbTests();
   registerCompletionOwnershipDbTests();
+  registerCompletionBackfillDbTests();
   registerPaymentCommentDbTests();
   registerMonthlyFeedbackDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
