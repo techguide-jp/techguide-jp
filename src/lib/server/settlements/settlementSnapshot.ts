@@ -340,11 +340,16 @@ const normalizeWorkSubmissionSnapshot = (snapshot: unknown) => {
         sessions: line.sessions,
       })),
     pendingRequests: normalized.pendingRequests,
+    // 管理者の完了確認・月指定だけでは、作業者の入力が変わらないため再申請を求めない。
     unsettledProjectIssues: normalized.unsettledProjectIssues.filter(
-      (line) => line.reason !== "completion_waiting",
+      (line) =>
+        line.reason !== "completion_waiting" &&
+        line.reason !== "settlement_month_unassigned",
     ),
     unsettledIssueSessions: normalized.unsettledIssueSessions,
-    completionReports: normalized.completionReports,
+    completionReports: normalized.completionReports.filter(
+      (report) => report.source !== "admin_confirmation",
+    ),
   };
 };
 
