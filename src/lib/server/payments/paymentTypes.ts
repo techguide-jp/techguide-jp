@@ -16,6 +16,8 @@ export type MonthlyPaymentView = {
   statusLabel: string;
   /** 支払い済み時の支払日（YYYY-MM-DD）。未処理なら null。 */
   paidOn: string | null;
+  /** 対象の作業者本人に表示する連絡。コメントなし・未処理なら null。 */
+  paymentComment: string | null;
   /** 画面表示に使う支払い予定日（YYYY-MM-DD）。個別未設定なら翌月14日。 */
   scheduledDate: string;
   /** 支払い予定日が個別設定ではなくデフォルト（翌月14日）かどうか。 */

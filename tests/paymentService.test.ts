@@ -50,6 +50,7 @@ const paymentRow = (
   status: "unpaid",
   scheduledDate: null,
   paidOn: null,
+  paymentComment: null,
   createdAt: new Date("2026-06-18T00:00:00Z"),
   updatedAt: new Date("2026-06-18T00:00:00Z"),
   ...overrides,
@@ -102,6 +103,31 @@ describe("normalizeDateInput", () => {
 });
 
 describe("getPaymentForViewer", () => {
+  it.each([self, admin])(
+    "本人と管理者に保存したコメントを返す: $login",
+    async (viewer) => {
+      vi.mocked(getPaymentRow).mockResolvedValue(
+        paymentRow({
+          status: "paid",
+          paidOn: "2026-07-14",
+          paymentComment: "振込名義の補足",
+        }),
+      );
+      expect(
+        await getPaymentForViewer("2026-06", "tashua314", viewer),
+      ).toMatchObject({ paymentComment: "振込名義の補足" });
+    },
+  );
+
+  it("未処理のコメントは表示しない", async () => {
+    vi.mocked(getPaymentRow).mockResolvedValue(
+      paymentRow({ paymentComment: "古いコメント" }),
+    );
+    expect(
+      await getPaymentForViewer("2026-06", "tashua314", self),
+    ).toMatchObject({ paymentComment: null });
+  });
+
   it("本人は自分の支払い情報を閲覧できる", async () => {
     const view = await getPaymentForViewer("2026-06", "tashua314", self);
     expect(view).not.toBeNull();
@@ -162,6 +188,53 @@ describe("listPaymentViewsForMonth", () => {
 });
 
 describe("markSettlementPaid", () => {
+  it.each([
+    { label: "空欄", input: "", expected: null },
+    { label: "空白のみ", input: " \n\t ", expected: null },
+    {
+      label: "空白と改行",
+      input: " 振込名義: テックガイド\r\n差額調整済み。 ",
+      expected: "振込名義: テックガイド\n差額調整済み。",
+    },
+    { label: "上限", input: "あ".repeat(2000), expected: "あ".repeat(2000) },
+  ])("コメントを正規化して保存する: $label", async ({ input, expected }) => {
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+      input,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      payment: { paymentComment: expected },
+    });
+    expect(upsertPaymentPaid).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentComment: expected }),
+      expect.anything(),
+    );
+    const notification = vi.mocked(prepareSettlementNotificationSafely).mock
+      .calls[0][0];
+    expect(notification).not.toHaveProperty("paymentComment");
+    expect(notification).not.toHaveProperty("workerComment");
+  });
+
+  it("上限超過では支払い登録・通知を行わない", async () => {
+    const result = await markSettlementPaid(
+      "2026-06",
+      "tashua314",
+      "2026-07-14",
+      "あ".repeat(2001),
+    );
+    expect(result).toEqual({
+      ok: false,
+      message: "作業者へのコメントは2,000文字以内で入力してください。",
+    });
+    expect(validateSettlementPaymentEligibility).not.toHaveBeenCalled();
+    expect(upsertPaymentPaid).not.toHaveBeenCalled();
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
+    expect(dispatchPreparedNotification).not.toHaveBeenCalled();
+  });
+
   it("有効な支払日で支払い済みにする", async () => {
     const result = await markSettlementPaid(
       "2026-06",
@@ -174,6 +247,7 @@ describe("markSettlementPaid", () => {
         month: "2026-06",
         assigneeLogin: "tashua314",
         paidOn: "2026-07-14",
+        paymentComment: null,
       },
       expect.objectContaining({ updatedAt: expect.any(Date) }),
     );

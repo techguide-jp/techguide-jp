@@ -101,6 +101,21 @@
     @apply w-full font-normal;
   }
 
+  .payment-form .payment-comment-input {
+    @apply w-full min-w-0;
+  }
+
+  .payment-comment-input textarea {
+    @apply w-full rounded-md border border-stone-300 px-3 py-2 text-base font-normal;
+    resize: vertical;
+  }
+
+  .payment-comment {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
   .pending-list {
     @apply m-0 grid list-none gap-0 p-0;
   }

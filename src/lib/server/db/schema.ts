@@ -396,6 +396,7 @@ export const monthlyPayments = pgTable(
     status: monthlyPaymentStatus("status").notNull().default("unpaid"),
     scheduledDate: date("scheduled_date"),
     paidOn: date("paid_on"),
+    paymentComment: text("payment_comment"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

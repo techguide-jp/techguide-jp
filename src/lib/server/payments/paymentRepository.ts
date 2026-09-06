@@ -58,7 +58,12 @@ type PaymentTransitionOptions = {
 
 const paymentTransitionQuery = <TResult>(
   sql: SqlTag<TResult>,
-  input: { month: string; assigneeLogin: string; paidOn: string },
+  input: {
+    month: string;
+    assigneeLogin: string;
+    paidOn: string;
+    paymentComment: string | null;
+  },
   options: PaymentTransitionOptions & { updatedAt: Date },
 ): TResult => {
   const notification = options.notification;
@@ -68,14 +73,16 @@ const paymentTransitionQuery = <TResult>(
   return sql`
     WITH transitioned_payment AS (
       INSERT INTO monthly_payments (
-        month, assignee_login, status, paid_on, updated_at
+        month, assignee_login, status, paid_on, payment_comment, updated_at
       ) VALUES (
         ${input.month}, ${input.assigneeLogin}, ${"paid"},
-        ${input.paidOn}::date, ${options.updatedAt.toISOString()}::timestamptz
+        ${input.paidOn}::date, ${input.paymentComment},
+        ${options.updatedAt.toISOString()}::timestamptz
       )
       ON CONFLICT (month, assignee_login) DO UPDATE SET
         status = EXCLUDED.status,
         paid_on = EXCLUDED.paid_on,
+        payment_comment = EXCLUDED.payment_comment,
         updated_at = EXCLUDED.updated_at
       WHERE monthly_payments.status = 'unpaid'
         AND ${expectedUpdatedAt}::timestamptz IS NOT NULL
@@ -146,6 +153,7 @@ export const upsertPaymentPaid = async (
     month: string;
     assigneeLogin: string;
     paidOn: string;
+    paymentComment: string | null;
   },
   options: PaymentTransitionOptions,
 ): Promise<MonthlyPayment | null> => {
@@ -181,12 +189,14 @@ export const upsertPaymentUnpaid = async (input: {
       assigneeLogin: input.assigneeLogin,
       status: "unpaid",
       paidOn: null,
+      paymentComment: null,
     })
     .onConflictDoUpdate({
       target: [monthlyPayments.month, monthlyPayments.assigneeLogin],
       set: {
         status: "unpaid",
         paidOn: null,
+        paymentComment: null,
         updatedAt: new Date(),
       },
     })

@@ -73,6 +73,7 @@ beforeEach(() => {
     status: "paid" as const,
     scheduledDate: "2026-09-14",
     paidOn: "2026-09-14",
+    paymentComment: null,
     createdAt: new Date("2026-09-03T00:00:00Z"),
     updatedAt: new Date("2026-09-14T00:00:00Z"),
   };
