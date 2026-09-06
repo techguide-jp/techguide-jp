@@ -60,7 +60,7 @@ describe("runSettlementMaintenance", () => {
     });
   });
 
-  it("毎月1日以外はマージ状態だけを反映する", async () => {
+  it("毎月1日以外はIssue完了状態だけを反映する", async () => {
     const result = await runSettlementMaintenance(
       new Date("2026-09-02T00:00:00Z"),
     );

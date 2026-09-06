@@ -1,0 +1,61 @@
+// d607820（v1）のcreateSettlementSnapshotPayloadで照合した固定fixture。
+// 現在の正規化関数でハッシュを作り直すと、旧形式の互換性破壊を検出できなくなる。
+export const settlementSnapshotV1 = {
+  schemaVersion: 1,
+  hash: "01278821bfae99efdac481d24e8b8d5bf292d56b58efeadab00b31ef7c9773c2",
+  totals: {
+    fixedRewardYen: 0,
+    timedRewardYen: 6000,
+    taxExcludedYen: 6000,
+    taxYen: 600,
+    taxIncludedYen: 6600,
+  },
+  comparable: {
+    month: "2026-08",
+    assigneeLogin: "worker",
+    fixedRewardYen: 0,
+    timedRewardYen: 6000,
+    taxExcludedYen: 6000,
+    taxYen: 600,
+    taxIncludedYen: 6600,
+    approvalRequired: true,
+    lines: [
+      {
+        issue: {
+          repository: "example/repo",
+          number: 1,
+          state: "CLOSED",
+          closedAt: "2026-08-31T00:00:00.000Z",
+          assignees: ["worker"],
+          status: "Done",
+          rewardMode: "ハイブリッド",
+          fixedRewardYen: 0,
+          extraCapYen: 10000,
+          hourlyRateYen: 6000,
+        },
+        fixedRewardYen: 0,
+        workMinutes: 60,
+        timedRewardYen: 6000,
+        taxExcludedYen: 6000,
+        warnings: [],
+        sessions: [
+          {
+            id: "session-2026-08",
+            assigneeLogin: "worker",
+            repository: "example/repo",
+            issueNumber: 1,
+            startedAt: "2026-08-20T00:00:00.000Z",
+            endedAt: "2026-08-20T01:00:00.000Z",
+            excludedAt: null,
+            excludeReason: null,
+          },
+        ],
+      },
+    ],
+    pendingRequests: [],
+    unsettledProjectIssues: [],
+    unsettledIssueSessions: [],
+    blockingReasons: [],
+  },
+  generatedAt: "2026-09-03T00:00:00.000Z",
+};

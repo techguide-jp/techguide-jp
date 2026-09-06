@@ -4,6 +4,7 @@ import {
   monthlyWorkSubmissions,
   type MonthlyWorkSubmission,
 } from "$lib/server/db/schema";
+import { recordWorkSubmission } from "$lib/server/settlements/submissionWriteRepository";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import {
@@ -47,8 +48,18 @@ export const upsertWorkSubmission = async (
   options?: {
     submittedAt: Date;
     notification?: PreparedNotificationWrite;
+    expectedSourceToken?: string;
   },
-): Promise<MonthlyWorkSubmission> => {
+): Promise<boolean> => {
+  if (options?.expectedSourceToken !== undefined)
+    return recordWorkSubmission({
+      summary,
+      submittedBy,
+      submittedAt: options.submittedAt,
+      expectedSourceToken: options.expectedSourceToken,
+      notification: options.notification,
+    });
+  // V2無効の段階では新テーブルに依存せず、migrationより先のデプロイを安全にする。
   const payload = createSettlementSnapshotPayload(summary);
   const submittedAt = options?.submittedAt ?? new Date();
   if (options?.notification) {
@@ -95,13 +106,7 @@ export const upsertWorkSubmission = async (
     } else {
       throw new Error("Database client is not configured.");
     }
-    return {
-      month: summary.month,
-      assigneeLogin: summary.assigneeLogin,
-      snapshot: payload,
-      submittedBy,
-      submittedAt,
-    };
+    return true;
   }
   const [submission] = await db
     .insert(monthlyWorkSubmissions)
@@ -124,5 +129,5 @@ export const upsertWorkSubmission = async (
       },
     })
     .returning();
-  return submission;
+  return Boolean(submission);
 };

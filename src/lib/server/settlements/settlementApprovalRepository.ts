@@ -1,11 +1,13 @@
-import { neonClient, postgresClient } from "$lib/server/db/client";
+import { sql, type SQL } from "drizzle-orm";
+import {
+  executeGuardedSettlementWrite,
+  executeSettlementQueries,
+  settlementSourceMatches,
+} from "$lib/server/settlements/settlementWriteGuard";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import type { PreparedNotice } from "$lib/server/notices/noticeTypes";
-import type {
-  PreparedNotificationWrite,
-  SqlTag,
-} from "$lib/server/notifications/notificationWrite";
+import type { PreparedNotificationWrite } from "$lib/server/notifications/notificationWrite";
 
 type ApprovalWriteInput = {
   summary: SettlementSummary;
@@ -14,6 +16,7 @@ type ApprovalWriteInput = {
   approvedAt?: string;
   /** 読み取り時点の承認版。null は未承認を表す。 */
   expectedApprovedAt: string | null;
+  expectedSourceToken?: string;
   scheduledDate?: string;
   /** 同一トランザクションで append する通知書。振込先未登録時などは undefined。 */
   notice?: PreparedNotice;
@@ -35,10 +38,9 @@ const approvalDetails = (
 });
 
 const approvalWriteQuery = (
-  sql: SqlTag<unknown>,
   input: ApprovalWriteInput,
   approvedAt: string,
-): unknown => {
+): SQL => {
   const snapshotJson = JSON.stringify(
     createSettlementSnapshotPayload(input.summary),
   );
@@ -52,13 +54,13 @@ const approvalWriteQuery = (
     WITH transitioned_snapshot AS (
       INSERT INTO monthly_settlement_snapshots (
         month, assignee_login, snapshot, approved_by, approved_at
-      ) VALUES (
+      ) SELECT
         ${input.summary.month},
         ${input.summary.assigneeLogin},
         ${snapshotJson}::jsonb,
         ${input.approvedBy},
         ${approvedAt}::timestamptz
-      )
+      WHERE ${settlementSourceMatches(input.expectedSourceToken)}
       ON CONFLICT (month, assignee_login) DO UPDATE SET
         snapshot = EXCLUDED.snapshot,
         approved_by = EXCLUDED.approved_by,
@@ -193,19 +195,10 @@ export const recordSettlementApproval = async (
 ): Promise<boolean> => {
   const approvedAt = input.approvedAt ?? new Date().toISOString();
   // 承認版の条件更新と全副作用を1 SQLにまとめ、競合した処理には通知させない。
-  const result = postgresClient
-    ? await approvalWriteQuery(
-        postgresClient as unknown as SqlTag<unknown>,
-        input,
-        approvedAt,
-      )
-    : neonClient
-      ? await approvalWriteQuery(
-          neonClient as unknown as SqlTag<unknown>,
-          input,
-          approvedAt,
-        )
-      : null;
-  if (!result) throw new Error("Database client is not configured.");
+  const query = approvalWriteQuery(input, approvedAt);
+  const result =
+    input.expectedSourceToken === undefined
+      ? (await executeSettlementQueries([query]))[0]
+      : await executeGuardedSettlementWrite(query);
   return didTransition(result);
 };

@@ -64,7 +64,7 @@ test("稼働画面で完了報告を提出・取り下げできる", async ({ pa
     issueRow.getByRole("button", { name: "完了報告を取り下げ" }),
   ).toBeVisible();
   await page.goto(`/settlements/${month}/tashua314`);
-  await expect(page.getByText("PRマージ待ち").first()).toBeVisible();
+  await expect(page.getByText("Issue完了待ち").first()).toBeVisible();
 
   await page.goto("/work");
   await issueRow.getByRole("button", { name: "完了報告を取り下げ" }).click();
@@ -141,6 +141,13 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   );
   await expect(
     page.getByRole("heading", { name: "支払い通知書", exact: true }).first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "通知書を再作成", exact: true })
+    .click();
+  await expect(page.getByText("支払い通知書を再作成しました。")).toBeVisible();
+  await expect(
+    page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
 
   await page.goto(`/settlements/${month}/tashua314`);

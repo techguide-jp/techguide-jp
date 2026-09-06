@@ -62,8 +62,8 @@
   const issueWorkState = (issue: Issue, key: string): string => {
     if (openKeySet.has(key)) return "稼働中";
     const report = activeCompletionByIssue.get(key);
-    if (report?.eligibilityConfirmedAt) return "PRマージ確認済み";
-    if (report) return "完了報告済み・PRマージ待ち";
+    if (report?.eligibilityConfirmedAt) return "Issue完了確認済み";
+    if (report) return "完了報告済み・Issue完了待ち";
     return canStartIssue(issue) ? "待機" : "完了済み";
   };
   const issueLabel = (issue: Issue): string =>

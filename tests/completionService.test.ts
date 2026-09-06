@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { completionReport } from "./fixtures/completionReport";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import { findOpenWorkSession } from "$lib/server/work/workRepository";
@@ -115,7 +116,7 @@ describe("completionService", () => {
     expect(replaceActiveCompletionReport).not.toHaveBeenCalled();
   });
 
-  it("closedかつDoneだけをGitHub完了確認する", async () => {
+  it("関連PRがなくてもclosedかつDoneならGitHub完了確認する", async () => {
     const completion = {
       repository: issue.repository,
       issueNumber: issue.number,
@@ -132,5 +133,67 @@ describe("completionService", () => {
 
     expect(confirmCompletionEligibility).toHaveBeenCalledOnce();
     expect(result).toEqual({ base: 1, supplemental: 0 });
+  });
+
+  it.each([
+    { state: "OPEN" as const, status: "Done" },
+    { state: "CLOSED" as const, status: "In Progress" },
+  ])("closedとDoneの両方を満たさなければ完了確認しない: %o", async (status) => {
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([
+      { repository: issue.repository, issueNumber: issue.number } as never,
+    ]);
+    expect(await reconcileCompletionReports([{ ...issue, ...status }])).toEqual(
+      { base: 0, supplemental: 0 },
+    );
+    expect(confirmCompletionEligibility).not.toHaveBeenCalled();
+  });
+
+  it("複数担当Issueは完了報告を対象化しない", async () => {
+    const completion = {
+      repository: issue.repository,
+      issueNumber: issue.number,
+      eligibilityConfirmedAt: null,
+    };
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([
+      completion as never,
+    ]);
+
+    const result = await reconcileCompletionReports([
+      {
+        ...issue,
+        state: "CLOSED",
+        status: "Done",
+        assignees: ["worker", "replacement"],
+      },
+    ]);
+
+    expect(confirmCompletionEligibility).not.toHaveBeenCalled();
+    expect(result).toEqual({ base: 0, supplemental: 0 });
+  });
+
+  it("担当変更後の別月の報告があれば最新だけを対象化する", async () => {
+    const first = completionReport();
+    const latest = completionReport({
+      id: "new-report",
+      assigneeLogin: "replacement",
+      settlementMonth: "2026-09",
+      reportedAt: new Date("2026-09-01T00:00:00Z"),
+    });
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([first, latest]);
+    vi.mocked(confirmCompletionEligibility).mockResolvedValue("base");
+    expect(
+      await reconcileCompletionReports([
+        {
+          ...issue,
+          state: "CLOSED",
+          status: "Done",
+          assignees: ["replacement"],
+        },
+      ]),
+    ).toEqual({ base: 1, supplemental: 0 });
+    expect(confirmCompletionEligibility).toHaveBeenCalledExactlyOnceWith({
+      report: latest,
+      confirmedAt: expect.any(Date),
+    });
   });
 });

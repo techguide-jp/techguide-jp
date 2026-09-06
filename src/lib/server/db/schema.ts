@@ -355,6 +355,39 @@ export const monthlyWorkSubmissions = pgTable(
   ],
 );
 
+// 月次申請の差し替え・明細除外では、最初に合意した単価を失わないため独立保存する。
+export const issueHourlyRates = pgTable(
+  "issue_hourly_rates",
+  {
+    repository: text("repository").notNull(),
+    issueNumber: integer("issue_number").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    hourlyRateYen: integer("hourly_rate_yen"),
+    firstMonth: text("first_month").notNull(),
+    frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull(),
+    frozenBy: text("frozen_by").notNull(),
+    source: text("source").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.repository, table.issueNumber, table.assigneeLogin],
+    }),
+    check("issue_hourly_rates_number_chk", sql`${table.issueNumber} > 0`),
+    check(
+      "issue_hourly_rates_amount_chk",
+      sql`${table.hourlyRateYen} IS NULL OR ${table.hourlyRateYen} >= 0`,
+    ),
+    check(
+      "issue_hourly_rates_month_chk",
+      sql`${table.firstMonth} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "issue_hourly_rates_source_chk",
+      sql`${table.source} IN ('submission', 'legacy_snapshot')`,
+    ),
+  ],
+);
+
 export const monthlyPayments = pgTable(
   "monthly_payments",
   {
