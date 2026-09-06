@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./lib/styles/forms.css";
 @import "./lib/styles/layout.css";
 @import "./lib/styles/feedback.css";
 @import "./lib/styles/controls.css";

@@ -93,7 +93,10 @@
 <style>
   form {
     display: grid;
-    gap: 1rem;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
   }
   .preferences-panel {
     min-width: 0;
