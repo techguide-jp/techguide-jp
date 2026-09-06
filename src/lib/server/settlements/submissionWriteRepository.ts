@@ -53,15 +53,24 @@ const frozenRateCtes = (): SQL => sql`
   )
 `;
 
-export const recordWorkSubmission = async (input: {
-  summary: SettlementSummary;
-  submittedBy: string;
+export type WorkSubmissionOptions = {
   submittedAt: Date;
-  expectedSourceToken?: string;
   notification?: PreparedNotificationWrite;
   feedback?: MonthlyFeedbackInput;
-  legacy?: boolean;
-}): Promise<boolean> => {
+} & (
+  | { settlementRuleVersion: 1; expectedSourceToken?: never }
+  | { settlementRuleVersion: 2; expectedSourceToken: string }
+);
+
+export const recordWorkSubmission = async (
+  input: WorkSubmissionOptions & {
+    summary: SettlementSummary;
+    submittedBy: string;
+  },
+): Promise<boolean> => {
+  // V2のトークン欠落をV1扱いにせず、競合チェックを必ず通す。
+  if (input.settlementRuleVersion === 2 && !input.expectedSourceToken)
+    return false;
   const payload = JSON.stringify(
     createSettlementSnapshotPayload(input.summary),
   );
@@ -71,13 +80,13 @@ export const recordWorkSubmission = async (input: {
       INSERT INTO monthly_work_submissions (month, assignee_login, snapshot, submitted_by, submitted_at)
       SELECT ${input.summary.month}, ${input.summary.assigneeLogin}, ${payload}::jsonb,
         ${input.submittedBy}, ${input.submittedAt.toISOString()}::timestamptz
-      WHERE ${settlementSourceMatches(input.expectedSourceToken)}
+      WHERE ${input.settlementRuleVersion === 2 ? settlementSourceMatches(input.expectedSourceToken) : sql`true`}
         AND ${input.feedback ? feedbackWriteAllowed(input.summary.month, input.summary.assigneeLogin, input.feedback.version) : sql`true`}
       ON CONFLICT (month, assignee_login) DO UPDATE SET snapshot = EXCLUDED.snapshot,
         submitted_by = EXCLUDED.submitted_by, submitted_at = EXCLUDED.submitted_at
       RETURNING *
     ),
-    ${input.legacy ? sql`` : sql`${frozenRateCtes()},`}
+    ${input.settlementRuleVersion === 2 ? sql`${frozenRateCtes()},` : sql``}
     ${input.feedback ? sql`feedback_saved AS (${feedbackInsert(input.summary.month, input.summary.assigneeLogin, input.feedback, sql`EXISTS (SELECT 1 FROM submitted)`)}),` : sql``}
     submission_audit AS (
       INSERT INTO audit_logs (actor_login, action, target_type, target_id, details)
@@ -85,7 +94,7 @@ export const recordWorkSubmission = async (input: {
         jsonb_build_object('month', month, 'assigneeLogin', assignee_login,
           'taxExcludedYen', ${input.summary.taxExcludedYen}::integer,
           'taxIncludedYen', ${input.summary.taxIncludedYen}::integer)
-      FROM submitted WHERE ${!input.legacy} RETURNING 1
+      FROM submitted WHERE ${input.settlementRuleVersion === 2} RETURNING 1
     ),
     inserted_event AS (
       INSERT INTO email_notification_events (id, event_key, type, month, assignee_login, occurred_at, payload)
@@ -110,9 +119,10 @@ export const recordWorkSubmission = async (input: {
     )
     SELECT EXISTS(SELECT 1 FROM submitted) AS transitioned
   `;
-  const result = input.legacy
-    ? await executeFeedbackWrite(query)
-    : await executeGuardedSettlementWrite(query, Boolean(input.feedback));
+  const result =
+    input.settlementRuleVersion === 2
+      ? await executeGuardedSettlementWrite(query, Boolean(input.feedback))
+      : await executeFeedbackWrite(query);
   return (
     Array.isArray(result) &&
     (result[0] as { transitioned?: unknown })?.transitioned === true

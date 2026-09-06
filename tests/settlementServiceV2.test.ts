@@ -262,9 +262,10 @@ describe("V2 月次処理の回帰", () => {
     expect((await submitSettlementWork("2026-08", "worker", "worker")).ok).toBe(
       false,
     );
-    expect(state.persistSubmission.mock.calls[0][2].expectedSourceToken).toBe(
-      "unchanged",
-    );
+    expect(state.persistSubmission.mock.calls[0][2]).toMatchObject({
+      settlementRuleVersion: 2,
+      expectedSourceToken: "unchanged",
+    });
     expect(dispatchPreparedNotification).not.toHaveBeenCalled();
   });
 

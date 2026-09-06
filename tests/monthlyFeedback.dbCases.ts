@@ -5,6 +5,7 @@ import {
   auditLogs,
   emailDeliveries,
   emailNotificationEvents,
+  issueHourlyRates,
   monthlyFeedback,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
@@ -16,7 +17,8 @@ import {
   getMonthlyFeedback,
   updateMonthlyFeedback,
 } from "$lib/server/settlements/monthlyFeedbackRepository";
-import { recordWorkSubmission } from "$lib/server/settlements/submissionWriteRepository";
+import type { WorkSubmissionOptions } from "$lib/server/settlements/submissionWriteRepository";
+import { upsertWorkSubmission } from "$lib/server/settlements/submissionRepository";
 import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
 import { readSettlementSourceToken } from "$lib/server/settlements/settlementWriteGuard";
 import { settlementSnapshotV1 } from "./fixtures/settlementSnapshotV1";
@@ -32,17 +34,29 @@ const preferences = {
   partnerConditions: "在宅",
   version: 0,
 };
-const submission = () => ({
-  summary: restoreSettlementSummary(settlementSnapshotV1)!,
-  submittedBy: "worker",
+const submission = async (
+  settlementRuleVersion: 1 | 2 = 2,
+): Promise<WorkSubmissionOptions> => ({
   submittedAt: new Date(),
   feedback,
+  ...(settlementRuleVersion === 2
+    ? {
+        settlementRuleVersion: 2 as const,
+        expectedSourceToken: await readSettlementSourceToken(),
+      }
+    : { settlementRuleVersion: 1 as const }),
 });
+const saveSubmission = (options: WorkSubmissionOptions) =>
+  upsertWorkSubmission(
+    restoreSettlementSummary(settlementSnapshotV1)!,
+    "worker",
+    options,
+  );
 
 export const registerMonthlyFeedbackDbTests = (): void => {
-  it.each([false, true])(
-    "V1/V2 legacy=%s: 申請・コメントは同時保存し、競合で両方を維持する",
-    async (legacy) => {
+  it.each([1, 2] as const)(
+    "V%s: 申請・コメントは同時保存し、競合で両方を維持する",
+    async (settlementRuleVersion) => {
       const eventId = randomUUID();
       const notification = {
         eventId,
@@ -54,8 +68,11 @@ export const registerMonthlyFeedbackDbTests = (): void => {
         payloadJson: "{}",
         deliveries: [],
       };
-      const input = { ...submission(), legacy, notification };
-      expect(await recordWorkSubmission(input)).toBe(true);
+      const input = {
+        ...(await submission(settlementRuleVersion)),
+        notification,
+      };
+      expect(await saveSubmission(input)).toBe(true);
       expect(
         await getMonthlyFeedback("2026-08", "worker", false),
       ).not.toHaveProperty("privateReflection");
@@ -63,9 +80,16 @@ export const registerMonthlyFeedbackDbTests = (): void => {
         { ...feedback, version: 1 },
       );
       const before = await db.select().from(monthlyWorkSubmissions);
+      expect(await db.select().from(issueHourlyRates)).toHaveLength(
+        settlementRuleVersion === 2 ? 1 : 0,
+      );
+      const audit = await db.select().from(auditLogs);
       expect(
-        await recordWorkSubmission({
-          ...input,
+        audit.filter((row) => row.action === "monthly_work_submitted"),
+      ).toHaveLength(settlementRuleVersion === 2 ? 1 : 0);
+      expect(
+        await saveSubmission({
+          ...(await submission(settlementRuleVersion)),
           submittedAt: new Date(Date.now() + 1000),
           feedback: { ...feedback, operatorComment: "古い画面" },
           notification: {
@@ -88,10 +112,23 @@ export const registerMonthlyFeedbackDbTests = (): void => {
       expect(outward).not.toContain(feedback.operatorComment);
     },
   );
+  it("V2のトークンが空ならV1へ切り替えず、申請・コメント・単価を保存しない", async () => {
+    expect(
+      await saveSubmission({
+        ...(await submission()),
+        settlementRuleVersion: 2,
+        expectedSourceToken: "",
+      }),
+    ).toBe(false);
+    expect(await db.select().from(monthlyWorkSubmissions)).toHaveLength(0);
+    expect(await db.select().from(monthlyFeedback)).toHaveLength(0);
+    expect(await db.select().from(issueHourlyRates)).toHaveLength(0);
+    expect(await db.select().from(auditLogs)).toHaveLength(0);
+  });
   it("コメント保存の制約違反は申請もrollbackする", async () => {
     await expect(
-      recordWorkSubmission({
-        ...submission(),
+      saveSubmission({
+        ...(await submission()),
         feedback: { ...feedback, privateReflection: "あ".repeat(2001) },
       }),
     ).rejects.toThrow();
@@ -100,7 +137,7 @@ export const registerMonthlyFeedbackDbTests = (): void => {
     expect(await db.select().from(auditLogs)).toHaveLength(0);
   });
   it("申請後の本文だけの編集は金額・申請日時・計算入力の版を変えない", async () => {
-    await recordWorkSubmission(submission());
+    await saveSubmission(await submission());
     const before = await db.select().from(monthlyWorkSubmissions);
     const sourceToken = await readSettlementSourceToken();
     expect(
@@ -123,7 +160,7 @@ export const registerMonthlyFeedbackDbTests = (): void => {
     expect(await updateMonthlyFeedback("2026-08", "worker", feedback)).toBe(
       false,
     );
-    await recordWorkSubmission(submission());
+    await saveSubmission(await submission());
     await db.insert(monthlySettlementSnapshots).values({
       month: "2026-08",
       assigneeLogin: "worker",
@@ -137,15 +174,15 @@ export const registerMonthlyFeedbackDbTests = (): void => {
       }),
     ).toBe(false);
     expect(
-      await recordWorkSubmission({
-        ...submission(),
+      await saveSubmission({
+        ...(await submission()),
         feedback: { ...feedback, version: 1 },
       }),
     ).toBe(false);
   });
   it("承認transactionを待ったコメント更新は承認完了後に拒否される", async () => {
     if (!postgresClient) throw new Error("ローカルDBテスト専用");
-    await recordWorkSubmission(submission());
+    await saveSubmission(await submission());
     let locked!: () => void;
     let release!: () => void;
     const ready = new Promise<void>((resolve) => {

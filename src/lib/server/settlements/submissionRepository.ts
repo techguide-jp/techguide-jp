@@ -1,11 +1,13 @@
-import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
 import { and, eq } from "drizzle-orm";
 import { db, neonClient, postgresClient } from "$lib/server/db/client";
 import {
   monthlyWorkSubmissions,
   type MonthlyWorkSubmission,
 } from "$lib/server/db/schema";
-import { recordWorkSubmission } from "$lib/server/settlements/submissionWriteRepository";
+import {
+  recordWorkSubmission,
+  type WorkSubmissionOptions,
+} from "$lib/server/settlements/submissionWriteRepository";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import {
@@ -46,27 +48,18 @@ export const listWorkSubmissions = async (): Promise<MonthlyWorkSubmission[]> =>
 export const upsertWorkSubmission = async (
   summary: SettlementSummary,
   submittedBy: string,
-  options?: {
-    submittedAt: Date;
-    notification?: PreparedNotificationWrite;
-    expectedSourceToken?: string;
-    feedback?: MonthlyFeedbackInput;
-  },
+  options: WorkSubmissionOptions,
 ): Promise<boolean> => {
-  if (options?.expectedSourceToken !== undefined || options?.feedback)
+  if (options.settlementRuleVersion === 2 || options.feedback)
     return recordWorkSubmission({
+      ...options,
       summary,
       submittedBy,
-      submittedAt: options.submittedAt,
-      expectedSourceToken: options.expectedSourceToken,
-      notification: options.notification,
-      feedback: options.feedback,
-      legacy: options.expectedSourceToken === undefined,
     });
   // V2無効の段階では新テーブルに依存せず、migrationより先のデプロイを安全にする。
   const payload = createSettlementSnapshotPayload(summary);
-  const submittedAt = options?.submittedAt ?? new Date();
-  if (options?.notification) {
+  const submittedAt = options.submittedAt;
+  if (options.notification) {
     const payloadJson = JSON.stringify(payload);
     if (postgresClient) {
       await postgresClient.begin(async (sql) => {
