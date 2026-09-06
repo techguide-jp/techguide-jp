@@ -25,6 +25,32 @@ const seedFeedback = async () =>
 
 export const registerMonthlyFeedbackTests = (): void => {
   test.describe("月次コメントと現在の希望", () => {
+    test("月を切り替えたら前の月の未保存コメントを引き継がない", async ({
+      page,
+    }) => {
+      await withDb(async (sql) => {
+        for (const month of ["2026-07", "2026-08"]) {
+          await sql`INSERT INTO monthly_work_submissions (month, assignee_login, snapshot, submitted_by) VALUES (${month}, 'worker', ${JSON.stringify(settlementSnapshotV1)}::jsonb, 'worker')`;
+        }
+      });
+      await page.goto("/__e2e/login?login=worker");
+      await page.goto(detail);
+      await page
+        .getByLabel(feedbackQuestions.operatorComment)
+        .fill("8月だけの下書き");
+      await page
+        .getByLabel(feedbackQuestions.privateReflection)
+        .fill("8月の振り返り下書き");
+      await page.getByRole("link", { name: "前月", exact: true }).click();
+      await expect(page).toHaveURL(/\/settlements\/2026-07\/worker$/);
+      await expect(
+        page.getByLabel(feedbackQuestions.operatorComment),
+      ).toHaveValue("");
+      await expect(
+        page.getByLabel(feedbackQuestions.privateReflection),
+      ).toHaveValue("");
+    });
+
     test("再申請でも入力欄は一組だけで、コメントだけ保存してから再申請できる", async ({
       page,
     }) => {

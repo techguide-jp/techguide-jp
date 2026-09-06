@@ -199,12 +199,14 @@
   result={form}
 />
 {#if (submission || data.feedback) && !resubmissionFormVisible}
-  <MonthlyFeedbackPanel
-    month={data.month}
-    feedback={data.feedback}
-    canEdit={canSubmitWork && Boolean(submission) && !data.snapshot}
-    result={form}
-  />
+  {#key `${data.month}:${data.assignee}`}
+    <MonthlyFeedbackPanel
+      month={data.month}
+      feedback={data.feedback}
+      canEdit={canSubmitWork && Boolean(submission) && !data.snapshot}
+      result={form}
+    />
+  {/key}
 {/if}
 
 {#if !summary}
@@ -416,9 +418,11 @@
           action="?/submitWork"
           use:enhance={enhanceAction("submit-work")}
         >
-          {#if !data.snapshot}<MonthlyFeedbackFields
-              input={feedbackInput}
-            />{/if}
+          {#if !data.snapshot}
+            {#key `${data.month}:${data.assignee}`}
+              <MonthlyFeedbackFields input={feedbackInput} />
+            {/key}
+          {/if}
           <ActionSubmit
             actionName="submit-work"
             {pendingAction}
