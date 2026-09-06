@@ -79,6 +79,14 @@ export const workerProfiles = pgTable(
     specialtyNote: text("specialty_note").notNull().default(""),
     availabilityNote: text("availability_note").notNull().default(""),
     selfAssignmentNote: text("self_assignment_note").notNull().default(""),
+    partnerInterest: text("partner_interest").$type<
+      "interested" | "conditional" | "not_interested"
+    >(),
+    partnerConditions: text("partner_conditions").notNull().default(""),
+    preferencesVersion: integer("preferences_version").notNull().default(0),
+    preferencesUpdatedAt: timestamp("preferences_updated_at", {
+      withTimezone: true,
+    }),
     adminNote: text("admin_note").notNull().default(""),
     adminNoteUpdatedBy: text("admin_note_updated_by"),
     adminNoteUpdatedAt: timestamp("admin_note_updated_at", {
@@ -93,6 +101,14 @@ export const workerProfiles = pgTable(
   },
   (table) => [
     index("worker_profiles_display_name_idx").on(table.displayName),
+    check(
+      "worker_profiles_partner_interest_chk",
+      sql`${table.partnerInterest} IS NULL OR ${table.partnerInterest} IN ('interested', 'conditional', 'not_interested')`,
+    ),
+    check(
+      "worker_profiles_partner_conditions_chk",
+      sql`char_length(${table.partnerConditions}) <= 2000 AND (${table.partnerInterest} IN ('interested', 'conditional') OR ${table.partnerConditions} = '')`,
+    ),
     check(
       "worker_profiles_skills_array_chk",
       sql`jsonb_typeof(${table.skills}) = 'array'`,
@@ -351,6 +367,32 @@ export const monthlyWorkSubmissions = pgTable(
     check(
       "monthly_work_submissions_month_chk",
       sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+  ],
+);
+
+// 本人用の本文を、管理者も読む精算スナップショットや通知へ混入させないため独立保存する。
+export const monthlyFeedback = pgTable(
+  "monthly_feedback",
+  {
+    month: text("month").notNull(),
+    assigneeLogin: text("assignee_login").notNull(),
+    operatorComment: text("operator_comment").notNull().default(""),
+    privateReflection: text("private_reflection").notNull().default(""),
+    version: integer("version").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.month, table.assigneeLogin] }),
+    check(
+      "monthly_feedback_month_chk",
+      sql`${table.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "monthly_feedback_length_chk",
+      sql`char_length(${table.operatorComment}) <= 2000 AND char_length(${table.privateReflection}) <= 2000`,
     ),
   ],
 );

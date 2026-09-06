@@ -48,8 +48,6 @@ export const upsertWorkerSelfProfile = async (input: {
   slackMemberId: string;
   skills: string[];
   specialtyNote: string;
-  availabilityNote: string;
-  selfAssignmentNote: string;
 }): Promise<WorkerProfile> => {
   const [profile] = await db
     .insert(workerProfiles)
@@ -59,8 +57,6 @@ export const upsertWorkerSelfProfile = async (input: {
       slackMemberId: input.slackMemberId,
       skills: input.skills,
       specialtyNote: input.specialtyNote,
-      availabilityNote: input.availabilityNote,
-      selfAssignmentNote: input.selfAssignmentNote,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -70,8 +66,6 @@ export const upsertWorkerSelfProfile = async (input: {
         slackMemberId: input.slackMemberId,
         skills: input.skills,
         specialtyNote: input.specialtyNote,
-        availabilityNote: input.availabilityNote,
-        selfAssignmentNote: input.selfAssignmentNote,
         updatedAt: new Date(),
       },
     })

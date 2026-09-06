@@ -2,6 +2,9 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
+  import WorkerPreferencesPanel from "$lib/components/WorkerPreferencesPanel.svelte";
+  import MonthlyFeedbackPanel from "$lib/components/MonthlyFeedbackPanel.svelte";
+  import MonthlyFeedbackFields from "$lib/components/MonthlyFeedbackFields.svelte";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import SettlementPaymentPanel from "$lib/components/SettlementPaymentPanel.svelte";
   import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
@@ -36,11 +39,14 @@
 
   const enhanceAction =
     (name: string): SubmitFunction =>
-    () => {
-      pendingAction = name;
+    ({ submitter }) => {
+      pendingAction =
+        submitter?.getAttribute("formaction") === "?/saveFeedback"
+          ? "save-feedback"
+          : name;
       return async ({ update }) => {
         try {
-          await update();
+          await update({ reset: false });
         } finally {
           pendingAction = null;
         }
@@ -62,11 +68,32 @@
       ? formResult.paymentInput
       : undefined,
   );
-  const actionMessage = $derived(
-    formResult?.scope === "payment" ? undefined : formResult?.message,
+  const feedbackInput = $derived(
+    (formResult?.scope === "submission" || formResult?.scope === "feedback") &&
+      "feedbackInput" in formResult &&
+      formResult.feedbackInput
+      ? formResult.feedbackInput
+      : {
+          operatorComment: data.feedback?.operatorComment ?? "",
+          privateReflection: data.feedback?.privateReflection ?? "",
+          version: data.feedback?.version ?? 0,
+        },
   );
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
+  const resubmissionFormVisible = $derived(
+    canSubmitWork &&
+      Boolean(summary?.approvalRequired) &&
+      Boolean(submission?.hasChanges) &&
+      !data.projectFetchError &&
+      !data.snapshot,
+  );
+  const actionMessage = $derived(
+    formResult?.scope === "submission" ||
+      (resubmissionFormVisible && formResult?.scope === "feedback")
+      ? formResult.message
+      : undefined,
+  );
   const diff = $derived(
     data.projectFetchError || approvedTaxExcludedYen === null || !summary
       ? null
@@ -164,6 +191,20 @@
       </a>
     </p>
   </section>
+{/if}
+
+<WorkerPreferencesPanel
+  preferences={data.preferences}
+  canEdit={canSubmitWork}
+  result={form}
+/>
+{#if (submission || data.feedback) && !resubmissionFormVisible}
+  <MonthlyFeedbackPanel
+    month={data.month}
+    feedback={data.feedback}
+    canEdit={canSubmitWork && Boolean(submission) && !data.snapshot}
+    result={form}
+  />
 {/if}
 
 {#if !summary}
@@ -375,6 +416,9 @@
           action="?/submitWork"
           use:enhance={enhanceAction("submit-work")}
         >
+          {#if !data.snapshot}<MonthlyFeedbackFields
+              input={feedbackInput}
+            />{/if}
           <ActionSubmit
             actionName="submit-work"
             {pendingAction}
@@ -384,6 +428,19 @@
             pendingLabel={submission ? "再申請中..." : "申請中..."}
             disabled={data.submissionBlockingReasons.length > 0}
           />
+          {#if submission && !data.snapshot}
+            <button
+              class="button secondary"
+              type="submit"
+              formaction="?/saveFeedback"
+              disabled={pendingAction !== null}
+              aria-busy={pendingAction === "save-feedback"}
+            >
+              {pendingAction === "save-feedback"
+                ? "保存中..."
+                : "コメントを保存"}
+            </button>
+          {/if}
         </form>
       {/if}
     {/if}

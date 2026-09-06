@@ -1,3 +1,13 @@
+import { readMonthlyFeedbackInput } from "$lib/monthlyFeedback";
+import {
+  loadMonthlyFeedbackForViewer,
+  saveOwnMonthlyFeedback,
+} from "$lib/server/settlements/monthlyFeedbackService";
+import { readPreferencesInput } from "$lib/workerPreferences";
+import {
+  loadPreferencesForViewer,
+  updateOwnPreferences,
+} from "$lib/server/workers/workerPreferencesService";
 import { fail } from "@sveltejs/kit";
 import { requireAdmin, requireSelfOrAdmin } from "$lib/server/auth/guards";
 import {
@@ -16,7 +26,7 @@ import { listSupplementalPaymentViews } from "$lib/server/supplementalPayments/s
 import { env } from "$lib/server/env";
 
 export const load = async (event) => {
-  requireSelfOrAdmin(event, event.params.assignee);
+  const viewer = requireSelfOrAdmin(event, event.params.assignee);
   const assignee = event.params.assignee;
   const settlement = await loadSettlementAssignee(event.params.month, assignee);
   const paymentEditable = Boolean(
@@ -30,6 +40,12 @@ export const load = async (event) => {
   );
 
   return {
+    feedback: await loadMonthlyFeedbackForViewer(
+      event.params.month,
+      assignee,
+      viewer,
+    ),
+    preferences: await loadPreferencesForViewer(assignee, viewer),
     month: event.params.month,
     assignee,
     payoutAccountStatus: await getPayoutAccountStatus(assignee),
@@ -48,15 +64,95 @@ export const load = async (event) => {
 };
 
 export const actions = {
+  savePreferences: async (event) => {
+    const user = requireSelfOrAdmin(event, event.params.assignee);
+    const preferencesInput = readPreferencesInput(
+      await event.request.formData(),
+    );
+    try {
+      const result = await updateOwnPreferences(
+        event.params.assignee,
+        user.login,
+        preferencesInput,
+      );
+      if (!result.ok)
+        return fail(400, {
+          scope: "preferences",
+          message: result.message,
+          preferencesInput,
+        });
+      return { scope: "preferences", message: "現在の希望を保存しました。" };
+    } catch {
+      return fail(500, {
+        scope: "preferences",
+        message: "希望を保存できませんでした。時間をおいて再度お試しください。",
+        preferencesInput,
+      });
+    }
+  },
   submitWork: async (event) => {
     const user = requireSelfOrAdmin(event, event.params.assignee);
-    const result = await submitSettlementWork(
-      event.params.month,
-      event.params.assignee,
-      user.login,
+    const feedbackInput = readMonthlyFeedbackInput(
+      await event.request.formData(),
     );
-    if (!result.ok) return fail(400, { message: result.message });
-    return { message: `${event.params.month} の稼働を確定して申請しました。` };
+    try {
+      const result = await submitSettlementWork(
+        event.params.month,
+        event.params.assignee,
+        user.login,
+        feedbackInput,
+      );
+      if (!result.ok)
+        return fail(400, {
+          scope: "submission",
+          message: result.message,
+          feedbackInput,
+        });
+      return {
+        scope: "submission",
+        message: `${event.params.month} の稼働を確定して申請しました。`,
+      };
+    } catch {
+      return fail(500, {
+        scope: "submission",
+        message:
+          "月次確定申請を保存できませんでした。時間をおいて再度お試しください。",
+        feedbackInput,
+      });
+    }
+  },
+  saveFeedback: async (event) => {
+    const user = requireSelfOrAdmin(event, event.params.assignee);
+    const feedbackInput = readMonthlyFeedbackInput(
+      await event.request.formData(),
+    );
+    if (!feedbackInput)
+      return fail(400, {
+        scope: "feedback",
+        message: "入力内容を確認してください。",
+      });
+    try {
+      const result = await saveOwnMonthlyFeedback(
+        event.params.month,
+        event.params.assignee,
+        user.login,
+        feedbackInput,
+      );
+      if (!result.ok)
+        return fail(400, {
+          scope: "feedback",
+          message: result.message,
+          feedbackInput,
+        });
+      return { scope: "feedback", message: "月次コメントを保存しました。" };
+    } catch {
+      return fail(500, {
+        scope: "feedback",
+        message:
+          "コメントを保存できませんでした。時間をおいて再度お試しください。",
+        feedbackInput,
+      });
+    }
   },
   markPaid: async (event) => {
     requireAdmin(event);

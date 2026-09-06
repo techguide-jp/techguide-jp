@@ -1,3 +1,4 @@
+import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
 import { and, eq } from "drizzle-orm";
 import { db, neonClient, postgresClient } from "$lib/server/db/client";
 import {
@@ -49,15 +50,18 @@ export const upsertWorkSubmission = async (
     submittedAt: Date;
     notification?: PreparedNotificationWrite;
     expectedSourceToken?: string;
+    feedback?: MonthlyFeedbackInput;
   },
 ): Promise<boolean> => {
-  if (options?.expectedSourceToken !== undefined)
+  if (options?.expectedSourceToken !== undefined || options?.feedback)
     return recordWorkSubmission({
       summary,
       submittedBy,
       submittedAt: options.submittedAt,
       expectedSourceToken: options.expectedSourceToken,
       notification: options.notification,
+      feedback: options.feedback,
+      legacy: options.expectedSourceToken === undefined,
     });
   // V2無効の段階では新テーブルに依存せず、migrationより先のデプロイを安全にする。
   const payload = createSettlementSnapshotPayload(summary);

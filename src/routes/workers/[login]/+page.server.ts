@@ -1,3 +1,8 @@
+import { readPreferencesInput } from "$lib/workerPreferences";
+import {
+  loadPreferencesForViewer,
+  updateOwnPreferences,
+} from "$lib/server/workers/workerPreferencesService";
 import { fail, redirect } from "@sveltejs/kit";
 import { requireAdmin, requireUser } from "$lib/server/auth/guards";
 import {
@@ -32,6 +37,7 @@ export const load = async (event) => {
           adminNoteUpdatedBy: null,
           adminNoteUpdatedAt: null,
         },
+    preferences: await loadPreferencesForViewer(login, user),
     payoutAccount,
     notificationContact,
     canEditSelf: user.login === login,
@@ -41,6 +47,32 @@ export const load = async (event) => {
 };
 
 export const actions = {
+  savePreferences: async (event) => {
+    const user = requireUser(event);
+    const preferencesInput = readPreferencesInput(
+      await event.request.formData(),
+    );
+    try {
+      const result = await updateOwnPreferences(
+        event.params.login,
+        user.login,
+        preferencesInput,
+      );
+      if (!result.ok)
+        return fail(400, {
+          scope: "preferences",
+          message: result.message,
+          preferencesInput,
+        });
+      return { scope: "preferences", message: "現在の希望を保存しました。" };
+    } catch {
+      return fail(500, {
+        scope: "preferences",
+        message: "希望を保存できませんでした。時間をおいて再度お試しください。",
+        preferencesInput,
+      });
+    }
+  },
   saveSelfProfile: async (event) => {
     const user = requireUser(event);
     const result = await updateWorkerSelfProfile(

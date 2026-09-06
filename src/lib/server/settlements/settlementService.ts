@@ -1,3 +1,5 @@
+import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
+import { parseMonthlyFeedback } from "$lib/server/settlements/monthlyFeedbackService";
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import { normalizeDateInput } from "$lib/server/payments/paymentDate";
@@ -428,11 +430,21 @@ export const submitSettlementWork = async (
   month: string,
   assigneeLogin: string,
   submittedBy: string,
+  feedbackInput?: MonthlyFeedbackInput,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   if (assigneeLogin !== submittedBy) {
     return { ok: false, message: "本人以外の月次確定申請はできません。" };
   }
 
+  const parsedFeedback = feedbackInput
+    ? parseMonthlyFeedback(feedbackInput)
+    : null;
+  if (parsedFeedback && !parsedFeedback.success)
+    return {
+      ok: false,
+      message: "各コメントは2,000文字以内で入力してください。",
+    };
+  const feedback = parsedFeedback?.success ? parsedFeedback.data : undefined;
   const data = await loadSettlementAssignee(month, assigneeLogin);
   if (data.projectFetchError) {
     return { ok: false, message: PROJECT_FETCH_BLOCKING_REASON };
@@ -477,6 +489,7 @@ export const submitSettlementWork = async (
   });
   const recorded = await upsertWorkSubmission(summary, submittedBy, {
     submittedAt,
+    ...(feedback ? { feedback } : {}),
     ...(env.settlementRuleV2Enabled
       ? { expectedSourceToken: data.sourceToken ?? "" }
       : {}),
@@ -488,7 +501,7 @@ export const submitSettlementWork = async (
     return {
       ok: false,
       message:
-        "精算元データが別の操作で変更されました。画面を再読み込みして再申請してください。",
+        "精算内容・コメントが変更されたか、承認済みになりました。入力内容を控え、再読み込みして確認してください。",
     };
   if (!env.settlementRuleV2Enabled)
     await createAuditLog({
