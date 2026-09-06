@@ -393,21 +393,26 @@ export const validateSettlementPaymentEligibility = async (
         message: "未承認の月次精算は支払い情報を更新できません。",
       };
     }
-    const taxExcludedYen = settlementSnapshotAmount(
-      snapshot.snapshot,
-      "taxExcludedYen",
-    );
-    const taxIncludedYen = settlementSnapshotAmount(
-      snapshot.snapshot,
-      "taxIncludedYen",
-    );
-    if (taxExcludedYen === null || taxIncludedYen === null) {
+    // 承認済みでも保存内容の破損はあり得るため、合計額だけで支払いを許可しない。
+    const summary = restoreSettlementSummary(snapshot.snapshot);
+    if (!summary) {
       return {
         ok: false,
-        message: "承認済みスナップショットの金額を確認できません。",
+        message:
+          "承認済みの月次精算を復元できません。保存内容を確認してください。",
       };
     }
-    return { ok: true, taxExcludedYen, taxIncludedYen };
+    if (summary.month !== month || summary.assigneeLogin !== assigneeLogin) {
+      return {
+        ok: false,
+        message: "承認済みスナップショットの対象が一致しません。",
+      };
+    }
+    return {
+      ok: true,
+      taxExcludedYen: summary.taxExcludedYen,
+      taxIncludedYen: summary.taxIncludedYen,
+    };
   }
   const data = await loadSettlementAssignee(month, assigneeLogin);
   const eligibility = validateSettlementPaymentData(data);
