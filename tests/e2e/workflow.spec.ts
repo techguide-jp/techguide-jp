@@ -318,3 +318,81 @@ test("他者は振込先ページへアクセスできない", async ({ page }) 
   await page.goto("/workers/tashua314");
   await expect(page).toHaveURL(/\/work$/);
 });
+
+test("作業者が着手前にIssueの報酬条件を確認できる", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const response = await page.goto("/__e2e/login?login=reward-worker");
+  const ssrHtml = await response?.text();
+  expect(ssrHtml).toContain("固定報酬（税抜）");
+  expect(ssrHtml).toContain("30,000円");
+  await expect(page).toHaveURL(/\/work$/);
+  await expect(page.getByRole("row").filter({ hasText: "#501 " })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("link", { name: "稼働確認", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "登録者一覧", exact: true }),
+  ).toHaveCount(0);
+
+  for (const name of [
+    "固定報酬（税抜）",
+    "時給（税抜）",
+    "追加精算上限（税抜）",
+  ]) {
+    await expect(
+      page.getByRole("columnheader", { name, exact: true }),
+    ).toBeVisible();
+  }
+  await expect(
+    page.getByRole("columnheader", { name: "単価", exact: true }),
+  ).toHaveCount(0);
+
+  const examples = [
+    { issue: 503, mode: "固定", values: ["30,000円", "対象外", "対象外"] },
+    {
+      issue: 504,
+      mode: "ハイブリッド",
+      values: ["30,000円", "3,000円", "15,000円"],
+    },
+    { issue: 505, mode: "ハイブリッド", values: ["0円", "0円", "0円"] },
+    {
+      issue: 506,
+      mode: "ハイブリッド",
+      values: ["未設定", "未設定", "未設定"],
+    },
+  ];
+  for (const example of examples) {
+    const row = page.getByRole("row").filter({ hasText: `#${example.issue} ` });
+    await expect(row.getByRole("cell").nth(3)).toHaveText(example.mode);
+    for (const [index, value] of example.values.entries()) {
+      await expect(row.getByRole("cell").nth(4 + index)).toHaveText(value);
+    }
+  }
+  await expect(
+    page.getByText(/現在のProject設定を表示しています/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      /同じIssueの全期間・全作業者の時間報酬の累計上限です（固定報酬は含みません）/,
+    ),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fixedRewardCell = page
+    .getByRole("row")
+    .filter({ hasText: "#503 " })
+    .getByRole("cell")
+    .nth(4);
+  await fixedRewardCell.scrollIntoViewIfNeeded();
+  await expect(fixedRewardCell).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+
+  await page.getByRole("link", { name: "プロフィール", exact: true }).click();
+  await expect(page).toHaveURL(/\/workers\/reward-worker$/);
+  expect(pageErrors).toEqual([]);
+});

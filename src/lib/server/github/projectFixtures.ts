@@ -52,6 +52,54 @@ export const e2eProjectIssues = (): ProjectIssuesResult => {
     },
   ];
 
+  const rewardExamples: Pick<
+    ProjectIssue,
+    "title" | "rewardMode" | "fixedRewardYen" | "extraCapYen" | "hourlyRateYen"
+  >[] = [
+    {
+      title: "E2E: 固定報酬の表示確認",
+      rewardMode: "固定",
+      fixedRewardYen: 30000,
+      extraCapYen: null,
+      hourlyRateYen: null,
+    },
+    {
+      title: "E2E: ハイブリッドの表示確認",
+      rewardMode: "ハイブリッド",
+      fixedRewardYen: 30000,
+      extraCapYen: 15000,
+      hourlyRateYen: 3000,
+    },
+    {
+      title: "E2E: 0円の表示確認",
+      rewardMode: "ハイブリッド",
+      fixedRewardYen: 0,
+      extraCapYen: 0,
+      hourlyRateYen: 0,
+    },
+    {
+      title: "E2E: 未設定の表示確認",
+      rewardMode: "ハイブリッド",
+      fixedRewardYen: null,
+      extraCapYen: null,
+      hourlyRateYen: null,
+    },
+  ];
+  issues.push(
+    ...rewardExamples.map((reward, index) => ({
+      projectItemId: `e2e-reward-item-${index}`,
+      repository: "techguide-jp/akademy_fes",
+      number: 503 + index,
+      state: "OPEN" as const,
+      url: `https://github.com/techguide-jp/akademy_fes/issues/${503 + index}`,
+      createdAt: e2eClosedAtForCurrentMonth(),
+      closedAt: null,
+      assignees: ["reward-worker"],
+      status: "Todo",
+      ...reward,
+    })),
+  );
+
   return {
     health: buildProjectHealth("E2E Project", [
       { name: requiredProjectFields.status, dataType: "SINGLE_SELECT" },
