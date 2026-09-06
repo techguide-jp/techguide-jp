@@ -13,6 +13,7 @@ import {
   backfillIssueCompletion,
   reconcileCompletionReports,
   reportIssueCompletion,
+  withdrawIssueCompletion,
 } from "$lib/server/completions/completionService";
 
 vi.mock("$lib/server/payments/paymentRepository", () => ({
@@ -74,6 +75,20 @@ describe("completionService", () => {
   });
 
   afterEach(() => vi.useRealTimers());
+
+  it("管理者が完了にしたIssueでは作業者の報告・取り下げを拒否する", async () => {
+    const formData = new FormData();
+    formData.set("repository", issue.repository);
+    formData.set("issueNumber", String(issue.number));
+    const closed = { ...issue, state: "CLOSED" as const, status: "Done" };
+    expect((await reportIssueCompletion(formData, [closed], "worker")).ok).toBe(
+      false,
+    );
+    expect(
+      (await withdrawIssueCompletion(formData, [closed], "worker")).ok,
+    ).toBe(false);
+    expect(replaceActiveCompletionReport).not.toHaveBeenCalled();
+  });
 
   it("作業者の完了報告はサーバー時刻のJST月と報酬スナップショットを保存する", async () => {
     const formData = new FormData();

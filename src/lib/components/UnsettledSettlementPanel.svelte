@@ -22,6 +22,7 @@
       open_in_progress: "未close",
       closed_not_done: "Status未完了",
       completion_not_reported: "完了報告未提出",
+      settlement_month_unassigned: "完了済み・管理者の精算月指定待ち",
       completion_waiting: "Issue完了待ち",
     })[reason];
   const sessionMinutes = (

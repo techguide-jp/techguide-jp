@@ -48,6 +48,9 @@ const state = vi.hoisted(() => ({
   prepareNotice: vi.fn(),
   insertNotice: vi.fn(),
 }));
+vi.mock("$lib/server/completions/completionMonthService", () => ({
+  listCompletionMonthCandidates: async () => [],
+}));
 vi.mock("$lib/server/env", () => ({ env: { settlementRuleV2Enabled: true } }));
 vi.mock("$lib/server/settlements/hourlyRateRepository", () => ({
   listFrozenHourlyRates: async () => new Map(state.frozenRates),

@@ -80,6 +80,46 @@ const build = (
   );
 
 describe("buildSettlementSummariesV2", () => {
+  it("完了済みでも精算月の指定前は固定報酬を計上せず、作業者へ報告を要求しない", () => {
+    const summary = build(
+      "2026-09",
+      { completionReports: [], supplementalPayments: [] },
+      [],
+    );
+    expect(summary?.fixedRewardYen).toBe(0);
+    expect(summary?.unsettledProjectIssues.map((line) => line.reason)).toEqual([
+      "settlement_month_unassigned",
+    ]);
+    expect(summary?.approvalRequired).toBe(false);
+  });
+  it("管理者指定月にだけ固定報酬を計上し、別月に報告未提出と表示しない", () => {
+    const options = {
+      completionReports: [
+        report({
+          source: "admin_confirmation",
+          settlementMonth: "2026-07",
+          reportedAt: new Date("2026-09-10T00:00:00Z"),
+        }),
+      ],
+      supplementalPayments: [],
+    };
+    expect(build("2026-07", options, [])?.fixedRewardYen).toBe(50000);
+    expect(build("2026-09", options, [])?.fixedRewardYen ?? 0).toBe(0);
+    expect(build("2026-08", options)?.unsettledProjectIssues).toHaveLength(0);
+  });
+  it("すでに精算済みのIssueを精算月指定待ちとして再表示しない", () => {
+    expect(
+      build(
+        "2026-09",
+        {
+          completionReports: [],
+          supplementalPayments: [],
+          unassignedCompletedIssueKeys: new Set(),
+        },
+        [],
+      ),
+    ).toBeUndefined();
+  });
   it("8月完了報告を9月に完了確認しても固定報酬を8月へ帰属させる", () => {
     const summary = build("2026-08", {
       completionReports: [report()],

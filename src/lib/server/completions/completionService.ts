@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isIssueCompleted } from "$lib/issueCompletion";
 import { z } from "zod";
 import { createAuditLog } from "$lib/server/audit/auditRepository";
 import type { IssueCompletionReport } from "$lib/server/db/schema";
@@ -95,6 +96,13 @@ export const reportIssueCompletion = async (
       input.issueNumber,
       userLogin,
     );
+    if (isIssueCompleted(issue)) {
+      return {
+        ok: false,
+        message:
+          "管理者による完了確認済みのため、完了報告は不要です。精算月は管理者が指定します。",
+      };
+    }
     const openSession = await findOpenWorkSession(
       userLogin,
       issue.repository,
@@ -133,10 +141,23 @@ export const reportIssueCompletion = async (
 
 export const withdrawIssueCompletion = async (
   formData: FormData,
+  issues: ProjectIssue[],
   userLogin: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> => {
   try {
     const input = issueInputSchema.parse(Object.fromEntries(formData));
+    const issue = issues.find(
+      (candidate) =>
+        candidate.repository === input.repository &&
+        candidate.number === input.issueNumber,
+    );
+    if (issue && isIssueCompleted(issue)) {
+      return {
+        ok: false,
+        message:
+          "管理者による完了確認済みのため、完了報告は取り下げできません。",
+      };
+    }
     const current = await getActiveCompletionReport({
       repository: input.repository,
       issueNumber: input.issueNumber,
@@ -259,12 +280,7 @@ export const reconcileCompletionReports = async (
   for (const report of selectCompletionReports(reports).selected) {
     const issue = issueByKey.get(`${report.repository}#${report.issueNumber}`);
     // 支払対象の完了条件はIssueのclosedかつDone。関連PRの有無・状態は条件に含めない。
-    if (
-      !issue ||
-      issue.state !== "CLOSED" ||
-      issue.status !== "Done" ||
-      issue.assignees.length !== 1
-    )
+    if (!issue || !isIssueCompleted(issue) || issue.assignees.length !== 1)
       continue;
     const result = await confirmCompletionEligibility({
       report,

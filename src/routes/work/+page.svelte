@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { isIssueCompleted } from "$lib/issueCompletion";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -60,11 +61,12 @@
   const canStartIssue = (issue: Issue): boolean =>
     issue.state !== "CLOSED" && issue.status !== "Done";
   const issueWorkState = (issue: Issue, key: string): string => {
+    if (isIssueCompleted(issue)) return "完了済み";
     if (openKeySet.has(key)) return "稼働中";
     const report = activeCompletionByIssue.get(key);
     if (report?.eligibilityConfirmedAt) return "Issue完了確認済み";
     if (report) return "完了報告済み・Issue完了待ち";
-    return canStartIssue(issue) ? "待機" : "完了済み";
+    return canStartIssue(issue) ? "待機" : "完了確認待ち";
   };
   const issueLabel = (issue: Issue): string =>
     `${formatProjectName(issue.repository)} / ${formatIssueName(issue.number, issue.title)}`;
@@ -206,6 +208,11 @@
       現在のProject設定を表示しています。金額はすべて税抜です。追加精算上限は、同じIssueの全期間・全作業者の時間報酬の累計上限です（固定報酬は含みません）。
       未設定の項目は着手前に運営へ確認し、月次の精算額は「自分の精算」で確認してください。
     </p>
+    {#if data.settlementRuleV2Enabled}
+      <p class="muted">
+        IssueがClosedかつStatusがDoneなら完了報告は不要です。未報告の固定報酬は、管理者が精算月を指定します。
+      </p>
+    {/if}
     <div class="table-wrap">
       <table>
         <thead>
@@ -273,7 +280,7 @@
                       disabled={openKeySet.has(key) || !canStart}
                     />
                   </form>
-                  {#if data.settlementRuleV2Enabled}
+                  {#if data.settlementRuleV2Enabled && !isIssueCompleted(issue)}
                     {@const completion = activeCompletionByIssue.get(key)}
                     {#if completion && !completion.eligibilityConfirmedAt}
                       <form

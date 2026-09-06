@@ -3,16 +3,19 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import CompletionBackfillPicker from "$lib/components/CompletionBackfillPicker.svelte";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import { formatMonthLabel } from "$lib/month";
+  import { currentJstMonth } from "$lib/month";
+  import CompletionBackfillFields from "$lib/components/CompletionBackfillFields.svelte";
   import { formatProjectName } from "$lib/format";
   import type { ProjectIssue } from "$lib/server/github/projectTypes";
 
   let {
     candidates,
+    mode = "backfill",
     settlementRuleV2Enabled,
     projectFetchError,
   }: {
     candidates: ProjectIssue[];
+    mode?: "backfill" | "admin_confirmation";
     settlementRuleV2Enabled: boolean;
     projectFetchError: string | null;
   } = $props();
@@ -30,21 +33,42 @@
       (issue) => `${issue.repository}#${issue.number}` === selectedRef,
     ),
   );
-  const settlementMonth = $derived(reportedAt.slice(0, 7));
+  let assignedMonth = $state("");
+  const title = $derived(
+    mode === "admin_confirmation"
+      ? "完了済みIssueの精算月を指定"
+      : "完了報告の移行登録",
+  );
+  const triggerLabel = $derived(
+    mode === "admin_confirmation"
+      ? `精算月を指定（${candidates.length}件）`
+      : "完了報告を移行登録",
+  );
+  const actionName = $derived(
+    mode === "admin_confirmation"
+      ? "assignCompletionMonth"
+      : "backfillCompletion",
+  );
+  const titleId = $derived(`completion-registration-${mode}`);
 
   const submit: SubmitFunction = ({ cancel }) => {
     if (pendingAction || !selected) {
       cancel();
       return;
     }
-    pendingAction = "backfill-completion";
+    pendingAction = actionName;
     errorMessage = null;
     return async ({ result, update }) => {
       try {
         if (result.type === "success") {
           await update();
           dialog?.close();
-          selectedRef = reportedAt = evidenceUrl = evidenceNote = "";
+          selectedRef =
+            reportedAt =
+            evidenceUrl =
+            evidenceNote =
+            assignedMonth =
+              "";
         } else if (result.type === "redirect") {
           await update();
         } else {
@@ -69,22 +93,26 @@
   class="button secondary ghost"
   aria-haspopup="dialog"
   disabled={!dialog}
-  onclick={() => dialog?.showModal()}>完了報告を移行登録</button
+  onclick={() => dialog?.showModal()}>{triggerLabel}</button
 >
 
 <dialog
   bind:this={dialog}
   class="backfill-dialog"
-  aria-labelledby="backfill-title"
+  aria-labelledby={titleId}
   oncancel={(event) => {
     if (pendingAction) event.preventDefault();
   }}
 >
   <header class="modal-header">
     <div>
-      <h2 id="backfill-title">完了報告の移行登録</h2>
+      <h2 id={titleId}>{title}</h2>
       <p class="mt-1 text-sm text-slate-600">
-        未払いの2026年8月分以降の完了報告を、証跡を添えて登録します。
+        {#if mode === "admin_confirmation"}
+          管理者が完了を確認したIssueの固定報酬を、指定した月に計上します。作業者の完了報告は不要です。
+        {:else}
+          未払いの2026年8月分以降の完了報告を、証跡を添えて登録します。
+        {/if}
       </p>
     </div>
     <button
@@ -102,12 +130,12 @@
     </p>
   {:else if candidates.length === 0}
     <p class="muted">
-      移行登録できるIssueはありません。精算済み・完了報告済みのIssueや、担当者・報酬が未設定のIssueは除外しています。
+      登録できるIssueはありません。精算済み・完了報告済みのIssueや、担当者・報酬が未設定のIssueは除外しています。
     </p>
   {:else}
     <form
       method="POST"
-      action="?/backfillCompletion"
+      action={`?/${actionName}`}
       use:enhance={submit}
       oninput={() => {
         errorMessage = null;
@@ -118,7 +146,7 @@
           <div class="backfill-grid">
             <CompletionBackfillPicker {candidates} bind:selectedRef />
 
-            <section class="min-w-0 space-y-4" aria-label="完了報告の登録内容">
+            <section class="min-w-0 space-y-4" aria-label={title}>
               {#if selected}
                 <div class="rounded-md bg-teal-50 p-3 text-sm">
                   <p class="font-bold">
@@ -151,57 +179,32 @@
                 name="assigneeLogin"
                 value={selected?.assignees[0] ?? ""}
               />
-              <label class="backfill-field">
-                完了日時（JST）
-                <input
-                  type="datetime-local"
-                  name="reportedAt"
-                  bind:value={reportedAt}
-                  min="2026-08-01T00:00"
-                  required
-                  aria-describedby="backfill-month-help"
-                />
-              </label>
-              <div id="backfill-month-help" class="text-sm text-slate-600">
-                <p>
-                  固定報酬は、この日時が属する月の精算対象になります。時間報酬は実際に稼働した月に計上されます。
+              {#if mode === "admin_confirmation"}
+                <label class="backfill-field">
+                  精算月
+                  <input
+                    type="month"
+                    name="settlementMonth"
+                    bind:value={assignedMonth}
+                    max={currentJstMonth()}
+                    required
+                    aria-describedby="assigned-month-help"
+                  />
+                </label>
+                <p id="assigned-month-help" class="text-sm text-slate-600">
+                  固定報酬を計上する月を指定してください。IssueのClosed日時とは別に設定できます。時間報酬は実際の稼働月に計上されます。
                 </p>
-                {#if settlementMonth}
-                  <p class="mt-1 font-bold text-teal-800" role="status">
-                    固定報酬の精算月：{formatMonthLabel(settlementMonth)}
-                  </p>
-                {/if}
-                {#if !settlementRuleV2Enabled}
-                  <p class="mt-1">
-                    登録内容は、新精算ルールの有効化後に反映されます。
-                  </p>
-                {/if}
-              </div>
-              <label class="backfill-field">
-                証跡URL
-                <input
-                  type="url"
-                  name="evidenceUrl"
-                  bind:value={evidenceUrl}
-                  placeholder="https://github.com/.../pull/123#issuecomment-..."
-                  maxlength="2000"
-                  required
-                  aria-describedby="backfill-evidence-help"
+                <p class="text-sm text-slate-600">
+                  指定月が承認済みの場合は追加支払いになります。支払い済みの月には登録できません。
+                </p>
+              {:else}
+                <CompletionBackfillFields
+                  bind:reportedAt
+                  bind:evidenceUrl
+                  bind:evidenceNote
+                  {settlementRuleV2Enabled}
                 />
-              </label>
-              <p id="backfill-evidence-help" class="text-sm text-slate-600">
-                レビュー依頼や納品・作業完了の連絡を確認できるURLを入力してください。例：GitHubのPR・Issueコメント、Slackの該当メッセージへのリンク。入力した完了日時の根拠が分かる箇所を指定します。
-              </p>
-              <label class="backfill-field">
-                登録理由
-                <textarea
-                  name="evidenceNote"
-                  rows="3"
-                  bind:value={evidenceNote}
-                  maxlength="2000"
-                  placeholder="例：完了報告機能の導入前に、8/20のPRコメントでレビューを依頼済みのため。"
-                  required></textarea>
-              </label>
+              {/if}
             </section>
           </div>
         </fieldset>
@@ -222,10 +225,12 @@
           onclick={() => dialog?.close()}>キャンセル</button
         >
         <ActionSubmit
-          actionName="backfill-completion"
+          {actionName}
           {pendingAction}
           disabled={!selected}
-          label="証跡付きで移行登録"
+          label={mode === "admin_confirmation"
+            ? "指定した月に計上"
+            : "証跡付きで移行登録"}
           pendingLabel="登録中..."
         />
       </footer>
@@ -275,8 +280,7 @@
     font-size: 0.875rem;
     font-weight: 600;
   }
-  .backfill-field input,
-  .backfill-field textarea {
+  .backfill-field input {
     width: 100%;
     min-width: 0;
     padding: 0.625rem;

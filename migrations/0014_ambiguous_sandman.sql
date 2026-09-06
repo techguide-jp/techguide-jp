@@ -1,0 +1,5 @@
+ALTER TYPE "public"."completion_report_source" ADD VALUE 'admin_confirmation';--> statement-breakpoint
+ALTER TABLE "issue_completion_reports" DROP CONSTRAINT "issue_completion_reports_reported_month_chk";--> statement-breakpoint
+ALTER TABLE "issue_completion_reports" DROP CONSTRAINT "issue_completion_reports_backfill_evidence_chk";--> statement-breakpoint
+ALTER TABLE "issue_completion_reports" ADD CONSTRAINT "issue_completion_reports_reported_month_chk" CHECK ("issue_completion_reports"."source"::text = 'admin_confirmation' OR to_char("issue_completion_reports"."reported_at" AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') = "issue_completion_reports"."settlement_month");--> statement-breakpoint
+ALTER TABLE "issue_completion_reports" ADD CONSTRAINT "issue_completion_reports_backfill_evidence_chk" CHECK ("issue_completion_reports"."source" = 'worker' OR (("issue_completion_reports"."source"::text = 'admin_confirmation' OR "issue_completion_reports"."settlement_month" >= '2026-08') AND "issue_completion_reports"."evidence_url" IS NOT NULL AND "issue_completion_reports"."evidence_note" IS NOT NULL));

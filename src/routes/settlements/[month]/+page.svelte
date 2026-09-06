@@ -4,7 +4,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
-  import CompletionBackfillModal from "$lib/components/CompletionBackfillModal.svelte";
+  import CompletionRegistrationModal from "$lib/components/CompletionRegistrationModal.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
   import {
     formatDate,
@@ -72,12 +72,14 @@
       | "open_in_progress"
       | "closed_not_done"
       | "completion_not_reported"
+      | "settlement_month_unassigned"
       | "completion_waiting",
   ): string =>
     ({
       open_in_progress: "未close",
       closed_not_done: "Status未完了",
       completion_not_reported: "完了報告未提出",
+      settlement_month_unassigned: "完了済み・管理者の精算月指定待ち",
       completion_waiting: "Issue完了待ち",
     })[reason];
   const currentMonth = $derived(currentJstMonth());
@@ -102,7 +104,15 @@
       {/if}
     </nav>
     {#key data.month}
-      <CompletionBackfillModal
+      {#if data.settlementRuleV2Enabled}
+        <CompletionRegistrationModal
+          mode="admin_confirmation"
+          candidates={data.completionMonthCandidates}
+          settlementRuleV2Enabled={data.settlementRuleV2Enabled}
+          projectFetchError={data.projectFetchError}
+        />
+      {/if}
+      <CompletionRegistrationModal
         candidates={data.completionBackfillCandidates}
         settlementRuleV2Enabled={data.settlementRuleV2Enabled}
         projectFetchError={data.projectFetchError}

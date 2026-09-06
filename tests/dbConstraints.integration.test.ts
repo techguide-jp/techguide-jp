@@ -1,4 +1,5 @@
 import { registerMonthlyFeedbackDbTests } from "./monthlyFeedback.dbCases";
+import { registerCompletionMonthDbTests } from "./completionMonth.dbCases";
 import { beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -133,6 +134,7 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  registerCompletionMonthDbTests();
   registerSettlementWriteDbTests();
   registerCompletionOwnershipDbTests();
   registerCompletionBackfillDbTests();

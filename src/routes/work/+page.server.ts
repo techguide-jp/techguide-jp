@@ -134,8 +134,12 @@ export const actions = {
         message: "新しい精算ルールはまだ有効ではありません。",
       });
     }
+    const project = await fetchProjectIssuesForPage();
+    if (project.projectFetchError)
+      return fail(503, { message: project.projectFetchError });
     const result = await withdrawIssueCompletion(
       await event.request.formData(),
+      project.issues,
       user.login,
     );
     if (!result.ok) return fail(400, { message: result.message });
