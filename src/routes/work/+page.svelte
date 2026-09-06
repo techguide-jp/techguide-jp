@@ -55,6 +55,8 @@
 
   const issueKey = (issue: Issue): string =>
     `${issue.repository}#${issue.number}`;
+  const configuredRewardLabel = (amount: number | null): string =>
+    amount === null ? "未設定" : `${amount.toLocaleString("ja-JP")}円`;
   const canStartIssue = (issue: Issue): boolean =>
     issue.state !== "CLOSED" && issue.status !== "Done";
   const issueWorkState = (issue: Issue, key: string): string => {
@@ -200,6 +202,10 @@
   {#if data.projectFetchError}
     <p class="muted">Issue一覧を表示できません。</p>
   {:else}
+    <p class="muted reward-guide">
+      現在のProject設定を表示しています。金額はすべて税抜です。追加精算上限は、固定報酬を含まない時間報酬の累計上限です。
+      未設定の項目は着手前に運営へ確認し、月次の精算額は「自分の精算」で確認してください。
+    </p>
     <div class="table-wrap">
       <table>
         <thead>
@@ -207,9 +213,11 @@
             <th>Project</th>
             <th>Issue</th>
             <th>Status</th>
-            <th>報酬方式</th>
-            <th>単価</th>
-            <th>状態</th>
+            <th class="reward-mode">報酬方式</th>
+            <th class="reward-amount">固定報酬（税抜）</th>
+            <th class="reward-amount">時給（税抜）</th>
+            <th class="reward-amount">追加精算上限（税抜）</th>
+            <th class="work-state">状態</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -225,13 +233,21 @@
                 </a>
               </td>
               <td>{issue.status ?? "-"}</td>
-              <td>{issue.rewardMode ?? "-"}</td>
-              <td
-                >{issue.hourlyRateYen
-                  ? `${issue.hourlyRateYen.toLocaleString()}円`
-                  : "-"}</td
-              >
-              <td>{issueWorkState(issue, key)}</td>
+              <td class="reward-mode">{issue.rewardMode ?? "未設定"}</td>
+              <td class="reward-amount">
+                {configuredRewardLabel(issue.fixedRewardYen)}
+              </td>
+              <td class="reward-amount">
+                {issue.rewardMode === "固定"
+                  ? "対象外"
+                  : configuredRewardLabel(issue.hourlyRateYen)}
+              </td>
+              <td class="reward-amount">
+                {issue.rewardMode === "固定"
+                  ? "対象外"
+                  : configuredRewardLabel(issue.extraCapYen)}
+              </td>
+              <td class="work-state">{issueWorkState(issue, key)}</td>
               <td>
                 <div class="row-actions">
                   <form
@@ -404,3 +420,19 @@
     close={() => (changeDialog = null)}
   />
 {/if}
+
+<style>
+  .reward-guide {
+    margin-bottom: 1rem;
+  }
+
+  .reward-amount,
+  .reward-mode {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .work-state {
+    min-width: 4rem;
+  }
+</style>
