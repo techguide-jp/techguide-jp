@@ -60,53 +60,60 @@ describe("runSettlementMaintenance", () => {
     });
   });
 
-  it("毎月1日以外はIssue完了状態だけを反映する", async () => {
-    const result = await runSettlementMaintenance(
-      new Date("2026-09-02T00:00:00Z"),
-    );
+  it.each(["2026-08-31T14:59:59Z", "2026-09-01T15:00:00Z"])(
+    "日本時間の毎月1日以外は更新・通知を行わない: %s",
+    async (now) => {
+      const result = await runSettlementMaintenance(new Date(now));
 
-    expect(result).toEqual({
-      reconciledBase: 1,
-      reconciledSupplemental: 2,
-      remindersCreated: 0,
-      reminderMonth: null,
-    });
-    expect(loadSettlementMonth).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({
+        reconciledBase: 0,
+        reconciledSupplemental: 0,
+        remindersCreated: 0,
+        reminderMonth: null,
+      });
+      expect(fetchProjectIssuesForPage).not.toHaveBeenCalled();
+      expect(reconcileCompletionReports).not.toHaveBeenCalled();
+      expect(loadSettlementMonth).not.toHaveBeenCalled();
+      expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
+      expect(dispatchPreparedNotification).not.toHaveBeenCalled();
+    },
+  );
 
-  it("1日は前月の未申請者だけに一意なリマインドを保存・送信する", async () => {
-    vi.mocked(loadSettlementMonth).mockResolvedValue({
-      summaries: [summary("not-submitted"), summary("submitted")],
-      submissions: [{ assigneeLogin: "submitted" }],
-      projectFetchError: null,
-    } as never);
-    const prepared = {
-      mode: "resend" as const,
-      write: { eventKey: "event-key" },
-    };
-    vi.mocked(prepareSettlementNotificationSafely).mockResolvedValue(
-      prepared as never,
-    );
-    vi.mocked(insertPreparedNotification).mockResolvedValue(true);
+  it.each(["2026-08-31T15:00:00Z", "2026-09-01T00:00:00Z"])(
+    "日本時間の1日は完了状態を反映して前月の未申請者へ通知する: %s",
+    async (now) => {
+      vi.mocked(loadSettlementMonth).mockResolvedValue({
+        summaries: [summary("not-submitted"), summary("submitted")],
+        submissions: [{ assigneeLogin: "submitted" }],
+        projectFetchError: null,
+      } as never);
+      const prepared = {
+        mode: "resend" as const,
+        write: { eventKey: "event-key" },
+      };
+      vi.mocked(prepareSettlementNotificationSafely).mockResolvedValue(
+        prepared as never,
+      );
+      vi.mocked(insertPreparedNotification).mockResolvedValue(true);
 
-    const result = await runSettlementMaintenance(
-      new Date("2026-09-01T00:00:00Z"),
-    );
+      const result = await runSettlementMaintenance(new Date(now));
 
-    expect(loadSettlementMonth).toHaveBeenCalledWith("2026-08");
-    expect(prepareSettlementNotificationSafely).toHaveBeenCalledOnce();
-    expect(prepareSettlementNotificationSafely).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "monthly_submission_reminder",
-        month: "2026-08",
-        assigneeLogin: "not-submitted",
-      }),
-    );
-    expect(insertPreparedNotification).toHaveBeenCalledOnce();
-    expect(dispatchPreparedNotification).toHaveBeenCalledOnce();
-    expect(insertNotificationEventMarker).not.toHaveBeenCalled();
-    expect(result.remindersCreated).toBe(1);
-  });
+      expect(reconcileCompletionReports).toHaveBeenCalledOnce();
+      expect(loadSettlementMonth).toHaveBeenCalledWith("2026-08");
+      expect(prepareSettlementNotificationSafely).toHaveBeenCalledOnce();
+      expect(prepareSettlementNotificationSafely).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "monthly_submission_reminder",
+          month: "2026-08",
+          assigneeLogin: "not-submitted",
+        }),
+      );
+      expect(insertPreparedNotification).toHaveBeenCalledOnce();
+      expect(dispatchPreparedNotification).toHaveBeenCalledOnce();
+      expect(insertNotificationEventMarker).not.toHaveBeenCalled();
+      expect(result.remindersCreated).toBe(1);
+    },
+  );
 
   it("同じ通知キーが保存済みなら再送しない", async () => {
     vi.mocked(loadSettlementMonth).mockResolvedValue({
@@ -135,9 +142,9 @@ describe("runSettlementMaintenance", () => {
       projectFetchError: "GitHub API error",
     } as never);
 
-    await expect(runSettlementMaintenance()).rejects.toThrow(
-      "GitHub API error",
-    );
+    await expect(
+      runSettlementMaintenance(new Date("2026-09-01T00:00:00Z")),
+    ).rejects.toThrow("GitHub API error");
     expect(reconcileCompletionReports).not.toHaveBeenCalled();
   });
 });

@@ -51,7 +51,7 @@ GitHub OAuthで認証できたユーザーはログインできます。管理�
 GitHub OAuth AppのAuthorization callback URLには、本番URLの `/auth/github/callback` を登録してください。
 `PUBLIC_APP_ORIGIN` が未設定の場合はリクエストURLからOAuth callback originを自動判定します。誤って localhost が設定された本番環境では、実際のリクエストURLを優先します。
 
-`SETTLEMENT_RULE_V2_ENABLED` はmigrationと環境変数の準備後に `true` へ切り替えます。Vercel Cronは毎日00:00 UTC（09:00 JST）に `/api/cron/settlement-maintenance` を呼び、`CRON_SECRET` のBearer認証で保護します。
+`SETTLEMENT_RULE_V2_ENABLED` はmigrationと環境変数の準備後に `true` へ切り替えます。Vercel Cronは毎月1日00:00 UTC（同日09:00 JST）に `/api/cron/settlement-maintenance` を呼び、`CRON_SECRET` のBearer認証で保護します。完了状態を確認してから、前月の精算対象がある未申請者へリマインドを送ります。月初以外の呼び出しでは更新・通知を行いません。日常の完了状態の反映は、精算画面の表示時や申請・承認時にも行います。
 
 ## Vercel Analytics
 

@@ -23,22 +23,23 @@ export type SettlementMaintenanceResult = {
 export const runSettlementMaintenance = async (
   now = new Date(),
 ): Promise<SettlementMaintenanceResult> => {
+  // 定期処理は月初の申請案内に限定し、日常の反映は精算画面・申請・承認時に行う。
+  const isFirstOfMonth = jstDateString(now).endsWith("-01");
+  if (!isFirstOfMonth) {
+    return {
+      reconciledBase: 0,
+      reconciledSupplemental: 0,
+      remindersCreated: 0,
+      reminderMonth: null,
+    };
+  }
+
   const project = await fetchProjectIssuesForPage();
   if (project.projectFetchError) {
     // GitHub障害を「完了確認待ち」と誤認して既存の対象状態を後退させない。
     throw new Error(project.projectFetchError);
   }
   const reconciled = await reconcileCompletionReports(project.issues);
-  const isFirstOfMonth = jstDateString(now).endsWith("-01");
-  if (!isFirstOfMonth) {
-    return {
-      reconciledBase: reconciled.base,
-      reconciledSupplemental: reconciled.supplemental,
-      remindersCreated: 0,
-      reminderMonth: null,
-    };
-  }
-
   const reminderMonth = addMonths(currentJstMonth(now), -1);
   const settlement = await loadSettlementMonth(reminderMonth);
   if (settlement.projectFetchError) {
