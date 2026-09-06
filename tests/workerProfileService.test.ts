@@ -31,6 +31,10 @@ const profile = (overrides: Partial<WorkerProfile> = {}): WorkerProfile => ({
   specialtyNote: "",
   availabilityNote: "",
   selfAssignmentNote: "",
+  partnerInterest: null,
+  partnerConditions: "",
+  preferencesVersion: 0,
+  preferencesUpdatedAt: null,
   adminNote: "",
   adminNoteUpdatedBy: null,
   adminNoteUpdatedAt: null,
@@ -94,8 +98,6 @@ describe("workerProfileService", () => {
       slackMemberId: "",
       skills: ["SvelteKit", "Drizzle"],
       specialtyNote: "管理画面",
-      availabilityNote: "平日夜",
-      selfAssignmentNote: "短期タスク優先",
     });
   });
 

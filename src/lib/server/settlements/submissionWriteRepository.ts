@@ -1,3 +1,9 @@
+import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
+import {
+  executeFeedbackWrite,
+  feedbackInsert,
+  feedbackWriteAllowed,
+} from "$lib/server/settlements/monthlyFeedbackRepository";
 import { sql, type SQL } from "drizzle-orm";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 import { createSettlementSnapshotPayload } from "$lib/server/settlements/settlementSnapshot";
@@ -53,29 +59,33 @@ export const recordWorkSubmission = async (input: {
   submittedAt: Date;
   expectedSourceToken?: string;
   notification?: PreparedNotificationWrite;
+  feedback?: MonthlyFeedbackInput;
+  legacy?: boolean;
 }): Promise<boolean> => {
   const payload = JSON.stringify(
     createSettlementSnapshotPayload(input.summary),
   );
   const notification = input.notification;
-  const result = await executeGuardedSettlementWrite(sql`
+  const query = sql`
     WITH submitted AS (
       INSERT INTO monthly_work_submissions (month, assignee_login, snapshot, submitted_by, submitted_at)
       SELECT ${input.summary.month}, ${input.summary.assigneeLogin}, ${payload}::jsonb,
         ${input.submittedBy}, ${input.submittedAt.toISOString()}::timestamptz
       WHERE ${settlementSourceMatches(input.expectedSourceToken)}
+        AND ${input.feedback ? feedbackWriteAllowed(input.summary.month, input.summary.assigneeLogin, input.feedback.version) : sql`true`}
       ON CONFLICT (month, assignee_login) DO UPDATE SET snapshot = EXCLUDED.snapshot,
         submitted_by = EXCLUDED.submitted_by, submitted_at = EXCLUDED.submitted_at
       RETURNING *
     ),
-    ${frozenRateCtes()},
+    ${input.legacy ? sql`` : sql`${frozenRateCtes()},`}
+    ${input.feedback ? sql`feedback_saved AS (${feedbackInsert(input.summary.month, input.summary.assigneeLogin, input.feedback, sql`EXISTS (SELECT 1 FROM submitted)`)}),` : sql``}
     submission_audit AS (
       INSERT INTO audit_logs (actor_login, action, target_type, target_id, details)
       SELECT submitted_by, 'monthly_work_submitted', 'monthly_work_submission', month || ':' || assignee_login,
         jsonb_build_object('month', month, 'assigneeLogin', assignee_login,
           'taxExcludedYen', ${input.summary.taxExcludedYen}::integer,
           'taxIncludedYen', ${input.summary.taxIncludedYen}::integer)
-      FROM submitted RETURNING 1
+      FROM submitted WHERE ${!input.legacy} RETURNING 1
     ),
     inserted_event AS (
       INSERT INTO email_notification_events (id, event_key, type, month, assignee_login, occurred_at, payload)
@@ -99,7 +109,10 @@ export const recordWorkSubmission = async (input: {
       ON CONFLICT (event_id, recipient_login) DO NOTHING RETURNING id
     )
     SELECT EXISTS(SELECT 1 FROM submitted) AS transitioned
-  `);
+  `;
+  const result = input.legacy
+    ? await executeFeedbackWrite(query)
+    : await executeGuardedSettlementWrite(query, Boolean(input.feedback));
   return (
     Array.isArray(result) &&
     (result[0] as { transitioned?: unknown })?.transitioned === true

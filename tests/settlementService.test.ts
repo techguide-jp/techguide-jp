@@ -188,6 +188,48 @@ describe("loadSettlementMonth", () => {
 });
 
 describe("monthly settlement actions", () => {
+  it("月次コメントは申請保存へ渡し、通知には渡さない", async () => {
+    mockSuccessfulProjectFetch();
+    vi.mocked(upsertWorkSubmission).mockResolvedValue(true);
+    const feedback = {
+      operatorComment: "運営へ",
+      privateReflection: "本人限定",
+      version: 0,
+    };
+    expect(
+      (
+        await submitSettlementWork(
+          "2026-06",
+          "tashua314",
+          "tashua314",
+          feedback,
+        )
+      ).ok,
+    ).toBe(true);
+    expect(upsertWorkSubmission).toHaveBeenCalledWith(
+      expect.anything(),
+      "tashua314",
+      expect.objectContaining({ feedback }),
+    );
+    expect(
+      JSON.stringify(vi.mocked(prepareSettlementNotificationSafely).mock.calls),
+    ).not.toContain("本人限定");
+    expect(JSON.stringify(vi.mocked(createAuditLog).mock.calls)).not.toContain(
+      "本人限定",
+    );
+  });
+  it("コメントの入力不備では申請・通知準備を始めない", async () => {
+    const result = await submitSettlementWork(
+      "2026-06",
+      "tashua314",
+      "tashua314",
+      { operatorComment: "", privateReflection: "あ".repeat(2001), version: 0 },
+    );
+    expect(result.ok).toBe(false);
+    expect(upsertWorkSubmission).not.toHaveBeenCalled();
+    expect(prepareSettlementNotificationSafely).not.toHaveBeenCalled();
+  });
+
   it("Project取得失敗中の月次確定申請を明示エラーにする", async () => {
     const result = await submitSettlementWork(
       "2026-06",

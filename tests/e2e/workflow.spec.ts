@@ -1,7 +1,10 @@
+import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
+import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
 registerPaymentCommentTests();
+registerMonthlyFeedbackTests();
 
 const currentJstMonth = (): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -112,12 +115,23 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(
     page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
+  await page.getByLabel(feedbackQuestions.operatorComment).fill("申請時の質問");
+  await page
+    .getByLabel(feedbackQuestions.privateReflection)
+    .fill("申請時の本人用メモ");
   await page
     .getByRole("button", { name: "この月の稼働を確定して申請" })
     .click();
   await expect(
     page.getByText(`${month} の稼働を確定して申請しました。`),
   ).toBeVisible();
+
+  await expect(page.getByLabel(feedbackQuestions.operatorComment)).toHaveValue(
+    "申請時の質問",
+  );
+  await expect(
+    page.getByLabel(feedbackQuestions.privateReflection),
+  ).toHaveValue("申請時の本人用メモ");
 
   await page.goto(`/settlements/${month}`);
   const settlementRow = page.getByRole("row").filter({ hasText: "tashua314" });
@@ -219,11 +233,14 @@ test("本人プロフィールを保存して管理者の稼働確認で見ら�
     page.getByRole("button", { name: "Drizzle を削除" }),
   ).toBeVisible();
   await page.getByLabel("得意領域").fill("管理画面");
-  await page.getByLabel("稼働目安").fill("平日夜");
-  const assignmentNote = page.getByLabel("仕事の進め方・希望");
+  await page
+    .getByLabel("今後の稼働量・時期・時間帯の希望を教えてください。")
+    .fill("平日夜");
+  const assignmentNote = page.getByLabel(
+    "取り組みたい仕事や、仕事の進め方の希望を教えてください。",
+  );
   await assignmentNote.fill("短期タスク優先");
-  await page.getByRole("button", { name: "希望例" }).click();
-  await expect(page.getByRole("heading", { name: "希望例" })).toBeVisible();
+  await page.getByText("希望例を見る", { exact: true }).click();
   await page
     .getByRole("button", {
       name: /AI API \/ LLM 連携の実装に挑戦したい/,
@@ -232,8 +249,12 @@ test("本人プロフィールを保存して管理者の稼働確認で見ら�
   await expect(assignmentNote).toHaveValue(
     /短期タスク優先\nAI API \/ LLM 連携の実装に挑戦したい/,
   );
-  await page.mouse.click(20, 20);
-  await expect(page.getByRole("dialog", { name: "希望例" })).toHaveCount(0);
+  await page.getByText("希望例を見る", { exact: true }).click();
+  await page
+    .getByRole("radio", { name: "条件次第で検討したい", exact: true })
+    .check();
+  await page.getByRole("button", { name: "希望を保存", exact: true }).click();
+  await expect(page.getByText("現在の希望を保存しました。")).toBeVisible();
   await page.getByRole("button", { name: "プロフィールを保存" }).click();
 
   await expect(page.getByText("プロフィールを保存しました。")).toBeVisible();

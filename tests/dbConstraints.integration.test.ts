@@ -1,3 +1,4 @@
+import { registerMonthlyFeedbackDbTests } from "./monthlyFeedback.dbCases";
 import { beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -11,6 +12,7 @@ import {
   githubProjectStatusSyncs,
   issueCompletionReports,
   issueHourlyRates,
+  monthlyFeedback,
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
@@ -119,6 +121,7 @@ beforeEach(async () => {
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
+  await db.delete(monthlyFeedback);
   await db.delete(issueHourlyRates);
   await db.delete(workLogChangeRequests);
   await db.delete(workSessions);
@@ -132,6 +135,7 @@ describeDb("DB constraints", () => {
   registerSettlementWriteDbTests();
   registerCompletionOwnershipDbTests();
   registerPaymentCommentDbTests();
+  registerMonthlyFeedbackDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
     const base = {
       projectItemId: "item-reported",

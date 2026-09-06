@@ -32,8 +32,6 @@ const selfProfileSchema = z.object({
     .regex(/^$|^[UW][A-Z0-9]+$/),
   skills: z.string().max(2000).optional(),
   specialtyNote: z.string().trim().max(2000).optional(),
-  availabilityNote: z.string().trim().max(2000).optional(),
-  selfAssignmentNote: z.string().trim().max(2000).optional(),
 });
 
 const adminNoteSchema = z.object({
@@ -141,8 +139,6 @@ export const updateWorkerSelfProfile = async (
     slackMemberId: parsed.data.slackMemberId,
     skills: normalizeSkills(parsed.data.skills),
     specialtyNote: parsed.data.specialtyNote ?? "",
-    availabilityNote: parsed.data.availabilityNote ?? "",
-    selfAssignmentNote: parsed.data.selfAssignmentNote ?? "",
   });
 
   return { ok: true, profile: toWorkerProfileView(targetLogin, profile) };

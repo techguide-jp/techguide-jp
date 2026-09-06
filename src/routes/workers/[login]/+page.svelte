@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
+  import WorkerPreferencesPanel from "$lib/components/WorkerPreferencesPanel.svelte";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import CopyLoginButton from "$lib/components/CopyLoginButton.svelte";
   import FormFeedback from "$lib/components/FormFeedback.svelte";
@@ -16,12 +17,17 @@
     if (!value) return "";
     return typeof value === "string" ? value : value.toISOString();
   };
+  // 希望だけの更新で、編集中の基本プロフィールを再初期化しない。
   const profileKey = (profile: Profile): string =>
-    [
+    JSON.stringify([
       profile.login,
-      dateKey(profile.updatedAt),
+      profile.displayName,
+      profile.slackMemberId,
+      profile.skills,
+      profile.specialtyNote,
+      profile.adminNote,
       dateKey(profile.adminNoteUpdatedAt),
-    ].join(":");
+    ]);
 
   let pendingAction = $state<string | null>(null);
   let displayName = $state(initialProfile().displayName);
@@ -29,11 +35,8 @@
   let skills = $state<string[]>(initialProfile().skills);
   let skillDraft = $state("");
   let specialtyNote = $state(initialProfile().specialtyNote);
-  let availabilityNote = $state(initialProfile().availabilityNote);
-  let selfAssignmentNote = $state(initialProfile().selfAssignmentNote);
   let adminNote = $state(initialProfile().adminNote);
   let syncedProfileKey = $state(profileKey(initialProfile()));
-  let isPreferenceExamplesOpen = $state(false);
 
   type PayoutAccount = NonNullable<PageProps["data"]["payoutAccount"]>;
   const initialPayoutAccount = (): PayoutAccount =>
@@ -93,60 +96,6 @@
       ? displayName || data.profile.login
       : data.profile.displayName,
   );
-  const preferenceExampleGroups = [
-    {
-      title: "触ってみたい技術",
-      examples: [
-        "SvelteKit / Svelte 5 の画面実装を増やしたい",
-        "AI API / LLM 連携の実装に挑戦したい",
-        "Drizzle / PostgreSQL の設計やクエリ改善を触りたい",
-        "Playwright / Vitest でテスト整備を担当したい",
-        "Vercel / CI/CD 周りの改善を経験したい",
-        "TypeScript の型設計や安全なリファクタリングを深めたい",
-        "認証・権限管理まわりの実装に関わりたい",
-        "GitHub API など外部サービス連携を触りたい",
-        "管理画面やダッシュボードの集計UIを作りたい",
-        "アクセシビリティやフォームの使いやすさを改善したい",
-        "パフォーマンス改善や不要な再取得の削減をやりたい",
-        "DB migration やデータ整合性の検証を経験したい",
-      ],
-    },
-    {
-      title: "任されたい仕事",
-      examples: [
-        "小さめのUI改善から入り、慣れたら画面全体を任されたい",
-        "仕様が曖昧な箇所を整理しながら実装したい",
-        "既存機能のバグ調査と修正がやりやすい",
-        "管理画面や運用を楽にする機能に関わりたい",
-        "Issue の背景調査から実装方針の整理まで担当したい",
-        "既存画面の使いにくい部分を見つけて改善したい",
-        "テストが薄い機能にテストを足しながら直したい",
-        "レビュー指摘の修正や仕上げの品質改善を担当したい",
-        "DB schema 変更を含む小さめの機能追加をやりたい",
-        "ログやエラー内容を見ながら原因調査する仕事が向いている",
-        "ユーザー向けの文言や入力導線の改善も担当したい",
-        "新規機能より既存運用の詰まりを解消する仕事がやりやすい",
-      ],
-    },
-    {
-      title: "進め方",
-      examples: [
-        "最初に目的・完了条件・確認方法を揃えてから進めたい",
-        "途中で早めにレビューをもらえると進めやすい",
-        "詰まったら早めに相談し、方向性を合わせたい",
-        "まとまった作業時間を確保して一気に進めたい",
-      ],
-    },
-    {
-      title: "稼働条件",
-      examples: [
-        "平日夜を中心に対応しやすい",
-        "短納期より、事前にスコープが見えているタスクがやりやすい",
-        "緊急対応は事前に相談できると動きやすい",
-        "レビュー待ちや仕様待ちの間に別タスクも並行できる",
-      ],
-    },
-  ];
 
   $effect(() => {
     if (syncedProfileKey === profileSyncKey) return;
@@ -156,8 +105,6 @@
     skills = data.profile.skills;
     skillDraft = "";
     specialtyNote = data.profile.specialtyNote;
-    availabilityNote = data.profile.availabilityNote;
-    selfAssignmentNote = data.profile.selfAssignmentNote;
     adminNote = data.profile.adminNote;
   });
 
@@ -220,19 +167,6 @@
     addSkillDraft();
   };
 
-  const hasPreferenceExample = (example: string): boolean =>
-    selfAssignmentNote
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .includes(example);
-
-  const appendPreferenceExample = (example: string) => {
-    if (hasPreferenceExample(example)) return;
-    selfAssignmentNote = [selfAssignmentNote.trim(), example]
-      .filter(Boolean)
-      .join("\n");
-  };
-
   const sanitizeAccountNumberInput = (value: string): string =>
     value.normalize("NFKC").replace(/\D/g, "").slice(0, 7);
 
@@ -265,10 +199,11 @@
     };
 
   const feedbackFor = (
-    actionName: NonNullable<ActionData>["actionName"],
+    actionName: "saveSelfProfile" | "saveAdminNote" | "savePayoutAccount",
   ): { messages: string[]; isError: boolean } | null => {
     const data = form as ActionData | undefined;
-    if (data?.actionName !== actionName) return null;
+    if (!data || !("actionName" in data) || data.actionName !== actionName)
+      return null;
     const messages =
       data.messages ??
       ("message" in data && data.message ? [data.message] : []);
@@ -338,6 +273,12 @@
     </p>
   </section>
 {/if}
+
+<WorkerPreferencesPanel
+  preferences={data.preferences}
+  canEdit={data.canEditSelf}
+  result={form}
+/>
 
 <div class="profile-layout">
   <section class="profile-panel">
@@ -435,41 +376,6 @@
               bind:value={specialtyNote}
               placeholder="管理画面、SvelteKit、DB設計"></textarea>
           </label>
-          <label class="profile-field">
-            <span>稼働目安</span>
-            <textarea
-              name="availabilityNote"
-              rows="5"
-              maxlength="2000"
-              bind:value={availabilityNote}
-              placeholder="平日夜、週5時間程度"></textarea>
-          </label>
-        </div>
-
-        <div class="profile-field profile-field-wide">
-          <div class="profile-field-header">
-            <label for="self-assignment-note">仕事の進め方・希望</label>
-            <button
-              class="preference-example-trigger"
-              type="button"
-              onclick={() => (isPreferenceExamplesOpen = true)}
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24">
-                <path d="M12 3v18" />
-                <path d="M5 8h14" />
-                <path d="M5 16h14" />
-              </svg>
-              希望例
-            </button>
-          </div>
-          <textarea
-            id="self-assignment-note"
-            name="selfAssignmentNote"
-            rows="5"
-            maxlength="2000"
-            bind:value={selfAssignmentNote}
-            placeholder="集中しやすいタスク、相談したい条件、避けたい進め方など"
-          ></textarea>
         </div>
 
         <div class="form-actions profile-actions">
@@ -508,14 +414,6 @@
         <div>
           <dt>得意領域</dt>
           <dd>{data.profile.specialtyNote || "-"}</dd>
-        </div>
-        <div>
-          <dt>稼働目安</dt>
-          <dd>{data.profile.availabilityNote || "-"}</dd>
-        </div>
-        <div>
-          <dt>仕事の進め方・希望</dt>
-          <dd>{data.profile.selfAssignmentNote || "-"}</dd>
         </div>
       </dl>
     {/if}
@@ -817,67 +715,4 @@
       <p class="muted">振込先情報は未登録です。</p>
     {/if}
   </section>
-{/if}
-
-{#if data.canEditSelf && isPreferenceExamplesOpen}
-  <div class="modal-backdrop">
-    <button
-      class="modal-scrim"
-      type="button"
-      aria-label="希望例を閉じる"
-      onclick={() => (isPreferenceExamplesOpen = false)}
-    ></button>
-    <div
-      class="modal preference-example-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="preference-examples-title"
-    >
-      <div class="modal-header">
-        <div>
-          <p class="eyebrow">preference examples</p>
-          <h2 id="preference-examples-title">希望例</h2>
-        </div>
-        <button
-          class="icon-button"
-          type="button"
-          aria-label="希望例を閉じる"
-          onclick={() => (isPreferenceExamplesOpen = false)}
-        >
-          ×
-        </button>
-      </div>
-      <div class="preference-example-grid">
-        {#each preferenceExampleGroups as group (group.title)}
-          <section class="preference-example-group">
-            <h3>{group.title}</h3>
-            <div class="preference-example-list">
-              {#each group.examples as example (example)}
-                <button
-                  class="preference-example-button"
-                  type="button"
-                  data-selected={hasPreferenceExample(example)}
-                  onclick={() => appendPreferenceExample(example)}
-                >
-                  <span>{example}</span>
-                  <strong>
-                    {hasPreferenceExample(example) ? "追加済み" : "追加"}
-                  </strong>
-                </button>
-              {/each}
-            </div>
-          </section>
-        {/each}
-      </div>
-      <footer class="modal-actions">
-        <button
-          class="button secondary ghost"
-          type="button"
-          onclick={() => (isPreferenceExamplesOpen = false)}
-        >
-          閉じる
-        </button>
-      </footer>
-    </div>
-  </div>
 {/if}

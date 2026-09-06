@@ -79,6 +79,7 @@ export const readSettlementSourceToken = async (): Promise<string> => {
 
 export const executeGuardedSettlementWrite = async (
   query: SQL | SQL[],
+  lockFeedback = false,
 ): Promise<unknown> => {
   // INSERTも検知するため行ロックではなく表ロックを使う。外部API処理は必ずこの外で済ませる。
   // LOCK完了後の別statementで再検証することで、待機中にcommitされた変更も検知する。
@@ -87,7 +88,9 @@ export const executeGuardedSettlementWrite = async (
       sql`SET LOCAL lock_timeout = '5s'`,
       sql`SET LOCAL statement_timeout = '10s'`,
       sql`LOCK TABLE ${sql.join(
-        sourceTables.map((table) => sql.identifier(table)),
+        [...sourceTables, ...(lockFeedback ? ["monthly_feedback"] : [])].map(
+          (table) => sql.identifier(table),
+        ),
         sql`, `,
       )} IN SHARE ROW EXCLUSIVE MODE`,
       ...(Array.isArray(query) ? query : [query]),
