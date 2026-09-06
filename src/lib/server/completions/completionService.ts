@@ -6,6 +6,7 @@ import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import { toJstMonth, parseJstDatetimeLocal } from "$lib/server/time";
 import { findOpenWorkSession } from "$lib/server/work/workRepository";
+import { selectCompletionReports } from "$lib/server/completions/completionSelection";
 import {
   confirmCompletionEligibility,
   getActiveCompletionReport,
@@ -110,7 +111,7 @@ export const reportIssueCompletion = async (
     if (current?.eligibilityConfirmedAt) {
       return {
         ok: false,
-        message: "PRマージ確認済みの完了報告は変更できません。",
+        message: "Issue完了確認済みの完了報告は変更できません。",
       };
     }
     const report = await writeReport({
@@ -144,7 +145,7 @@ export const withdrawIssueCompletion = async (
     if (current?.eligibilityConfirmedAt) {
       return {
         ok: false,
-        message: "PRマージ確認済みの完了報告は取り下げできません。",
+        message: "Issue完了確認済みの完了報告は取り下げできません。",
       };
     }
     const count = await invalidateActiveCompletionReport({
@@ -255,9 +256,16 @@ export const reconcileCompletionReports = async (
   let base = 0;
   let supplemental = 0;
 
-  for (const report of reports) {
+  for (const report of selectCompletionReports(reports).selected) {
     const issue = issueByKey.get(`${report.repository}#${report.issueNumber}`);
-    if (!issue || issue.state !== "CLOSED" || issue.status !== "Done") continue;
+    // 支払対象の完了条件はIssueのclosedかつDone。関連PRの有無・状態は条件に含めない。
+    if (
+      !issue ||
+      issue.state !== "CLOSED" ||
+      issue.status !== "Done" ||
+      issue.assignees.length !== 1
+    )
+      continue;
     const result = await confirmCompletionEligibility({
       report,
       confirmedAt: new Date(),

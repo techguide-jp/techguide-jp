@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
-export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 2;
+export const SETTLEMENT_SNAPSHOT_SCHEMA_VERSION = 4;
 
 type VersionedSettlementSnapshot = {
   schemaVersion: number;
@@ -14,6 +14,8 @@ type VersionedSettlementSnapshot = {
     taxIncludedYen: number;
   };
   comparable: unknown;
+  source: SettlementSummary;
+  sourceHash: string;
   generatedAt: string;
 };
 
@@ -33,6 +35,11 @@ const issueKey = (
 ): string => {
   return `${String(issue?.repository ?? "")}#${String(issue?.number ?? "")}`;
 };
+
+const issueAssigneeKey = (
+  issue: { repository?: unknown; number?: unknown } | undefined,
+  assigneeLogin: unknown,
+): string => `${issueKey(issue)}#${String(assigneeLogin ?? "")}`;
 
 const normalizeIssue = (issue: unknown) => {
   const value =
@@ -210,7 +217,11 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
         return {
           issue: normalizeIssue(valueLine.issue),
           workMinutes: valueLine.workMinutes ?? null,
-          reason: valueLine.reason ?? null,
+          // 旧スナップショットのキーもIssue完了待ちとして比較する。
+          reason:
+            valueLine.reason === "merge_waiting"
+              ? "completion_waiting"
+              : (valueLine.reason ?? null),
           sessions: normalizeSessions(valueLine.sessions),
         };
       })
@@ -259,8 +270,27 @@ export const createSettlementSnapshotPayload = (
       taxIncludedYen: summary.taxIncludedYen,
     },
     comparable,
+    source: structuredClone(summary),
+    sourceHash: hashSettlementSource(summary),
     generatedAt: new Date().toISOString(),
   };
+};
+
+/** jsonbによるキー並べ替えとDateのJSON変換を許容し、件名を含む保存原本全体を照合する。 */
+export const hashSettlementSource = (source: unknown): string => {
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([key, entry]) => [key, canonical(entry)]),
+      );
+    return value;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(canonical(JSON.parse(JSON.stringify(source)))))
+    .digest("hex");
 };
 
 export const hasSettlementSnapshotChanges = (
@@ -311,14 +341,14 @@ const normalizeWorkSubmissionSnapshot = (snapshot: unknown) => {
       })),
     pendingRequests: normalized.pendingRequests,
     unsettledProjectIssues: normalized.unsettledProjectIssues.filter(
-      (line) => line.reason !== "merge_waiting",
+      (line) => line.reason !== "completion_waiting",
     ),
     unsettledIssueSessions: normalized.unsettledIssueSessions,
     completionReports: normalized.completionReports,
   };
 };
 
-/** PRマージ状態だけの変化では、作業者に月次の再申請を求めない。 */
+/** Issue完了状態だけの変化では、作業者に月次の再申請を求めない。 */
 export const hasWorkSubmissionChanges = (
   snapshot: unknown,
   summary: SettlementSummary,
@@ -333,8 +363,25 @@ export const settlementSnapshotHourlyRates = (
   return new Map(
     normalized.lines.map((line) => {
       const rate = line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen;
-      return [issueKey(line.issue), typeof rate === "number" ? rate : null];
+      return [
+        issueAssigneeKey(line.issue, normalized.assigneeLogin),
+        typeof rate === "number" ? rate : null,
+      ];
     }),
+  );
+};
+
+export const settlementSnapshotCompletionReportIds = (
+  snapshot: unknown,
+): Set<string> => {
+  const normalized = normalizeSettlementSnapshot(unwrapSnapshot(snapshot));
+  return new Set(
+    normalized.lines.flatMap((line) =>
+      Number(line.fixedRewardYen ?? 0) > 0 &&
+      typeof line.completionReportId === "string"
+        ? [line.completionReportId]
+        : [],
+    ),
   );
 };
 

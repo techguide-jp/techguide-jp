@@ -168,9 +168,7 @@ beforeEach(() => {
   vi.mocked(insertPaymentNotice).mockResolvedValue(
     {} as Awaited<ReturnType<typeof insertPaymentNotice>>,
   );
-  vi.mocked(upsertWorkSubmission).mockResolvedValue(
-    {} as Awaited<ReturnType<typeof upsertWorkSubmission>>,
-  );
+  vi.mocked(upsertWorkSubmission).mockResolvedValue(true);
   vi.mocked(reviewChangeRequest).mockResolvedValue(null);
   vi.mocked(createAuditLog).mockResolvedValue(
     {} as Awaited<ReturnType<typeof createAuditLog>>,
@@ -368,7 +366,7 @@ describe("monthly settlement actions", () => {
     expect(result).toEqual({
       ok: false,
       message:
-        "承認状態が別の操作で更新されました。画面を再読み込みしてください。",
+        "精算元データまたは承認状態が別の操作で更新されました。画面を再読み込みしてください。",
     });
     expect(dispatchPreparedNotification).not.toHaveBeenCalled();
   });

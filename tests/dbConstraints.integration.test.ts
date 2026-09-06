@@ -10,6 +10,7 @@ import {
   emailNotificationEvents,
   githubProjectStatusSyncs,
   issueCompletionReports,
+  issueHourlyRates,
   monthlyPayments,
   monthlySettlementSnapshots,
   monthlyWorkSubmissions,
@@ -41,6 +42,8 @@ import {
   scheduleSupplementalPayment,
 } from "../src/lib/server/supplementalPayments/supplementalPaymentRepository";
 import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
+import { registerSettlementWriteDbTests } from "./settlementWrite.dbCases";
+import { registerCompletionOwnershipDbTests } from "./completionOwnership.dbCases";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -115,6 +118,7 @@ beforeEach(async () => {
   await db.delete(monthlyPayments);
   await db.delete(monthlySettlementSnapshots);
   await db.delete(monthlyWorkSubmissions);
+  await db.delete(issueHourlyRates);
   await db.delete(workLogChangeRequests);
   await db.delete(workSessions);
   await db.delete(githubProjectStatusSyncs);
@@ -124,6 +128,8 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  registerSettlementWriteDbTests();
+  registerCompletionOwnershipDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
     const base = {
       projectItemId: "item-reported",
@@ -282,6 +288,128 @@ describeDb("DB constraints", () => {
       taxYen: 8_000,
       taxIncludedYen: 88_000,
     });
+  });
+
+  it("旧形式の承認済み明細に同じIssueの固定報酬があれば追加支払いを作らない", async () => {
+    await db.insert(monthlySettlementSnapshots).values({
+      month: "2026-08",
+      assigneeLogin: "worker",
+      snapshot: {
+        schemaVersion: 1,
+        hash: "legacy-snapshot",
+        totals: {
+          fixedRewardYen: 80_000,
+          timedRewardYen: 0,
+          taxExcludedYen: 80_000,
+          taxYen: 8_000,
+          taxIncludedYen: 88_000,
+        },
+        comparable: {
+          lines: [
+            {
+              issue: {
+                repository: "techguide-jp/example",
+                number: 106,
+              },
+              fixedRewardYen: 80_000,
+            },
+          ],
+        },
+        generatedAt: "2026-09-03T00:00:00.000Z",
+      },
+      approvedBy: "admin",
+    });
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-legacy-approved",
+        repository: "techguide-jp/example",
+        issueNumber: 106,
+        issueTitle: "旧形式の承認済みIssue",
+        issueUrl: "https://github.com/techguide-jp/example/issues/106",
+        assigneeLogin: "worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-31T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 80_000,
+        createdBy: "admin",
+        createdAt: new Date("2026-09-04T00:00:00Z"),
+      })
+      .returning();
+
+    const result = await confirmCompletionEligibility({
+      report: completion,
+      confirmedAt: new Date("2026-09-10T00:00:00Z"),
+    });
+
+    expect(result).toBe("base");
+    expect(await db.select().from(supplementalPayments)).toHaveLength(0);
+    const [confirmed] = await db
+      .select()
+      .from(issueCompletionReports)
+      .where(eq(issueCompletionReports.id, completion.id));
+    expect(confirmed.eligibilityConfirmedAt).toEqual(
+      new Date("2026-09-10T00:00:00Z"),
+    );
+  });
+
+  it("別作業者の承認済み明細に完了報告IDがあれば追加支払いを作らない", async () => {
+    const [completion] = await db
+      .insert(issueCompletionReports)
+      .values({
+        projectItemId: "item-cross-assignee-approved",
+        repository: "techguide-jp/example",
+        issueNumber: 107,
+        issueTitle: "担当変更済みIssue",
+        issueUrl: "https://github.com/techguide-jp/example/issues/107",
+        assigneeLogin: "original-worker",
+        settlementMonth: "2026-08",
+        reportedAt: new Date("2026-08-31T00:00:00Z"),
+        rewardMode: "固定",
+        fixedRewardYen: 80_000,
+        createdBy: "original-worker",
+        createdAt: new Date("2026-08-31T00:00:00Z"),
+      })
+      .returning();
+    await db.insert(monthlySettlementSnapshots).values([
+      {
+        month: "2026-08",
+        assigneeLogin: "original-worker",
+        snapshot: {
+          month: "2026-08",
+          assigneeLogin: "original-worker",
+          lines: [],
+        },
+        approvedBy: "admin",
+      },
+      {
+        month: "2026-08",
+        assigneeLogin: "replacement-worker",
+        snapshot: {
+          month: "2026-08",
+          assigneeLogin: "replacement-worker",
+          lines: [
+            {
+              issue: {
+                repository: "techguide-jp/example",
+                number: 107,
+              },
+              fixedRewardYen: 80_000,
+              completionReportId: completion.id,
+            },
+          ],
+        },
+        approvedBy: "admin",
+      },
+    ]);
+
+    const result = await confirmCompletionEligibility({
+      report: completion,
+      confirmedAt: new Date("2026-09-10T00:00:00Z"),
+    });
+
+    expect(result).toBe("base");
+    expect(await db.select().from(supplementalPayments)).toHaveLength(0);
   });
 
   it("追加支払いは予定日なしで支払い済みにできない", async () => {

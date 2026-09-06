@@ -26,7 +26,7 @@ export type UnsettledProjectIssueReason =
   | "open_in_progress"
   | "closed_not_done"
   | "completion_not_reported"
-  | "merge_waiting";
+  | "completion_waiting";
 
 export type UnsettledProjectIssueLine = {
   issue: ProjectIssue;
@@ -36,6 +36,8 @@ export type UnsettledProjectIssueLine = {
 };
 
 export type SettlementSummary = {
+  /** GitHub取得失敗時の表示元。unavailable の金額は画面に表示しない。 */
+  dataSource?: "approved" | "submitted" | "unavailable";
   month: string;
   assigneeLogin: string;
   fixedRewardYen: number;

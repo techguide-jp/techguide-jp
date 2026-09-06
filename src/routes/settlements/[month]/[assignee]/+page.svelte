@@ -13,6 +13,10 @@
     formatYen,
   } from "$lib/format";
   import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
+  import {
+    settlementAmountLabel,
+    settlementSourceLabel,
+  } from "$lib/settlementDisplay";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
 
   let { data, form }: PageProps = $props();
@@ -56,7 +60,7 @@
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
   const diff = $derived(
-    approvedTaxExcludedYen === null || !summary
+    data.projectFetchError || approvedTaxExcludedYen === null || !summary
       ? null
       : summary.taxExcludedYen - approvedTaxExcludedYen,
   );
@@ -163,7 +167,11 @@
       </p>
     </section>
   {/if}
-  <section class="panel">対象データがありません。</section>
+  <section class="panel">
+    {data.projectFetchError
+      ? "金額を確認できません。GitHubの取得が復旧してから再読み込みしてください。"
+      : "対象データがありません。"}
+  </section>
 {:else}
   {#if actionMessage}
     <p class="notice" role="status">{actionMessage}</p>
@@ -182,21 +190,25 @@
   <section class="summary-grid">
     <div>
       <span>固定報酬</span>
-      <strong>{formatYen(summary.fixedRewardYen)}</strong>
+      <strong>{settlementAmountLabel(summary, "fixedRewardYen")}</strong>
     </div>
     <div>
       <span>時間精算</span>
-      <strong>{formatYen(summary.timedRewardYen)}</strong>
+      <strong>{settlementAmountLabel(summary, "timedRewardYen")}</strong>
     </div>
     <div>
       <span>税込合計</span>
-      <strong>{formatYen(summary.taxIncludedYen)}</strong>
+      <strong>{settlementAmountLabel(summary, "taxIncludedYen")}</strong>
     </div>
     <div>
       <span>確定差分</span>
       <strong>{diff === null ? "-" : formatYen(diff)}</strong>
     </div>
   </section>
+
+  {#if settlementSourceLabel(summary)}
+    <p class="notice" role="status">{settlementSourceLabel(summary)}</p>
+  {/if}
 
   {#if data.settlementRuleV2Enabled}
     <section class="panel">
@@ -228,8 +240,8 @@
                 <td>{formatYen(report.fixedRewardYen)}</td>
                 <td>
                   {report.eligibilityConfirmedAt
-                    ? "PRマージ確認済み"
-                    : "PRマージ待ち"}
+                    ? "Issue完了確認済み"
+                    : "Issue完了待ち"}
                 </td>
               </tr>
             {/each}
@@ -300,7 +312,13 @@
 
   <section class="panel">
     <h2>月次確定申請</h2>
-    {#if !summary.approvalRequired}
+    {#if data.projectFetchError}
+      <p class="muted">
+        {submission
+          ? "申請済みです。最新の変更有無は確認できません。"
+          : "GitHubの取得が復旧するまで申請できません。"}
+      </p>
+    {:else if !summary.approvalRequired}
       <p class="muted">この月は精算対象がないため、月次確定申請は不要です。</p>
     {:else}
       <div class="submission-status">

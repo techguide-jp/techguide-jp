@@ -22,7 +22,7 @@
       open_in_progress: "未close",
       closed_not_done: "Status未完了",
       completion_not_reported: "完了報告未提出",
-      merge_waiting: "PRマージ待ち",
+      completion_waiting: "Issue完了待ち",
     })[reason];
   const sessionMinutes = (
     startedAt: Date | string,

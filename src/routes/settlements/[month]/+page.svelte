@@ -14,6 +14,10 @@
   } from "$lib/format";
   import { addMonths, currentJstMonth, formatMonthLabel } from "$lib/month";
   import { workerPayoutAccountHref } from "$lib/workerProfileRoute";
+  import {
+    settlementAmountLabel,
+    settlementSourceLabel,
+  } from "$lib/settlementDisplay";
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
@@ -67,13 +71,13 @@
       | "open_in_progress"
       | "closed_not_done"
       | "completion_not_reported"
-      | "merge_waiting",
+      | "completion_waiting",
   ): string =>
     ({
       open_in_progress: "未close",
       closed_not_done: "Status未完了",
       completion_not_reported: "完了報告未提出",
-      merge_waiting: "PRマージ待ち",
+      completion_waiting: "Issue完了待ち",
     })[reason];
   const currentMonth = $derived(currentJstMonth());
   const previousMonth = $derived(addMonths(data.month, -1));
@@ -295,11 +299,14 @@
             <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
               >{summary.assigneeLogin}</a
             >
+            {#if settlementSourceLabel(summary)}
+              <small class="muted">{settlementSourceLabel(summary)}</small>
+            {/if}
           </td>
-          <td>{formatYen(summary.fixedRewardYen)}</td>
-          <td>{formatYen(summary.timedRewardYen)}</td>
-          <td>{formatYen(summary.taxExcludedYen)}</td>
-          <td>{formatYen(summary.taxIncludedYen)}</td>
+          <td>{settlementAmountLabel(summary, "fixedRewardYen")}</td>
+          <td>{settlementAmountLabel(summary, "timedRewardYen")}</td>
+          <td>{settlementAmountLabel(summary, "taxExcludedYen")}</td>
+          <td>{settlementAmountLabel(summary, "taxIncludedYen")}</td>
           <td>
             {#if payoutStatus?.registered}
               <span class="status-stack">
@@ -342,7 +349,15 @@
             {/if}
           </td>
           <td>
-            {#if !summary.approvalRequired}
+            {#if data.projectFetchError}
+              <span class="muted"
+                >{snapshot
+                  ? "承認済み・最新状態は確認できません"
+                  : submission
+                    ? "申請済み・最新状態は確認できません"
+                    : "確認できません"}</span
+              >
+            {:else if !summary.approvalRequired}
               <span class="muted">精算対象なし</span>
             {:else if snapshot && data.settlementRuleV2Enabled}
               <span class="status-stack">
@@ -404,7 +419,11 @@
                   通知書を見る
                 </a>
               {/if}
-              {#if !summary.approvalRequired}
+              {#if data.projectFetchError}
+                <button class="button primary" type="button" disabled
+                  >承認</button
+                >
+              {:else if !summary.approvalRequired}
                 {#if !noticeAvailable}<span class="muted">-</span>{/if}
               {:else if snapshot && data.settlementRuleV2Enabled}
                 {#if !noticeAvailable}<span class="muted">固定済み</span>{/if}
@@ -584,7 +603,7 @@
 {/if}
 
 {#each data.summaries as summary (summary.assigneeLogin)}
-  {#if summary.approvalRequired}
+  {#if summary.approvalRequired && !data.projectFetchError}
     {@const snapshot = snapshotByAssignee.get(summary.assigneeLogin)}
     {@const submission = submissionByAssignee.get(summary.assigneeLogin)}
     {@const payment = paymentByAssignee.get(summary.assigneeLogin)}
