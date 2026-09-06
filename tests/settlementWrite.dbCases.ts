@@ -63,11 +63,12 @@ const fixture = async () => {
 
 const submitInput = (
   summary: Awaited<ReturnType<typeof fixture>>["summary"],
-  expectedSourceToken?: string,
+  expectedSourceToken: string,
 ) => ({
   summary,
   submittedBy: "worker",
   submittedAt: new Date("2026-09-01T00:00:00Z"),
+  settlementRuleVersion: 2 as const,
   expectedSourceToken,
 });
 

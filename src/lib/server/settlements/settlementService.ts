@@ -491,8 +491,11 @@ export const submitSettlementWork = async (
     submittedAt,
     ...(feedback ? { feedback } : {}),
     ...(env.settlementRuleV2Enabled
-      ? { expectedSourceToken: data.sourceToken ?? "" }
-      : {}),
+      ? {
+          settlementRuleVersion: 2 as const,
+          expectedSourceToken: data.sourceToken ?? "",
+        }
+      : { settlementRuleVersion: 1 as const }),
     ...(emailNotification.mode === "resend"
       ? { notification: emailNotification.write }
       : {}),

@@ -209,8 +209,12 @@ describe("monthly settlement actions", () => {
     expect(upsertWorkSubmission).toHaveBeenCalledWith(
       expect.anything(),
       "tashua314",
-      expect.objectContaining({ feedback }),
+      expect.objectContaining({ feedback, settlementRuleVersion: 1 }),
     );
+    expect(vi.mocked(upsertWorkSubmission).mock.calls[0][2]).not.toHaveProperty(
+      "expectedSourceToken",
+    );
+    expect(createAuditLog).toHaveBeenCalledOnce();
     expect(
       JSON.stringify(vi.mocked(prepareSettlementNotificationSafely).mock.calls),
     ).not.toContain("本人限定");
