@@ -205,6 +205,35 @@ export const buildSettlementSummariesV2 = (
 
   const linesByAssignee = new Map<string, SettlementIssueLine[]>();
   const issueBlockingReasonsByAssignee = new Map<string, Set<string>>();
+  const addBlockingReason = (
+    key: string,
+    assignees: Iterable<string>,
+    message: string,
+  ) => {
+    const reason = `${key}: ${message}`;
+    for (const assigneeLogin of assignees) {
+      const reasons =
+        issueBlockingReasonsByAssignee.get(assigneeLogin) ?? new Set<string>();
+      reasons.add(reason);
+      issueBlockingReasonsByAssignee.set(assigneeLogin, reasons);
+    }
+  };
+
+  // Projectから削除されても、保存済み報告の重複が解消するまで対象月の確定を止める。
+  for (const key of selection.conflicts) {
+    const associatedAssignees = new Set([
+      ...(sessionAssigneesByIssue.get(key) ?? []),
+      ...reportsForMonth
+        .filter((report) => completionIssueKey(report) === key)
+        .map((report) => report.assigneeLogin),
+    ]);
+    addBlockingReason(
+      key,
+      associatedAssignees,
+      "同じIssueに完了確認済みの報告が複数あります。管理者に確認してください。",
+    );
+  }
+
   for (const issue of issues) {
     const key = issueKey(issue.repository, issue.number);
     const issueSessions = sessionsByIssue.get(key) ?? [];
@@ -232,21 +261,8 @@ export const buildSettlementSummariesV2 = (
       ...reportsForIssue.map((report) => report.assigneeLogin),
     ]);
     const addIssueBlockingReason = (message: string) => {
-      const reason = `${key}: ${message}`;
-      for (const assigneeLogin of associatedAssignees) {
-        const reasons =
-          issueBlockingReasonsByAssignee.get(assigneeLogin) ??
-          new Set<string>();
-        reasons.add(reason);
-        issueBlockingReasonsByAssignee.set(assigneeLogin, reasons);
-      }
+      addBlockingReason(key, associatedAssignees, message);
     };
-
-    if (selection.conflicts.has(key)) {
-      addIssueBlockingReason(
-        "同じIssueに完了確認済みの報告が複数あります。管理者に確認してください。",
-      );
-    }
 
     for (const assigneeLogin of assigneesForLines) {
       const report =
