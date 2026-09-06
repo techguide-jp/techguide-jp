@@ -375,7 +375,9 @@ test("作業者が着手前にIssueの報酬条件を確認できる", async ({ 
     page.getByText(/現在のProject設定を表示しています/),
   ).toBeVisible();
   await expect(
-    page.getByText(/固定報酬を含まない時間報酬の累計上限/),
+    page.getByText(
+      /同じIssueの全期間・全作業者の時間報酬の累計上限です（固定報酬は含みません）/,
+    ),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
