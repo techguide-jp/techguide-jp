@@ -266,14 +266,14 @@
     <section class="panel">
       <h2>成果の帰属月と支払い区分</h2>
       <p class="muted">
-        固定報酬は最新の有効な完了報告月、時間報酬は実際に稼働した月へ帰属します。
+        固定報酬は有効な完了報告の月、報告なしで完了確認したIssueは管理者の指定月に計上します。時間報酬は実際の稼働月に計上します。
       </p>
       {#if summary.completionReports?.length}
         <table>
           <thead>
             <tr>
               <th>Issue</th>
-              <th>完了報告日時</th>
+              <th>報告・登録日時</th>
               <th>成果の帰属月</th>
               <th>固定報酬</th>
               <th>状態</th>
@@ -287,7 +287,14 @@
                     {formatIssueName(report.issueNumber, report.issueTitle)}
                   </a>
                 </td>
-                <td>{formatDateTime(report.reportedAt)}</td>
+                <td>
+                  {formatDateTime(report.reportedAt)}
+                  {#if report.source === "admin_confirmation"}
+                    <small class="block text-slate-600"
+                      >管理者が精算月を指定</small
+                    >
+                  {/if}
+                </td>
                 <td>{formatMonthLabel(report.settlementMonth)}</td>
                 <td>{formatYen(report.fixedRewardYen)}</td>
                 <td>

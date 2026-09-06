@@ -23,12 +23,17 @@ export const replaceActiveCompletionReport = async (
         AND report.issue_number = ${input.issueNumber}
         AND report.invalidated_at IS NULL
         AND (report.eligibility_confirmed_at IS NOT NULL
-          OR ${input.source === "admin_backfill"}
+          OR ${input.source !== "worker"}
           OR (report.reported_at, report.created_at, report.id) >
             (${input.reportedAt.toISOString()}::timestamptz, ${now.toISOString()}::timestamptz, ${input.id}::uuid))
     )
     AND NOT EXISTS (${fixedSettlementLines(input)})
     AND NOT ${hasSupplementalForIssue(input)}
+    AND (${input.source !== "admin_confirmation"} OR NOT EXISTS (
+      SELECT 1 FROM monthly_payments payment
+      WHERE payment.month = ${input.settlementMonth}
+        AND payment.assignee_login = ${input.assigneeLogin} AND payment.status = 'paid'
+    ))
   `;
   const result = await executeGuardedSettlementWrite([
     sql`
@@ -52,18 +57,19 @@ export const replaceActiveCompletionReport = async (
         INSERT INTO issue_completion_reports (
           id, project_item_id, repository, issue_number, issue_title, issue_url,
           assignee_login, settlement_month, reported_at, reward_mode, fixed_reward_yen,
-          source, evidence_url, evidence_note, created_by, created_at
+          source, evidence_url, evidence_note, created_by, created_at, eligibility_confirmed_at
         )
         SELECT ${input.id}::uuid, ${input.projectItemId}, ${input.repository}, ${input.issueNumber},
           ${input.issueTitle}, ${input.issueUrl}, ${input.assigneeLogin}, ${input.settlementMonth},
           ${input.reportedAt.toISOString()}::timestamptz, ${input.rewardMode}, ${input.fixedRewardYen},
           ${input.source}::completion_report_source, ${input.evidenceUrl ?? null},
-          ${input.evidenceNote ?? null}, ${input.createdBy}, ${now.toISOString()}::timestamptz
+          ${input.evidenceNote ?? null}, ${input.createdBy}, ${now.toISOString()}::timestamptz,
+          ${input.source === "admin_confirmation" ? now.toISOString() : null}::timestamptz
         WHERE (${allowed})
         RETURNING id
       ), audited AS (
         INSERT INTO audit_logs (actor_login, action, target_type, target_id, details)
-        SELECT ${input.createdBy}, 'issue_completion_reported', 'issue_completion_report', id::text,
+        SELECT ${input.createdBy}, ${input.source === "admin_confirmation" ? "issue_settlement_month_assigned" : "issue_completion_reported"}, 'issue_completion_report', id::text,
           ${JSON.stringify({
             repository: input.repository,
             issueNumber: input.issueNumber,

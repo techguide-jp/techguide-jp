@@ -16,7 +16,7 @@ export type CompletionReportWriteInput = {
   reportedAt: Date;
   rewardMode: "固定" | "ハイブリッド";
   fixedRewardYen: number;
-  source: "worker" | "admin_backfill";
+  source: IssueCompletionReport["source"];
   evidenceUrl?: string;
   evidenceNote?: string;
   createdBy: string;

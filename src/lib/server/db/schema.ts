@@ -41,6 +41,7 @@ export const monthlyPaymentStatus = pgEnum("monthly_payment_status", [
 export const completionReportSource = pgEnum("completion_report_source", [
   "worker",
   "admin_backfill",
+  "admin_confirmation",
 ]);
 
 export const supplementalPaymentStatus = pgEnum("supplemental_payment_status", [
@@ -307,7 +308,8 @@ export const issueCompletionReports = pgTable(
     ),
     check(
       "issue_completion_reports_reported_month_chk",
-      sql`to_char(${table.reportedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') = ${table.settlementMonth}`,
+      // 管理者の完了確認は、登録した日時とは別に精算月を指定する。
+      sql`${table.source}::text = 'admin_confirmation' OR to_char(${table.reportedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') = ${table.settlementMonth}`,
     ),
     check(
       "issue_completion_reports_reported_before_created_chk",
@@ -315,7 +317,7 @@ export const issueCompletionReports = pgTable(
     ),
     check(
       "issue_completion_reports_backfill_evidence_chk",
-      sql`${table.source} = 'worker' OR (${table.settlementMonth} >= '2026-08' AND ${table.evidenceUrl} IS NOT NULL AND ${table.evidenceNote} IS NOT NULL)`,
+      sql`${table.source} = 'worker' OR ((${table.source}::text = 'admin_confirmation' OR ${table.settlementMonth} >= '2026-08') AND ${table.evidenceUrl} IS NOT NULL AND ${table.evidenceNote} IS NOT NULL)`,
     ),
     check(
       "issue_completion_reports_invalidation_chk",

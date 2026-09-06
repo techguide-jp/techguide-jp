@@ -32,8 +32,8 @@
   );
 </script>
 
-<section class="min-w-0" aria-labelledby="backfill-candidates-title">
-  <h3 id="backfill-candidates-title">対象Issueを選択</h3>
+<section class="min-w-0" aria-label="対象Issueの選択">
+  <h3>対象Issueを選択</h3>
   <p class="my-2 text-sm text-slate-600">
     精算済み・完了報告済みのIssueは除外しています。
   </p>

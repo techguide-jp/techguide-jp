@@ -4,6 +4,7 @@ import type {
   WorkLogChangeRequest,
   WorkSession,
 } from "$lib/server/db/schema";
+import { isIssueCompleted } from "$lib/issueCompletion";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import {
   calculateTax,
@@ -27,6 +28,7 @@ import type {
 } from "$lib/server/settlements/settlementTypes";
 
 type CalculatorOptions = {
+  unassignedCompletedIssueKeys?: Set<string>;
   completionReports: IssueCompletionReport[];
   supplementalPayments: SupplementalPayment[];
   frozenHourlyRates?: Map<string, number | null>;
@@ -151,6 +153,20 @@ export const buildSettlementSummariesV2 = (
     );
   // 先に月で絞ると、担当変更後の別月の報告を見落として同じ成果を二重計上する。
   const selection = selectCompletionReports(options.completionReports);
+  const reportedIssueKeys = new Set(
+    options.completionReports
+      .filter((report) => !report.invalidatedAt)
+      .map(completionIssueKey),
+  );
+  const unassignedCompletedIssues = issues.filter(
+    (issue) =>
+      isIssueCompleted(issue) &&
+      (options.unassignedCompletedIssueKeys
+        ? options.unassignedCompletedIssueKeys.has(
+            issueKey(issue.repository, issue.number),
+          )
+        : !reportedIssueKeys.has(issueKey(issue.repository, issue.number))),
+  );
   const selectedIds = new Set(selection.selected.map((report) => report.id));
   const reportsForMonth = options.completionReports.filter(
     (report) =>
@@ -334,6 +350,7 @@ export const buildSettlementSummariesV2 = (
   }
 
   const assignees = new Set<string>([
+    ...unassignedCompletedIssues.flatMap((issue) => issue.assignees),
     ...Array.from(linesByAssignee.keys()),
     ...reportsForMonth.map((report) => report.assigneeLogin),
     ...effectiveSessions.map((session) => session.assigneeLogin),
@@ -394,8 +411,24 @@ export const buildSettlementSummariesV2 = (
             });
             return result;
           }
+          if (
+            unassignedCompletedIssues.some(
+              (candidate) =>
+                candidate.repository === issue.repository &&
+                candidate.number === issue.number,
+            )
+          ) {
+            result.push({
+              issue,
+              sessions: issueSessions,
+              workMinutes,
+              reason: "settlement_month_unassigned",
+            });
+            return result;
+          }
           const needsCompletionReport =
-            !report &&
+            !isIssueCompleted(issue) &&
+            !reportedIssueKeys.has(key) &&
             issue.assignees.includes(assigneeLogin) &&
             (issue.rewardMode === "固定" ||
               issue.rewardMode === "ハイブリッド") &&

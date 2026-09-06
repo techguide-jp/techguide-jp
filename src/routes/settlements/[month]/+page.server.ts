@@ -1,4 +1,5 @@
 import { fail } from "@sveltejs/kit";
+import { isIssueCompleted } from "$lib/issueCompletion";
 import { requireAdmin } from "$lib/server/auth/guards";
 import { listPaymentViewsForMonth } from "$lib/server/payments/paymentService";
 import { listPayoutAccountStatuses } from "$lib/server/payoutAccounts/payoutAccountService";
@@ -14,6 +15,7 @@ import {
 import { env } from "$lib/server/env";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import { backfillIssueCompletion } from "$lib/server/completions/completionService";
+import { assignCompletionMonth } from "$lib/server/completions/completionMonthService";
 import { listCompletionBackfillCandidates } from "$lib/server/completions/completionBackfillService";
 import {
   listSupplementalPaymentViews,
@@ -55,10 +57,31 @@ export const load = async (event) => {
     supplementalPayments,
     completionBackfillCandidates,
     settlementRuleV2Enabled: env.settlementRuleV2Enabled,
+    completionMonthCandidates:
+      completionBackfillCandidates.filter(isIssueCompleted),
   };
 };
 
 export const actions = {
+  assignCompletionMonth: async (event) => {
+    const user = requireAdmin(event);
+    if (!env.settlementRuleV2Enabled)
+      return fail(503, {
+        message: "新しい精算ルールはまだ有効ではありません。",
+      });
+    const project = await fetchProjectIssuesForPage();
+    if (project.projectFetchError)
+      return fail(503, { message: project.projectFetchError });
+    const result = await assignCompletionMonth(
+      await event.request.formData(),
+      project.issues,
+      user.login,
+    );
+    if (!result.ok) return fail(400, { message: result.message });
+    return {
+      message: `${result.settlementMonth}分として固定報酬の精算月を登録しました。`,
+    };
+  },
   approve: async (event) => {
     const user = requireAdmin(event);
     const formData = await event.request.formData();

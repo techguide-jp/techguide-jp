@@ -63,6 +63,7 @@ import {
   listSupplementalPaymentsForMonth,
 } from "$lib/server/completions/completionRepository";
 import { env } from "$lib/server/env";
+import { listCompletionMonthCandidates } from "$lib/server/completions/completionMonthService";
 import { buildLifetimeTimedRewards } from "$lib/server/settlements/settlementLifetimeRewards";
 import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
 import { restoreSettlementFallback } from "$lib/server/settlements/settlementFallback";
@@ -177,6 +178,10 @@ export const loadSettlementMonth = async (month: string) => {
   if (env.settlementRuleV2Enabled && !projectFetchError) {
     await reconcileCompletionReports(issues);
   }
+  const completionMonthCandidates =
+    env.settlementRuleV2Enabled && !projectFetchError
+      ? await listCompletionMonthCandidates(issues)
+      : [];
   // ここから保存までにDB入力が変わった場合は、計算結果を確定せず再読み込みを求める。
   const sourceToken =
     env.settlementRuleV2Enabled && !projectFetchError
@@ -268,6 +273,11 @@ export const loadSettlementMonth = async (month: string) => {
     });
 
     summaries = buildSettlementSummariesV2(month, issues, sessions, requests, {
+      unassignedCompletedIssueKeys: new Set(
+        completionMonthCandidates.map(
+          (issue) => `${issue.repository}#${issue.number}`,
+        ),
+      ),
       completionReports: allCompletionReports,
       supplementalPayments,
       frozenHourlyRates,

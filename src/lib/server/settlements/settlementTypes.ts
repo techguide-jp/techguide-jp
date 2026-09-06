@@ -26,6 +26,7 @@ export type UnsettledProjectIssueReason =
   | "open_in_progress"
   | "closed_not_done"
   | "completion_not_reported"
+  | "settlement_month_unassigned"
   | "completion_waiting";
 
 export type UnsettledProjectIssueLine = {

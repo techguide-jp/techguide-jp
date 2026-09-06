@@ -1,4 +1,5 @@
 import { currentJstMonth } from "../../src/lib/month";
+import { assignCompletedIssueMonth } from "./completionMonthCases";
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
 import { settlementSnapshotV1 } from "../fixtures/settlementSnapshotV1";
@@ -56,13 +57,7 @@ export const registerMonthlyFeedbackTests = (): void => {
     }) => {
       const month = currentJstMonth();
       await page.goto("/__e2e/login");
-      const row = page
-        .getByRole("row")
-        .filter({ hasText: "#502 E2E: 月次申請と承認を確認する" });
-      await row.getByRole("button", { name: "完了報告", exact: true }).click();
-      await expect(
-        page.getByText(`${month}分として完了報告しました。`),
-      ).toBeVisible();
+      await assignCompletedIssueMonth(page, month);
       const url = `/settlements/${month}/tashua314`;
       await page.goto(url);
       await page

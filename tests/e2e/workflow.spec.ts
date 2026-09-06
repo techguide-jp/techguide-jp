@@ -1,5 +1,9 @@
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
 import { registerCompletionBackfillTests } from "./completionBackfillCases";
+import {
+  assignCompletedIssueMonth,
+  registerCompletionMonthTests,
+} from "./completionMonthCases";
 import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
@@ -7,6 +11,7 @@ import { registerPaymentCommentTests } from "./paymentCommentCases";
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
 registerCompletionBackfillTests();
+registerCompletionMonthTests();
 
 const currentJstMonth = (): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -101,16 +106,7 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await page.getByRole("button", { name: "振込先情報を保存" }).click();
   await expect(page.getByText("振込先情報を保存しました。")).toBeVisible();
 
-  await page.goto("/work");
-  const completedIssueRow = page.getByRole("row").filter({
-    hasText: "#502 E2E: 月次申請と承認を確認する",
-  });
-  await completedIssueRow
-    .getByRole("button", { name: "完了報告", exact: true })
-    .click();
-  await expect(
-    page.getByText(`${month}分として完了報告しました。`),
-  ).toBeVisible();
+  await assignCompletedIssueMonth(page, month);
 
   await page.goto(`/settlements/${month}/tashua314`);
 
