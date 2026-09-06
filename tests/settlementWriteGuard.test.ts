@@ -50,6 +50,30 @@ describe("Neon HTTPの精算transaction", () => {
     );
   });
 
+  it("報告差し替えの失効とINSERTを同じロック内の別statementで実行する", async () => {
+    mocks.transaction.mockResolvedValue([
+      [],
+      [],
+      [],
+      [],
+      [{ id: "new-report" }],
+    ]);
+    expect(
+      await executeGuardedSettlementWrite([
+        sql`SELECT ${"invalidate"}`,
+        sql`SELECT ${"insert"}`,
+      ]),
+    ).toEqual([{ id: "new-report" }]);
+    const queries = mocks.transaction.mock.calls[0][0] as Array<{
+      text: string;
+      params: unknown[];
+    }>;
+    expect(queries).toHaveLength(5);
+    expect(queries[2].text).toContain("SHARE ROW EXCLUSIVE MODE");
+    expect(queries[3].params).toEqual(["invalidate"]);
+    expect(queries[4].params).toEqual(["insert"]);
+  });
+
   it.each(["55P03", "40P01", "40001"])(
     "競合 %s は成功行を返さず再実行対象にする",
     async (code) => {

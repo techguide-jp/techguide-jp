@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { completionReport } from "./fixtures/completionReport";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import { findOpenWorkSession } from "$lib/server/work/workRepository";
@@ -168,5 +169,31 @@ describe("completionService", () => {
 
     expect(confirmCompletionEligibility).not.toHaveBeenCalled();
     expect(result).toEqual({ base: 0, supplemental: 0 });
+  });
+
+  it("担当変更後の別月の報告があれば最新だけを対象化する", async () => {
+    const first = completionReport();
+    const latest = completionReport({
+      id: "new-report",
+      assigneeLogin: "replacement",
+      settlementMonth: "2026-09",
+      reportedAt: new Date("2026-09-01T00:00:00Z"),
+    });
+    vi.mocked(listActiveCompletionReports).mockResolvedValue([first, latest]);
+    vi.mocked(confirmCompletionEligibility).mockResolvedValue("base");
+    expect(
+      await reconcileCompletionReports([
+        {
+          ...issue,
+          state: "CLOSED",
+          status: "Done",
+          assignees: ["replacement"],
+        },
+      ]),
+    ).toEqual({ base: 1, supplemental: 0 });
+    expect(confirmCompletionEligibility).toHaveBeenCalledExactlyOnceWith({
+      report: latest,
+      confirmedAt: expect.any(Date),
+    });
   });
 });

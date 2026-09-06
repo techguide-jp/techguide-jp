@@ -16,6 +16,10 @@ import {
   toJstMonth,
 } from "$lib/server/time";
 import { applyApprovedChangeRequests } from "$lib/server/settlements/settlementCalculator";
+import {
+  completionIssueKey,
+  selectCompletionReports,
+} from "$lib/server/completions/completionSelection";
 import type {
   SettlementIssueLine,
   SettlementSummary,
@@ -145,9 +149,15 @@ export const buildSettlementSummariesV2 = (
     [...(options.settledCompletionReportAssignees?.get(report.id) ?? [])].some(
       (assigneeLogin) => assigneeLogin !== report.assigneeLogin,
     );
+  // 先に月で絞ると、担当変更後の別月の報告を見落として同じ成果を二重計上する。
+  const selection = selectCompletionReports(options.completionReports);
+  const selectedIds = new Set(selection.selected.map((report) => report.id));
   const reportsForMonth = options.completionReports.filter(
     (report) =>
-      report.settlementMonth === month && report.invalidatedAt === null,
+      report.settlementMonth === month &&
+      report.invalidatedAt === null &&
+      (selectedIds.has(report.id) ||
+        selection.conflicts.has(completionIssueKey(report))),
   );
   const eligibleBaseReportByIssueAssignee = new Map(
     reportsForMonth
@@ -231,6 +241,12 @@ export const buildSettlementSummariesV2 = (
         issueBlockingReasonsByAssignee.set(assigneeLogin, reasons);
       }
     };
+
+    if (selection.conflicts.has(key)) {
+      addIssueBlockingReason(
+        "同じIssueに完了確認済みの報告が複数あります。管理者に確認してください。",
+      );
+    }
 
     for (const assigneeLogin of assigneesForLines) {
       const report =

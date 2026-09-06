@@ -266,7 +266,7 @@ export const loadSettlementMonth = async (month: string) => {
     });
 
     summaries = buildSettlementSummariesV2(month, issues, sessions, requests, {
-      completionReports: refreshedCompletionReports,
+      completionReports: allCompletionReports,
       supplementalPayments,
       frozenHourlyRates,
       lifetimeTimedRewardByIssue,

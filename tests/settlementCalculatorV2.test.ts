@@ -91,7 +91,7 @@ describe("buildSettlementSummariesV2", () => {
     expect(summary?.lines[0].completionReportId).toBe(report().id);
   });
 
-  it("Issue再割り当て後も完了報告ごとの作業者へ固定報酬を帰属させる", () => {
+  it("確認済み報告が重複する既存データは表示を保ち、新しい申請・承認をブロックする", () => {
     const summaries = buildSettlementSummariesV2(
       "2026-08",
       [issue({ assignees: ["replacement"] })],
@@ -118,6 +118,11 @@ describe("buildSettlementSummariesV2", () => {
       summaries.find((summary) => summary.assigneeLogin === "replacement")
         ?.fixedRewardYen,
     ).toBe(30_000);
+    for (const summary of summaries) {
+      expect(getWorkSubmissionBlockingReasons(summary).join(" ")).toContain(
+        "完了確認済みの報告が複数",
+      );
+    }
   });
 
   it("別作業者の承認済みスナップショットに含まれる完了報告を再計上しない", () => {

@@ -78,7 +78,7 @@ export const readSettlementSourceToken = async (): Promise<string> => {
 };
 
 export const executeGuardedSettlementWrite = async (
-  query: SQL,
+  query: SQL | SQL[],
 ): Promise<unknown> => {
   // INSERTも検知するため行ロックではなく表ロックを使う。外部API処理は必ずこの外で済ませる。
   // LOCK完了後の別statementで再検証することで、待機中にcommitされた変更も検知する。
@@ -90,7 +90,7 @@ export const executeGuardedSettlementWrite = async (
         sourceTables.map((table) => sql.identifier(table)),
         sql`, `,
       )} IN SHARE ROW EXCLUSIVE MODE`,
-      query,
+      ...(Array.isArray(query) ? query : [query]),
     ]);
     return results[results.length - 1];
   } catch (error) {

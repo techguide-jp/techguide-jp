@@ -43,6 +43,7 @@ import {
 } from "../src/lib/server/supplementalPayments/supplementalPaymentRepository";
 import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
 import { registerSettlementWriteDbTests } from "./settlementWrite.dbCases";
+import { registerCompletionOwnershipDbTests } from "./completionOwnership.dbCases";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -128,6 +129,7 @@ beforeEach(async () => {
 
 describeDb("DB constraints", () => {
   registerSettlementWriteDbTests();
+  registerCompletionOwnershipDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
     const base = {
       projectItemId: "item-reported",

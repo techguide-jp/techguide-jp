@@ -6,6 +6,7 @@ import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { getPaymentRow } from "$lib/server/payments/paymentRepository";
 import { toJstMonth, parseJstDatetimeLocal } from "$lib/server/time";
 import { findOpenWorkSession } from "$lib/server/work/workRepository";
+import { selectCompletionReports } from "$lib/server/completions/completionSelection";
 import {
   confirmCompletionEligibility,
   getActiveCompletionReport,
@@ -255,7 +256,7 @@ export const reconcileCompletionReports = async (
   let base = 0;
   let supplemental = 0;
 
-  for (const report of reports) {
+  for (const report of selectCompletionReports(reports).selected) {
     const issue = issueByKey.get(`${report.repository}#${report.issueNumber}`);
     // 支払対象の完了条件はIssueのclosedかつDone。関連PRの有無・状態は条件に含めない。
     if (
