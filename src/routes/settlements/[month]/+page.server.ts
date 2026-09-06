@@ -14,6 +14,7 @@ import {
 import { env } from "$lib/server/env";
 import { fetchProjectIssuesForPage } from "$lib/server/github/projectClient";
 import { backfillIssueCompletion } from "$lib/server/completions/completionService";
+import { listCompletionBackfillCandidates } from "$lib/server/completions/completionBackfillService";
 import {
   listSupplementalPaymentViews,
   markSupplementalPaymentPaid,
@@ -34,6 +35,7 @@ export const load = async (event) => {
     payments,
     noticeAssignees,
     supplementalPayments,
+    completionBackfillCandidates,
   ] = await Promise.all([
     listPayoutAccountStatuses(assigneeLogins),
     listPaymentViewsForMonth(month, assigneeLogins),
@@ -41,6 +43,7 @@ export const load = async (event) => {
     env.settlementRuleV2Enabled
       ? listSupplementalPaymentViews(month)
       : Promise.resolve([]),
+    listCompletionBackfillCandidates(settlement.issues),
   ]);
 
   return {
@@ -50,6 +53,7 @@ export const load = async (event) => {
     payments,
     noticeAssignees,
     supplementalPayments,
+    completionBackfillCandidates,
     settlementRuleV2Enabled: env.settlementRuleV2Enabled,
   };
 };

@@ -37,6 +37,7 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         HTMLElement: "readonly",
+        HTMLDialogElement: "readonly",
       },
       parserOptions: {
         parser: tseslint.parser,

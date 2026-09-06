@@ -1,6 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 
-type IssueRef = { repository: string; issueNumber: number };
+type IssueRef = { repository: string | SQL; issueNumber: number | SQL };
 
 /** 呼び出し元で精算入力ロックを取得し、別statementの最新状態から選択する。 */
 export const selectedCompletionId = (issue: IssueRef): SQL => sql`(
@@ -28,7 +28,7 @@ export const fixedSettlementLines = (issue: IssueRef): SQL => sql`
     COALESCE(snapshot.snapshot->'comparable'->'lines', snapshot.snapshot->'lines', '[]'::jsonb)
   ) AS line
   WHERE line->'issue'->>'repository' = ${issue.repository}
-    AND line->'issue'->>'number' = ${String(issue.issueNumber)}
+    AND line->'issue'->>'number' = ${typeof issue.issueNumber === "number" ? String(issue.issueNumber) : sql`${issue.issueNumber}::text`}
     AND COALESCE((line->>'fixedRewardYen')::numeric, 0) > 0
 `;
 
