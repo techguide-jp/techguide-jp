@@ -1,4 +1,6 @@
 import { isMonthString } from "$lib/month";
+import { z } from "zod";
+import { PAYMENT_COMMENT_MAX_LENGTH } from "$lib/paymentComment";
 import type { MonthlyPayment } from "$lib/server/db/schema";
 import {
   getPaymentRow,
@@ -24,6 +26,8 @@ import { buildNotificationOperationId } from "$lib/server/notifications/notifica
 
 export { normalizeDateInput, defaultPaymentDueDate };
 
+const paymentCommentSchema = z.string().trim().max(PAYMENT_COMMENT_MAX_LENGTH);
+
 const toPaymentView = (
   month: string,
   assigneeLogin: string,
@@ -37,6 +41,7 @@ const toPaymentView = (
     status,
     statusLabel: PAYMENT_STATUS_LABELS[status],
     paidOn: row?.paidOn ?? null,
+    paymentComment: status === "paid" ? (row?.paymentComment ?? null) : null,
     scheduledDate: customScheduledDate ?? defaultPaymentDueDate(month),
     scheduledDateIsDefault: customScheduledDate === null,
     customScheduledDate,
@@ -74,11 +79,12 @@ export const listPaymentViewsForMonth = async (
   );
 };
 
-/** 管理者による支払い済み登録。支払日を保存する。 */
+/** 管理者による支払い済み登録。支払日と本人向けコメントを保存する。 */
 export const markSettlementPaid = async (
   month: string,
   assigneeLogin: string,
   paidOnInput: string,
+  paymentCommentInput = "",
 ): Promise<
   { ok: true; payment: MonthlyPaymentView } | { ok: false; message: string }
 > => {
@@ -89,6 +95,16 @@ export const markSettlementPaid = async (
   if (!paidOn) {
     return { ok: false, message: "支払日はYYYY-MM-DD形式で入力してください。" };
   }
+  const comment = paymentCommentSchema.safeParse(
+    paymentCommentInput.replace(/\r\n?/g, "\n"),
+  );
+  if (!comment.success) {
+    return {
+      ok: false,
+      message: `作業者へのコメントは${PAYMENT_COMMENT_MAX_LENGTH.toLocaleString("ja-JP")}文字以内で入力してください。`,
+    };
+  }
+  const paymentComment = comment.data || null;
   const eligibility = await validateSettlementPaymentEligibility(
     month,
     assigneeLogin,
@@ -102,6 +118,7 @@ export const markSettlementPaid = async (
     Math.max(Date.now(), (current?.updatedAt.getTime() ?? -1) + 1),
   );
   const emailNotification = await prepareSettlementNotificationSafely({
+    // 本人向け支払いコメントは月次詳細だけに表示し、メールや通知履歴には含めない。
     type: "settlement_paid",
     // 現在の未処理レコード版を使い、複数タブは束ねつつ取り消し後の再登録は別操作にする。
     operationId: buildNotificationOperationId(
@@ -118,7 +135,7 @@ export const markSettlementPaid = async (
     paidOn,
   });
   const row = await upsertPaymentPaid(
-    { month, assigneeLogin, paidOn },
+    { month, assigneeLogin, paidOn, paymentComment },
     {
       updatedAt,
       expectedUpdatedAt: current?.updatedAt ?? null,

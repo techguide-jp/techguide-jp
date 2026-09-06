@@ -282,6 +282,7 @@ describe("monthly settlement actions", () => {
       status: "paid",
       scheduledDate: null,
       paidOn: "2026-07-14",
+      paymentComment: null,
       createdAt: new Date("2026-07-14T00:00:00Z"),
       updatedAt: new Date("2026-07-14T00:00:00Z"),
     });

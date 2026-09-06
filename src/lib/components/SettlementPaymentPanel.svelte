@@ -3,6 +3,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import { formatDate } from "$lib/format";
+  import { PAYMENT_COMMENT_MAX_LENGTH } from "$lib/paymentComment";
   import type { MonthlyPaymentView } from "$lib/server/payments/paymentTypes";
 
   type Props = {
@@ -10,6 +11,7 @@
     paymentEditable: boolean;
     isAdmin: boolean;
     message?: string;
+    paymentInput?: { paidOn: string; paymentComment: string };
     pendingAction: string | null;
     enhanceAction: (name: string) => SubmitFunction;
   };
@@ -19,6 +21,7 @@
     paymentEditable,
     isAdmin,
     message,
+    paymentInput,
     pendingAction,
     enhanceAction,
   }: Props = $props();
@@ -42,6 +45,10 @@
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
+
+  // bind:valueでhydration前の入力を引き継ぎ、失敗時はサーバーが返した入力を復元する。
+  let paidOnInput = $derived(paymentInput?.paidOn ?? jstToday());
+  let paymentCommentInput = $derived(paymentInput?.paymentComment ?? "");
 </script>
 
 <section class="panel">
@@ -71,6 +78,12 @@
         <dt>支払日</dt>
         <dd>{formatDate(payment.paidOn)}</dd>
       </div>
+      {#if payment.paymentComment}
+        <div>
+          <dt>作業者へのコメント</dt>
+          <dd class="payment-comment">{payment.paymentComment}</dd>
+        </div>
+      {/if}
     {/if}
   </dl>
 
@@ -107,7 +120,7 @@
                   </button>
                 </div>
                 <p>
-                  {formatDate(payment.paidOn)} の支払い済み登録を取り消し、未処理に戻します。記録済みの支払日は削除されます。よろしいですか？
+                  {formatDate(payment.paidOn)} の支払い済み登録を取り消し、未処理に戻します。記録済みの支払日と作業者へのコメントは削除されます。よろしいですか？
                 </p>
                 <form
                   method="POST"
@@ -143,7 +156,24 @@
           >
             <label>
               支払日
-              <input type="date" name="paidOn" value={jstToday()} required />
+              <input
+                type="date"
+                name="paidOn"
+                bind:value={paidOnInput}
+                required
+              />
+            </label>
+            <label class="payment-comment-input">
+              作業者へのコメント（任意）
+              <textarea
+                name="paymentComment"
+                rows="4"
+                maxlength={PAYMENT_COMMENT_MAX_LENGTH}
+                bind:value={paymentCommentInput}
+                aria-describedby="payment-comment-help"></textarea>
+              <small id="payment-comment-help">
+                このコメントは対象の作業者本人に表示されます。最大2,000文字。
+              </small>
             </label>
             <ActionSubmit
               actionName="mark-paid"

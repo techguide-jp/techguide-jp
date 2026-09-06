@@ -62,13 +62,19 @@ export const actions = {
     requireAdmin(event);
     const formData = await event.request.formData();
     const paidOn = String(formData.get("paidOn") ?? "");
+    const paymentComment = String(formData.get("paymentComment") ?? "");
     const result = await markSettlementPaid(
       event.params.month,
       event.params.assignee,
       paidOn,
+      paymentComment,
     );
     if (!result.ok)
-      return fail(400, { scope: "payment", message: result.message });
+      return fail(400, {
+        scope: "payment",
+        message: result.message,
+        paymentInput: { paidOn, paymentComment },
+      });
     return { scope: "payment", message: "支払い済みとして登録しました。" };
   },
   revertPayment: async (event) => {

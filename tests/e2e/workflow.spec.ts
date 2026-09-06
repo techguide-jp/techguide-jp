@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { registerPaymentCommentTests } from "./paymentCommentCases";
+
+registerPaymentCommentTests();
 
 const currentJstMonth = (): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -158,6 +161,18 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(detailNoticeLink).toBeVisible();
   await expect(detailNoticeLink).toHaveClass(/button/);
   await expect(detailNoticeLink).toHaveClass(/primary/);
+  await page
+    .getByLabel("作業者へのコメント（任意）")
+    .fill("通知書には含めない支払い連絡");
+  await page.getByRole("button", { name: "支払い済みにする" }).click();
+  await expect(page.locator(".payment-comment")).toHaveText(
+    "通知書には含めない支払い連絡",
+  );
+  await detailNoticeLink.click();
+  await expect(
+    page.getByRole("heading", { name: "支払い通知書", exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("通知書には含めない支払い連絡")).toHaveCount(0);
 });
 
 test("管理者が動作確認用メールプレビューを生成して確認できる", async ({

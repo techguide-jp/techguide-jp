@@ -44,6 +44,7 @@ import {
 import { createWorkSessionAndInvalidateCompletion } from "../src/lib/server/work/workRepository";
 import { registerSettlementWriteDbTests } from "./settlementWrite.dbCases";
 import { registerCompletionOwnershipDbTests } from "./completionOwnership.dbCases";
+import { registerPaymentCommentDbTests } from "./paymentComment.dbCases";
 
 const describeDb =
   process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
@@ -130,6 +131,7 @@ beforeEach(async () => {
 describeDb("DB constraints", () => {
   registerSettlementWriteDbTests();
   registerCompletionOwnershipDbTests();
+  registerPaymentCommentDbTests();
   it("再完了報告は旧報告を失効履歴として残し、新報告だけを有効にする", async () => {
     const base = {
       projectItemId: "item-reported",
@@ -595,12 +597,23 @@ describeDb("DB constraints", () => {
     };
 
     await upsertPaymentPaid(
-      { month: "2026-06", assigneeLogin: "worker", paidOn: "2026-07-14" },
+      {
+        month: "2026-06",
+        assigneeLogin: "worker",
+        paidOn: "2026-07-14",
+        paymentComment: "本人への連絡",
+      },
       { updatedAt: occurredAt, expectedUpdatedAt: null, notification },
     );
 
     expect(await db.select().from(emailNotificationEvents)).toHaveLength(1);
     expect(await db.select().from(emailDeliveries)).toHaveLength(2);
+    expect((await db.select().from(monthlyPayments))[0].paymentComment).toBe(
+      "本人への連絡",
+    );
+    expect(
+      JSON.stringify(await db.select().from(emailNotificationEvents)),
+    ).not.toContain("本人への連絡");
 
     const deliveryId = notification.deliveries[0].id;
     const claims = await Promise.all([
@@ -660,6 +673,7 @@ describeDb("DB constraints", () => {
             month: "2026-06",
             assigneeLogin: "worker",
             paidOn: candidate.paidOn,
+            paymentComment: `操作${index}のコメント`,
           },
           {
             expectedUpdatedAt,
@@ -680,6 +694,7 @@ describeDb("DB constraints", () => {
     const winnerIndex = results.findIndex(Boolean);
     const [payment] = await db.select().from(monthlyPayments);
     expect(payment.paidOn).toBe(candidates[winnerIndex].paidOn);
+    expect(payment.paymentComment).toBe(`操作${winnerIndex}のコメント`);
   });
 
   it("同じ承認版への競合承認は1件だけ確定・通知する", async () => {

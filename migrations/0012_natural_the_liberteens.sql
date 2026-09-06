@@ -1,0 +1,1 @@
+ALTER TABLE "monthly_payments" ADD COLUMN "payment_comment" text;

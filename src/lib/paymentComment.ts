@@ -1,0 +1,1 @@
+export const PAYMENT_COMMENT_MAX_LENGTH = 2000;

@@ -39,8 +39,11 @@
     () => {
       pendingAction = name;
       return async ({ update }) => {
-        await update();
-        pendingAction = null;
+        try {
+          await update();
+        } finally {
+          pendingAction = null;
+        }
       };
     };
 
@@ -53,6 +56,11 @@
   );
   const paymentMessage = $derived(
     formResult?.scope === "payment" ? formResult.message : undefined,
+  );
+  const paymentInput = $derived(
+    formResult?.scope === "payment" && "paymentInput" in formResult
+      ? formResult.paymentInput
+      : undefined,
   );
   const actionMessage = $derived(
     formResult?.scope === "payment" ? undefined : formResult?.message,
@@ -131,6 +139,7 @@
 
 {#if data.payment && data.snapshot}
   <SettlementPaymentPanel
+    {paymentInput}
     payment={data.payment}
     paymentEditable={data.paymentEditable}
     isAdmin={Boolean(data.user?.isAdmin)}
