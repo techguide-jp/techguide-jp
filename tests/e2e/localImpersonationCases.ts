@@ -94,6 +94,9 @@ export const registerLocalImpersonationTests = (): void => {
     await expect(
       page.getByText("2026-09 の稼働を確定して申請しました。", { exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "変更なしで閉じる", exact: true })
+      .click();
     await banner.getByRole("button", { name: "管理者に戻る" }).click();
     await expect(page).toHaveURL(/\/dev\/impersonation$/);
     await expect(banner).toHaveCount(0);

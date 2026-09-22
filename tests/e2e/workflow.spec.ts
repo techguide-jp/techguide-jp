@@ -1,5 +1,6 @@
 import { registerCapAndCancellationTests } from "./capAndCancellationCases";
 import { registerLocalImpersonationTests } from "./localImpersonationCases";
+import { registerMonthlyPreferencesTests } from "./monthlyPreferencesCases";
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
 import { registerCompletionBackfillTests } from "./completionBackfillCases";
 import {
@@ -14,6 +15,7 @@ registerCapAndCancellationTests();
 registerLocalImpersonationTests();
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
+registerMonthlyPreferencesTests();
 registerCompletionBackfillTests();
 registerCompletionMonthTests();
 
@@ -130,6 +132,9 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
     page.getByText(`${month} の稼働を確定して申請しました。`),
   ).toBeVisible();
 
+  await page
+    .getByRole("button", { name: "変更なしで閉じる", exact: true })
+    .click();
   await expect(page.getByLabel(feedbackQuestions.operatorComment)).toHaveValue(
     "申請時の質問",
   );

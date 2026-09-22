@@ -36,6 +36,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       });
       await page.goto("/__e2e/login?login=worker");
       await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await page
         .getByLabel(feedbackQuestions.operatorComment)
         .fill("8月だけの下書き");
@@ -72,6 +73,9 @@ export const registerMonthlyFeedbackTests = (): void => {
       await expect(
         page.getByText(`${month} の稼働を確定して申請しました。`),
       ).toBeVisible();
+      await page
+        .getByRole("button", { name: "変更なしで閉じる", exact: true })
+        .click();
       await withDb(async (sql) => {
         await sql`INSERT INTO work_sessions (repository, issue_number, issue_title, assignee_login, created_by, started_at, ended_at) VALUES ('techguide-jp/akademy_fes', 502, 'E2E', 'tashua314', 'tashua314', ${month + "-01T03:00:00Z"}, ${month + "-01T04:00:00Z"})`;
       });
@@ -102,6 +106,12 @@ export const registerMonthlyFeedbackTests = (): void => {
         page.getByText(`${month} の稼働を確定して申請しました。`),
       ).toBeVisible();
       await expect(
+        page.getByRole("dialog", { name: "今後の希望を確認" }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "変更なしで閉じる", exact: true })
+        .click();
+      await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveCount(1);
       await expect(
@@ -116,7 +126,8 @@ export const registerMonthlyFeedbackTests = (): void => {
         await sql`INSERT INTO worker_profiles (login, display_name, availability_note, self_assignment_note) VALUES ('worker', '作業者', '既存の平日夜', '既存の開発希望')`;
       });
       await page.goto("/__e2e/login?login=worker");
-      await page.goto(detail);
+      await page.goto("/workers/worker");
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(preferenceQuestions.availabilityNote),
       ).toHaveValue("既存の平日夜");
@@ -135,6 +146,7 @@ export const registerMonthlyFeedbackTests = (): void => {
         .click();
       await expect(page.getByText("現在の希望を保存しました。")).toBeVisible();
       await page.goto("/workers/worker");
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(preferenceQuestions.availabilityNote),
       ).toHaveValue("既存の平日夜");
@@ -154,7 +166,8 @@ export const registerMonthlyFeedbackTests = (): void => {
         .getByRole("button", { name: "希望を保存", exact: true })
         .click();
       await expect(page.getByText("現在の希望を保存しました。")).toBeVisible();
-      await page.goto(detail);
+      await page.goto("/workers/worker");
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(preferenceQuestions.availabilityNote),
       ).toHaveValue("週10時間");
@@ -171,6 +184,14 @@ export const registerMonthlyFeedbackTests = (): void => {
           )[0].partner_conditions,
         ).toBe("");
       });
+      await page.goto(detail);
+      await page.waitForLoadState("networkidle");
+      await expect(
+        page.getByRole("heading", { name: "現在の希望", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByLabel(preferenceQuestions.availabilityNote),
+      ).toHaveCount(0);
       await page.setViewportSize({ width: 390, height: 844 });
       expect(
         await page.evaluate(
@@ -186,6 +207,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       await seedFeedback();
       await page.goto("/__e2e/login?login=worker");
       await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(feedbackQuestions.privateReflection),
       ).toHaveValue(privateText);
@@ -206,6 +228,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       expect(await data.text()).not.toContain(privateText);
       expect(await data.text()).not.toContain("privateReflection");
       await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByText("追記した質問", { exact: true }),
       ).toBeVisible();
@@ -228,12 +251,13 @@ export const registerMonthlyFeedbackTests = (): void => {
       }
       await page.goto("/__e2e/login?login=worker");
       await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveValue("追記した質問");
     });
 
-    test("承認後はコメントを固定し、希望だけ更新できる", async ({
+    test("承認後はコメントを固定し、希望はプロフィールで更新できる", async ({
       page,
       baseURL,
     }) => {
@@ -243,6 +267,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       });
       await page.goto("/__e2e/login?login=worker");
       await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByRole("button", { name: "コメントを保存", exact: true }),
       ).toHaveCount(0);
@@ -256,11 +281,18 @@ export const registerMonthlyFeedbackTests = (): void => {
         },
       });
       expect(denied.status()).toBe(400);
+      await expect(
+        page.getByRole("heading", { name: "現在の希望", exact: true }),
+      ).toHaveCount(0);
+      await page.goto("/workers/worker");
+      await page.waitForLoadState("networkidle");
       await page.getByRole("radio", { name: "希望する", exact: true }).check();
       await page
         .getByRole("button", { name: "希望を保存", exact: true })
         .click();
       await expect(page.getByText("現在の希望を保存しました。")).toBeVisible();
+      await page.goto(detail);
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByText("運営への質問", { exact: true }),
       ).toBeVisible();
@@ -271,7 +303,8 @@ export const registerMonthlyFeedbackTests = (): void => {
       context,
     }) => {
       await page.goto("/__e2e/login?login=worker");
-      await page.goto(detail);
+      await page.goto("/workers/worker");
+      await page.waitForLoadState("networkidle");
       const other = await context.newPage();
       await other.goto("/workers/worker");
       await other.getByRole("radio", { name: "希望する", exact: true }).check();
@@ -310,6 +343,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       try {
         await page.goto("/__e2e/login?login=worker");
         await page.goto(detail);
+        await page.waitForLoadState("networkidle");
         await page
           .getByLabel(feedbackQuestions.operatorComment)
           .fill("残すべき入力");

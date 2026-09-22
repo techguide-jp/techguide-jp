@@ -110,6 +110,7 @@ export const actions = {
         });
       return {
         scope: "submission",
+        showPreferencesPrompt: true,
         message: `${event.params.month} の稼働を確定して申請しました。`,
       };
     } catch {

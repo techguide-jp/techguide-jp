@@ -3,7 +3,7 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
-  import WorkerPreferencesPanel from "$lib/components/WorkerPreferencesPanel.svelte";
+  import MonthlyPreferencesModal from "$lib/components/MonthlyPreferencesModal.svelte";
   import MonthlyFeedbackPanel from "$lib/components/MonthlyFeedbackPanel.svelte";
   import MonthlyFeedbackFields from "$lib/components/MonthlyFeedbackFields.svelte";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -25,6 +25,7 @@
 
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
+  let dismissedPreferencesResult = $state.raw<ActionData | null>(null);
 
   const snapshotTaxExcludedYen = (snapshot: unknown): number | null => {
     if (!snapshot || typeof snapshot !== "object") return null;
@@ -91,9 +92,21 @@
   );
   const actionMessage = $derived(
     formResult?.scope === "submission" ||
+      (formResult?.scope === "preferences" &&
+        !("preferencesInput" in formResult)) ||
       (resubmissionFormVisible && formResult?.scope === "feedback")
       ? formResult.message
       : undefined,
+  );
+  // 希望の確認は申請成功後だけ開き、通常閲覧や申請失敗時には表示しない。
+  const showPreferencesPrompt = $derived(
+    canSubmitWork &&
+      formResult !== dismissedPreferencesResult &&
+      ((formResult &&
+        "showPreferencesPrompt" in formResult &&
+        formResult.showPreferencesPrompt) ||
+        (formResult?.scope === "preferences" &&
+          "preferencesInput" in formResult)),
   );
   const diff = $derived(
     data.projectFetchError || approvedTaxExcludedYen === null || !summary
@@ -194,11 +207,15 @@
   </section>
 {/if}
 
-<WorkerPreferencesPanel
-  preferences={data.preferences}
-  canEdit={canSubmitWork}
-  result={form}
-/>
+{#if showPreferencesPrompt && data.preferences}
+  <MonthlyPreferencesModal
+    preferences={data.preferences}
+    result={form}
+    close={() => {
+      dismissedPreferencesResult = form ?? null;
+    }}
+  />
+{/if}
 {#if (submission || data.feedback) && !resubmissionFormVisible}
   {#key `${data.month}:${data.assignee}`}
     <MonthlyFeedbackPanel
