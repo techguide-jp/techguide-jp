@@ -17,6 +17,7 @@ const issueSchema = z
     url: z.string().optional(),
     projectItemId: z.string().optional(),
     createdAt: z.string().optional(),
+    updatedAt: z.string().nullable().optional(),
     state: z.enum(["OPEN", "CLOSED"]),
     closedAt: z.string().nullable(),
     assignees: z.array(z.string()),
@@ -79,6 +80,9 @@ const summarySchema = z.object({
       fixedRewardYen: amount,
       workMinutes: amount,
       timedRewardYen: amount,
+      timedRewardCalculation: z
+        .object({ uncappedYen: amount, capYen: amount.nullable() })
+        .optional(),
       taxExcludedYen: amount,
       warnings: z.array(z.string()),
       sessions: z.array(sessionSchema),

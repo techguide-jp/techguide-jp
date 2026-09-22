@@ -27,13 +27,18 @@ import type {
   UnsettledProjectIssueLine,
 } from "$lib/server/settlements/settlementTypes";
 
+import {
+  allocateTimedRewards,
+  timedRewardKey,
+  type TimedRewardAllocation,
+} from "$lib/server/settlements/settlementTimedRewards";
+
 type CalculatorOptions = {
   unassignedCompletedIssueKeys?: Set<string>;
   completionReports: IssueCompletionReport[];
   supplementalPayments: SupplementalPayment[];
   frozenHourlyRates?: Map<string, number | null>;
-  priorTimedRewardByIssue?: Map<string, number>;
-  lifetimeTimedRewardByIssue?: Map<string, number>;
+  timedRewardAllocations?: Map<string, TimedRewardAllocation>;
   settledCompletionReportAssignees?: Map<string, Set<string>>;
 };
 
@@ -138,6 +143,18 @@ export const buildSettlementSummariesV2 = (
   changeRequests: WorkLogChangeRequest[],
   options: CalculatorOptions,
 ): SettlementSummary[] => {
+  const allocations =
+    options.timedRewardAllocations ??
+    allocateTimedRewards({
+      issues,
+      sessions,
+      requests: changeRequests,
+      snapshots: [],
+      frozenHourlyRates: options.frozenHourlyRates ?? new Map(),
+      completionReports: options.completionReports,
+      settledCompletionReportAssignees:
+        options.settledCompletionReportAssignees ?? new Map(),
+    });
   const range = jstMonthRangeUtc(month);
   const effectiveSessions = applyApprovedChangeRequests(
     sessions,
@@ -311,34 +328,22 @@ export const buildSettlementSummariesV2 = (
           issueAssigneeKey(issue.repository, issue.number, assigneeLogin),
         ),
       });
+      const allocation = allocations.get(
+        timedRewardKey(month, issue.repository, issue.number, assigneeLogin),
+      );
+      if (allocation) {
+        line.timedRewardCalculation = {
+          uncappedYen: allocation.uncappedYen,
+          capYen: allocation.capYen,
+        };
+        line.timedRewardYen = allocation.payableYen;
+        line.taxExcludedYen = line.fixedRewardYen + line.timedRewardYen;
+      }
       issueLines.push({ assigneeLogin, line });
     }
 
     if (issue.assignees.length !== 1) {
       addIssueBlockingReason("assigneeが単一ではありません。");
-    }
-
-    // 追加精算上限は担当者単位ではなく、Issue全期間の時間報酬累計へ適用する。
-    const currentTimedRewardYen = issueLines.reduce(
-      (total, entry) => total + entry.line.timedRewardYen,
-      0,
-    );
-    if (
-      (issue.rewardMode === "ハイブリッド" ||
-        issueLines.some(
-          (entry) => entry.line.issue.rewardMode === "ハイブリッド",
-        )) &&
-      issue.extraCapYen !== null &&
-      (options.lifetimeTimedRewardByIssue?.get(key) ??
-        (options.priorTimedRewardByIssue?.get(key) ?? 0) +
-          currentTimedRewardYen) > issue.extraCapYen
-    ) {
-      const capWarning =
-        "Issue全期間の時間精算額が追加精算上限を超えています。";
-      for (const { line } of issueLines) {
-        line.warnings.push(capWarning);
-      }
-      addIssueBlockingReason(capWarning);
     }
 
     for (const { assigneeLogin, line } of issueLines) {

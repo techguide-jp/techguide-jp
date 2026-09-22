@@ -61,14 +61,17 @@ import {
   listActiveCompletionReports,
   listCompletionReportsForMonth,
   listSupplementalPaymentsForMonth,
+  listSupplementalPaymentsForAssignee,
 } from "$lib/server/completions/completionRepository";
 import { env } from "$lib/server/env";
 import { listCompletionMonthCandidates } from "$lib/server/completions/completionMonthService";
-import { buildLifetimeTimedRewards } from "$lib/server/settlements/settlementLifetimeRewards";
+import { allocateTimedRewards } from "$lib/server/settlements/settlementTimedRewards";
 import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
 import { restoreSettlementFallback } from "$lib/server/settlements/settlementFallback";
 import { listFrozenHourlyRates } from "$lib/server/settlements/hourlyRateRepository";
 import { readSettlementSourceToken } from "$lib/server/settlements/settlementWriteGuard";
+import { buildChangeRequestPreviews } from "$lib/server/settlements/changeRequestPreview";
+import type { ChangeRequestPreview } from "$lib/changeRequestPreview";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -106,9 +109,11 @@ const toSnapshotMeta = (
   taxIncludedYen: settlementSnapshotAmount(snapshot.snapshot, "taxIncludedYen"),
   hasChanges: !comparisonAvailable
     ? null
-    : summary
-      ? hasSettlementSnapshotChanges(snapshot.snapshot, summary)
-      : true,
+    : env.settlementRuleV2Enabled && summary?.dataSource === "approved"
+      ? false
+      : summary
+        ? hasSettlementSnapshotChanges(snapshot.snapshot, summary)
+        : true,
 });
 
 const isOpenSession = (session: WorkSession): boolean =>
@@ -168,7 +173,10 @@ const toSubmissionMeta = (
     : ["対象assigneeの精算データがありません。"],
 });
 
-export const loadSettlementMonth = async (month: string) => {
+export const loadSettlementMonth = async (
+  month: string,
+  options: { includeChangeRequestPreviews?: boolean } = {},
+) => {
   const { health, issues, projectFetchError } =
     await fetchProjectIssuesForPage();
   const range = jstMonthRangeUtc(month);
@@ -217,6 +225,8 @@ export const loadSettlementMonth = async (month: string) => {
   ]);
 
   let summaries: SettlementSummary[];
+  let settlementCalculationError: string | null = null;
+  let changeRequestPreviews: ChangeRequestPreview[] = [];
   if (env.settlementRuleV2Enabled) {
     const [
       allSnapshots,
@@ -262,15 +272,55 @@ export const loadSettlementMonth = async (month: string) => {
       }
     }
 
-    const lifetimeTimedRewardByIssue = buildLifetimeTimedRewards({
-      issues,
-      sessions: allSessions,
-      requests: allRequests,
-      snapshots: allSnapshots,
-      frozenHourlyRates,
-      completionReports: allCompletionReports,
-      settledCompletionReportAssignees,
-    });
+    if (
+      options.includeChangeRequestPreviews &&
+      requests.some((request) => request.status === "pending")
+    ) {
+      const previewPayments = (
+        await Promise.all(
+          [
+            ...new Set(
+              requests
+                .filter((request) => request.status === "pending")
+                .map((request) => request.assigneeLogin),
+            ),
+          ].map((login) => listSupplementalPaymentsForAssignee(login)),
+        )
+      ).flat();
+      changeRequestPreviews = buildChangeRequestPreviews({
+        month,
+        ruleVersion: 2,
+        visibleRequests: requests,
+        issues,
+        sessions: allSessions,
+        requests: allRequests,
+        snapshots: allSnapshots,
+        completionReports: allCompletionReports,
+        supplementalPayments: previewPayments,
+        frozenHourlyRates,
+        settledCompletionReportAssignees,
+        projectFetchError,
+      });
+    }
+
+    let timedRewardAllocations;
+    try {
+      timedRewardAllocations = projectFetchError
+        ? new Map()
+        : allocateTimedRewards({
+            issues,
+            sessions: allSessions,
+            requests: allRequests,
+            snapshots: allSnapshots,
+            frozenHourlyRates,
+            completionReports: allCompletionReports,
+            settledCompletionReportAssignees,
+          });
+    } catch (error) {
+      settlementCalculationError =
+        error instanceof Error ? error.message : "上限残額を確認できません。";
+      timedRewardAllocations = new Map();
+    }
 
     summaries = buildSettlementSummariesV2(month, issues, sessions, requests, {
       unassignedCompletedIssueKeys: new Set(
@@ -281,19 +331,71 @@ export const loadSettlementMonth = async (month: string) => {
       completionReports: allCompletionReports,
       supplementalPayments,
       frozenHourlyRates,
-      lifetimeTimedRewardByIssue,
+      timedRewardAllocations,
       settledCompletionReportAssignees,
     });
+    if (!projectFetchError && snapshots.length > 0) {
+      // 上限の再配分・ログ修正後も通常支払いには承認時点の金額と明細を表示する。
+      const approvedLogins = new Set(
+        snapshots.map((snapshot) => snapshot.assigneeLogin),
+      );
+      const approved = restoreSettlementFallback(
+        month,
+        summaries.filter((summary) =>
+          approvedLogins.has(summary.assigneeLogin),
+        ),
+        snapshots,
+        [],
+      );
+      summaries = [
+        ...summaries.filter(
+          (summary) => !approvedLogins.has(summary.assigneeLogin),
+        ),
+        ...approved,
+      ].sort((a, b) => a.assigneeLogin.localeCompare(b.assigneeLogin));
+    }
   } else {
     summaries = buildSettlementSummaries(month, issues, sessions, requests);
+    if (
+      options.includeChangeRequestPreviews &&
+      requests.some((request) => request.status === "pending")
+    ) {
+      const [allSessions, allRequests] = await Promise.all([
+        listWorkSessions(),
+        listChangeRequests(),
+      ]);
+      changeRequestPreviews = buildChangeRequestPreviews({
+        month,
+        ruleVersion: 1,
+        visibleRequests: requests,
+        issues,
+        sessions: allSessions,
+        requests: allRequests,
+        snapshots: [],
+        completionReports: [],
+        supplementalPayments: [],
+        frozenHourlyRates: new Map(),
+        settledCompletionReportAssignees: new Map(),
+        projectFetchError,
+      });
+    }
   }
-  if (projectFetchError) {
+  if (projectFetchError || settlementCalculationError) {
     summaries = restoreSettlementFallback(
       month,
       summaries,
       snapshots,
       submissions,
     );
+  }
+  if (settlementCalculationError) {
+    summaries = summaries.map((summary) => ({
+      ...summary,
+      blockingReasons: [
+        ...summary.blockingReasons,
+        settlementCalculationError!,
+      ],
+    }));
   }
   const summaryByAssignee = new Map(
     summaries.map((summary) => [summary.assigneeLogin, summary]),
@@ -307,18 +409,20 @@ export const loadSettlementMonth = async (month: string) => {
     summaries,
     projectFetchError,
     sourceToken,
+    settlementCalculationError,
+    changeRequestPreviews,
     snapshots: snapshots.map((snapshot) =>
       toSnapshotMeta(
         snapshot,
         summaryByAssignee.get(snapshot.assigneeLogin),
-        !projectFetchError,
+        !projectFetchError && !settlementCalculationError,
       ),
     ),
     submissions: submissions.map((submission) =>
       toSubmissionMeta(
         submission,
         summaryByAssignee.get(submission.assigneeLogin),
-        !projectFetchError,
+        !projectFetchError && !settlementCalculationError,
       ),
     ),
   };

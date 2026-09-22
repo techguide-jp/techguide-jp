@@ -27,7 +27,9 @@ import {
 export const load = async (event) => {
   requireAdmin(event);
   const month = event.params.month;
-  const settlement = await loadSettlementMonth(month);
+  const settlement = await loadSettlementMonth(month, {
+    includeChangeRequestPreviews: true,
+  });
   const assigneeLogins = settlement.summaries.map(
     (summary) => summary.assigneeLogin,
   );

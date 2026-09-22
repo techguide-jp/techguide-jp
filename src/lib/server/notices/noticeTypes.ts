@@ -1,3 +1,5 @@
+import type { TimedRewardCalculation } from "$lib/timedReward";
+
 export const NOTICE_DOCUMENT_SCHEMA_VERSION = 1;
 
 /** 通知書に表示する明細1行。承認時点の値を凍結する。 */
@@ -11,6 +13,7 @@ export type PaymentNoticeLine = {
   workMinutes: number;
   hourlyRateYen: number | null;
   timedRewardYen: number;
+  timedRewardCalculation?: TimedRewardCalculation;
   taxExcludedYen: number;
   warnings: string[];
 };

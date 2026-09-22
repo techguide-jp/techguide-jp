@@ -1,4 +1,5 @@
 import { env } from "$lib/server/env";
+import { isLocalImpersonationActive } from "$lib/server/auth/localImpersonationContext";
 import { graphQL } from "$lib/server/github/githubGraphqlClient";
 import { e2eProjectIssues } from "$lib/server/github/projectFixtures";
 import {
@@ -154,6 +155,8 @@ export const setProjectItemStatus = async (
   projectItemId: string,
   statusName: string,
 ): Promise<void> => {
+  if (isLocalImpersonationActive())
+    throw new Error("擬似ログイン中はGitHub Projectを更新できません。");
   if (!projectItemId) {
     throw new Error("Project item ID is required");
   }

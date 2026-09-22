@@ -115,6 +115,9 @@ export const buildNoticeDocument = (
     workMinutes: line.workMinutes,
     hourlyRateYen: line.hourlyRateYenSnapshot ?? line.issue.hourlyRateYen,
     timedRewardYen: line.timedRewardYen,
+    ...(line.timedRewardCalculation
+      ? { timedRewardCalculation: line.timedRewardCalculation }
+      : {}),
     taxExcludedYen: line.taxExcludedYen,
     warnings: line.warnings,
   }));

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
+import { isLocalImpersonationActive } from "$lib/server/auth/localImpersonationContext";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { parseJstDatetimeLocal } from "$lib/server/time";
 import {
@@ -12,6 +13,7 @@ import {
   getWorkSessionById,
 } from "$lib/server/work/workRepository";
 import { env } from "$lib/server/env";
+import { createUnlockedSessionChangeRequest } from "$lib/server/work/workSessionLockRepository";
 
 const issueInputSchema = z.object({
   repository: z.string().min(1),
@@ -124,6 +126,12 @@ export const startIssueWork = async (
     }
 
     if (issue.status === "Todo") {
+      if (isLocalImpersonationActive())
+        return {
+          ok: true,
+          message:
+            "稼働を開始しました。擬似ログイン中のため、GitHub ProjectのStatusは更新していません。",
+        };
       try {
         await setProjectItemStatus(issue.projectItemId, "In Progress");
         return {
@@ -251,7 +259,7 @@ export const requestWorkLogChange = async (
       }
     }
 
-    await createChangeRequest({
+    const change = {
       requestType: input.requestType,
       assigneeLogin: userLogin,
       repository: issue.repository,
@@ -262,7 +270,23 @@ export const requestWorkLogChange = async (
       requestedEndedAt,
       reason: input.reason,
       requestedBy: userLogin,
-    });
+    };
+
+    if (input.requestType === "add") {
+      await createChangeRequest(change);
+    } else if (
+      !(await createUnlockedSessionChangeRequest({
+        ...change,
+        requestType: input.requestType,
+        targetSessionId: input.targetSessionId!,
+      }))
+    ) {
+      return {
+        ok: false,
+        message:
+          "管理者の確認待ち、または月次確定申請済みのログは修正・除外できません。画面を再読み込みして状態を確認してください。",
+      };
+    }
 
     return { ok: true };
   } catch (error) {

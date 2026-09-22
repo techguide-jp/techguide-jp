@@ -1,0 +1,1 @@
+ALTER TYPE "public"."work_log_change_request_status" ADD VALUE 'cancelled';

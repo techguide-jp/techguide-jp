@@ -13,7 +13,7 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 - 完了報告月に固定報酬、実稼働月にハイブリッド時間報酬を帰属
 - 月次承認後に対象化した固定報酬の追加支払い管理
 - 月次申請時の運営コメント・本人限定の振り返り（承認前まで編集可能）
-- プロフィールと共通の稼働・参画希望（既存値を初期表示、精算なしでも随時更新）
+- 月次確定申請後に稼働・参画希望をモーダルで確認（プロフィールの最新値を初期表示し、変更時だけ保存。プロフィールでは随時更新）
 - 管理者による月次承認スナップショット保存
 - 月次精算ごとの支払い状態（未処理／支払い済み）・支払い予定日の管理
 - 支払い済み登録時の作業者向け任意コメント（最大2,000文字、管理者と本人のみ閲覧、取消時に消去）
@@ -65,6 +65,14 @@ pnpm db:migrate
 pnpm dev
 ```
 
+### ローカルで別ユーザーの画面・操作を確認する
+
+管理者でログインし、ナビゲーションの「ユーザー切替」から登録ユーザーを選んで「このユーザーで確認する」を押します。対象者のGitHubログインは不要で、本人の権限で稼働・プロフィール編集・月次申請を試せます。画面上部の「管理者に戻る」で元の管理者へ復帰できます。
+
+`pnpm dev`、ループバックのURLとDB接続、`EMAIL_DELIVERY_MODE=preview`（未指定時の既定値）の組み合わせでのみ使えます。本番ビルド・Vercel・リモートDB・メール実送信モードでは無効です。`E2E_TEST_MODE`を有効にする必要はなく、通常のGitHub Project情報と現在の精算ルールを使います。
+
+申請や編集の結果はローカルDBへ保存され、メールはプレビューへ保存します。擬似ログイン中はGitHub Projectの更新・再同期を行いません。切り替えは同じブラウザーの全タブに適用され、有効期間は1時間です。元の管理者セッションが終了した場合も無効になります。
+
 ## 本番DB migration
 
 mainブランチへのpush時、GitHub Actionsの `verify` が成功したあとに `migrate-production-database` job が実行され、Drizzle migrationを本番DBへ反映します。
@@ -82,6 +90,42 @@ VercelのGit連携デプロイ自体はこのworkflowからは制御していま
 ```bash
 DATABASE_URL="postgresql://..." pnpm db:migrate
 ```
+
+## 本番DBのdumpとローカルへのrestore
+
+love-matchingと同じコマンド形式で、本番DBのdumpを取得してローカルDBに復元できます。
+Node.js 22.9以降と、`pg_dump`・`pg_restore`・`psql` をPATHに用意してください。PostgreSQL CLIは接続先サーバー以上のメジャーバージョンを使い、復元先も本番と同じメジャーバージョンに揃えます。
+
+`.env.production` に本番のdirect connection URLを設定します。Neonでは `-pooler` を含まない接続文字列を使います。
+
+```env
+PRODUCTION_MIGRATION_DATABASE_URL=postgresql://user:password@direct-host/db?sslmode=require
+```
+
+復元先は `.env` の `DATABASE_URL` です。
+
+```env
+DATABASE_URL=postgresql://user:password@localhost:5434/techguide-jp
+```
+
+```bash
+# 本番DBをcustom形式で .db-dumps/techguide-jp-prod-<UTC日時>.dump に保存
+pnpm db:dump:prod
+
+# .db-dumps/ 内で更新日時が最新のdumpをローカルDBに復元
+pnpm db:restore:local
+
+# 復元するdumpを指定
+pnpm db:restore:local -- .db-dumps/techguide-jp-prod-2026-09-22T08-30-45-123Z.dump
+```
+
+`db:dump:prod` は `.env.production` の `PRODUCTION_MIGRATION_DATABASE_URL` だけを読みます。アプリ用の `DATABASE_URL` やシェルの環境変数にはフォールバックしません。dump作成後は `pg_restore --list` でarchive形式を確認し、失敗したdumpは削除します。`.db-dumps/` はGit管理対象外で、ディレクトリは700、ファイルは600の権限で保存します。
+
+**`db:restore:local` は対象のローカルDBへの接続を切断し、DBを削除・再作成して全置換します。** 開発サーバーを停止し、残したいローカルデータがある場合は先に退避してください。dumpをarchiveとして読み出せることを確認してから再作成します。復元先は `localhost`・`127.0.0.1`・`[::1]` のみ許可し、テストDBとsystem DBは拒否します。接続ユーザーにはDBの削除・作成権限が必要です。
+
+両コマンドとも接続先を上書きするURLパラメーター（`host`・`hostaddr`・`dbname`・`service` など）を拒否し、シェルの `PG*` 設定も引き継ぎません。許可するURLパラメーターは `sslmode`・`sslrootcert`・`sslcert`・`sslkey`・`channel_binding`・`connect_timeout`・`application_name` です。
+
+復元後のmigrationは自動実行しません。必要なら `pnpm db:migrate` を実行してください。振込先情報などの暗号化データを読み出すには、dump取得元と同じ `PAYOUT_ACCOUNT_ENCRYPTION_KEY` が必要です。ローカルのメール送信は `.env` の `EMAIL_DELIVERY_MODE=preview` を使います。
 
 ## 検証
 

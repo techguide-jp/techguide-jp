@@ -186,7 +186,12 @@ export const registerCompletionOwnershipDbTests = (): void => {
     ]);
     expect(await db.select().from(supplementalPayments)).toHaveLength(0);
     expect(await db.select().from(auditLogs)).toHaveLength(0);
-    expect(await db.select().from(issueCompletionReports)).toEqual(reports);
+    expect(
+      await db
+        .select()
+        .from(issueCompletionReports)
+        .orderBy(issueCompletionReports.id),
+    ).toEqual(reports);
   });
 
   it.each([false, true])(

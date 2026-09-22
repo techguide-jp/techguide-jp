@@ -37,6 +37,7 @@ export type GraphQLProjectItem = {
     state?: "OPEN" | "CLOSED";
     url?: string;
     createdAt?: string;
+    updatedAt?: string;
     closedAt?: string | null;
     repository?: { nameWithOwner: string };
     assignees?: { nodes: Array<{ login: string }> };

@@ -122,6 +122,8 @@ vi.mock("$lib/server/completions/completionRepository", () => ({
   listCompletionReportsForMonth: async (month: string) =>
     state.reports.filter((r) => r.settlementMonth === month),
   listSupplementalPaymentsForMonth: async () => state.supplemental,
+  listSupplementalPaymentsForAssignee: async (login: string) =>
+    state.supplemental.filter((payment) => payment.assigneeLogin === login),
 }));
 
 const session = (
@@ -223,6 +225,38 @@ beforeEach(() => {
 });
 
 describe("V2 月次処理の回帰", () => {
+  it("管理者用プレビューを読み込んでも未処理申請と通常支払いを変更しない", async () => {
+    state.requests = [
+      {
+        id: "preview-request",
+        repository: "example/repo",
+        issueNumber: 1,
+        issueTitle: "保存時の件名",
+        assigneeLogin: "worker",
+        requestedBy: "worker",
+        requestType: "edit",
+        status: "pending",
+        targetSessionId: "session-2026-08",
+        requestedStartedAt: new Date("2026-08-20T00:00:00Z"),
+        requestedEndedAt: new Date("2026-08-20T02:00:00Z"),
+        createdAt: new Date("2026-09-01T00:00:00Z"),
+        reason: "2時間へ修正",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
+      },
+    ];
+    const data = await loadSettlementMonth("2026-08", {
+      includeChangeRequestPreviews: true,
+    });
+    expect(data.summaries[0].timedRewardYen).toBe(6000);
+    expect(data.changeRequestPreviews[0].months[0].after.timedRewardYen).toBe(
+      10000,
+    );
+    expect(state.requests[0].status).toBe("pending");
+    expect(state.persistSubmission).not.toHaveBeenCalled();
+    expect(state.persistApproval).not.toHaveBeenCalled();
+  });
   it("申請明細からIssueを除外しても永続保存した本人の単価を維持する", async () => {
     state.frozenRates.set("example/repo#1#worker", 6000);
     state.issues[0].hourlyRateYen = 9000;
@@ -333,40 +367,53 @@ describe("V2 月次処理の回帰", () => {
     snapshot.source.lines[0].workMinutes = 9999;
     expect(restoreSettlementSummary(snapshot)).toBeNull();
   });
-  it("未申請の8月6000円＋9月6000円で1万円上限を超えたら両月の申請・承認を止める", async () => {
-    state.sessions.push(session("2026-09"));
-    for (const month of ["2026-08", "2026-09"]) {
-      const { summary, snapshot } = await saved(month);
-      expect(summary.timedRewardYen).toBe(6000);
-      expect(summary.blockingReasons).toContain(
-        "example/repo#1: Issue全期間の時間精算額が追加精算上限を超えています。",
-      );
-      expect((await submitSettlementWork(month, "worker", "worker")).ok).toBe(
-        false,
-      );
-      state.submissions.push({
-        month,
-        assigneeLogin: "worker",
-        snapshot,
-        submittedBy: "worker",
-        submittedAt: new Date(),
-      });
-      expect((await approveSettlement(month, "worker", "admin")).ok).toBe(
-        false,
-      );
-    }
-    expect(state.persistSubmission).not.toHaveBeenCalled();
-    expect(state.persistApproval).not.toHaveBeenCalled();
-  });
+  it.each([
+    ["2026-08", "2026-09"],
+    ["2026-09", "2026-08"],
+  ])(
+    "承認順%s→%sでも8月6000円・9月4000円を申請・承認できる",
+    async (first, second) => {
+      state.persistSubmission.mockResolvedValue(true);
+      state.persistApproval.mockResolvedValue(true);
+      state.sessions.push(session("2026-09"));
+      for (const month of [first, second]) {
+        const { summary, snapshot } = await saved(month);
+        expect(summary.timedRewardYen).toBe(month === "2026-08" ? 6000 : 4000);
+        expect(summary.blockingReasons).toEqual([]);
+        expect((await submitSettlementWork(month, "worker", "worker")).ok).toBe(
+          true,
+        );
+        state.submissions.push({
+          month,
+          assigneeLogin: "worker",
+          snapshot,
+          submittedBy: "worker",
+          submittedAt: new Date(),
+        });
+        expect((await approveSettlement(month, "worker", "admin")).ok).toBe(
+          true,
+        );
+        state.snapshots.push({
+          month,
+          assigneeLogin: "worker",
+          snapshot,
+          approvedBy: "admin",
+          approvedAt: new Date(),
+        });
+      }
+      expect(state.persistSubmission).toHaveBeenCalledTimes(2);
+      expect(state.persistApproval).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("承認済みの過去月はログ変更後も確定額を一度だけ累計する", async () => {
     await approveSaved();
     state.sessions[0].excludedAt = new Date();
     state.sessions.push(session("2026-09"));
     const { summary } = await saved("2026-09");
-    expect(summary.blockingReasons).toContain(
-      "example/repo#1: Issue全期間の時間精算額が追加精算上限を超えています。",
-    );
+    expect(summary.blockingReasons).toEqual([]);
+    expect(summary.timedRewardYen).toBe(4000);
+    expect((await saved()).summary.timedRewardYen).toBe(6000);
     state.sessions[0].excludedAt = null;
     state.issues[0].extraCapYen = 12000;
     expect((await saved("2026-09")).summary.blockingReasons).toEqual([]);
@@ -384,10 +431,8 @@ describe("V2 月次処理の回帰", () => {
     ];
     state.issues[0].rewardMode = "固定";
     const { summary } = await saved("2026-09");
-    expect(summary.timedRewardYen).toBe(6000);
-    expect(summary.blockingReasons).toContain(
-      "example/repo#1: Issue全期間の時間精算額が追加精算上限を超えています。",
-    );
+    expect(summary.blockingReasons).toEqual([]);
+    expect(summary.timedRewardYen).toBe(4000);
   });
 
   it("完了報告の固定方式で時間報酬がない月を上限へ加算しない", async () => {
@@ -424,10 +469,9 @@ describe("V2 月次処理の回帰", () => {
     const summary = data.summaries.find(
       (s) => s.assigneeLogin === "replacement",
     )!;
-    expect(summary.timedRewardYen).toBe(5000);
-    expect(summary.blockingReasons).toContain(
-      "example/repo#1: Issue全期間の時間精算額が追加精算上限を超えています。",
-    );
+    expect(summary.blockingReasons).toEqual([]);
+    expect(summary.timedRewardYen).toBe(4000);
+    expect(summary.lines[0].timedRewardCalculation?.uncappedYen).toBe(5000);
   });
 
   it("月またぎを分割し、承認済み月と未申請月を二重計上しない", async () => {
@@ -443,7 +487,7 @@ describe("V2 月次処理の回帰", () => {
     expect(summary.timedRewardYen).toBe(3000);
     expect(summary.blockingReasons).toEqual([]);
     state.issues[0].extraCapYen = 5999;
-    expect((await saved("2026-09")).summary.blockingReasons).not.toEqual([]);
+    expect((await saved("2026-09")).summary.timedRewardYen).toBe(2999);
   });
 
   it("承認済みの除外修正を未申請過去月の累計へ反映する", async () => {
@@ -471,8 +515,18 @@ describe("V2 月次処理の回帰", () => {
     expect((await saved("2026-09")).summary.blockingReasons).toEqual([]);
     state.requests[0].status = "pending";
     expect((await saved("2026-09")).summary.blockingReasons).toContain(
-      "example/repo#1: Issue全期間の時間精算額が追加精算上限を超えています。",
+      "未処理の修正申請: example/repo#1",
     );
+  });
+
+  it("現在の上限が確定済み額より低くても確定額を変更せず、残額を0円にする", async () => {
+    await approveSaved();
+    state.issues[0].extraCapYen = 1000;
+    state.sessions.push(session("2026-09"));
+    expect((await saved()).summary.timedRewardYen).toBe(6000);
+    const { summary } = await saved("2026-09");
+    expect(summary.timedRewardYen).toBe(0);
+    expect(summary.blockingReasons).toEqual([]);
   });
 
   it("完了待ちで承認した通常通知書を、Issue完了後も承認内容から再作成する", async () => {

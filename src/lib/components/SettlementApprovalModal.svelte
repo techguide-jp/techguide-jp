@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -119,7 +120,8 @@
       <div class="modal-alert">
         <strong>承認不可</strong>
         <ul>
-          {#each summary.blockingReasons as reason (reason)}
+          <!-- 保存済みの精算を含め、同一の警告文は表示時にまとめてキーの重複を避ける。 -->
+          {#each new Set(summary.blockingReasons) as reason (reason)}
             <li>{reason}</li>
           {/each}
         </ul>
@@ -135,7 +137,7 @@
           {:else if submission.hasChanges}
             <li>稼働者の月次確定申請後に内容が変更されています。</li>
           {/if}
-          {#each submission?.blockingReasons ?? [] as reason (reason)}
+          {#each new Set(submission?.blockingReasons ?? []) as reason (reason)}
             <li>{reason}</li>
           {/each}
         </ul>
@@ -175,13 +177,23 @@
               </div>
               <div>
                 <dt>時間</dt>
-                <dd>{formatYen(line.timedRewardYen)}</dd>
+                <dd>
+                  {formatYen(
+                    line.timedRewardYen,
+                  )}{#if line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen}<small
+                      >上限適用</small
+                    >{/if}
+                </dd>
               </div>
               <div>
                 <dt>小計</dt>
                 <dd>{formatYen(line.taxExcludedYen)}</dd>
               </div>
             </dl>
+            <TimedRewardDetail
+              calculation={line.timedRewardCalculation}
+              payableYen={line.timedRewardYen}
+            />
           </article>
         {/each}
       </div>

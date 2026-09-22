@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { PageProps } from "./$types";
   import {
@@ -302,13 +303,28 @@
                     ? "-"
                     : formatYen(line.hourlyRateYen)}
                 </td>
-                <td class="num">{formatYen(line.timedRewardYen)}</td>
+                <td class="num"
+                  >{formatYen(
+                    line.timedRewardYen,
+                  )}{#if line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen}<small
+                      >上限適用</small
+                    >{/if}</td
+                >
                 <td class="num">{formatYen(line.taxExcludedYen)}</td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
+      {#each notice.document.lines.filter((line) => line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen) as line (`${line.repository}#${line.issueNumber}`)}
+        <div class="inline-alert">
+          <p>{formatIssueName(line.issueNumber, line.issueTitle)}</p>
+          <TimedRewardDetail
+            calculation={line.timedRewardCalculation}
+            payableYen={line.timedRewardYen}
+          />
+        </div>
+      {/each}
       {#if lineWarnings.length}
         <div class="inline-alert">
           <strong>確認事項</strong>

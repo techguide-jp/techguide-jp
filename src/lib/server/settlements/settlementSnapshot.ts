@@ -199,6 +199,27 @@ export const normalizeSettlementSnapshot = (summary: unknown) => {
               : {},
           hourlyRateYenSnapshot: valueLine.hourlyRateYenSnapshot ?? null,
           completionReportId: valueLine.completionReportId ?? null,
+          ...(valueLine.timedRewardCalculation &&
+          typeof valueLine.timedRewardCalculation === "object"
+            ? {
+                timedRewardCalculation: {
+                  uncappedYen:
+                    (
+                      valueLine.timedRewardCalculation as Record<
+                        string,
+                        unknown
+                      >
+                    ).uncappedYen ?? null,
+                  capYen:
+                    (
+                      valueLine.timedRewardCalculation as Record<
+                        string,
+                        unknown
+                      >
+                    ).capYen ?? null,
+                },
+              }
+            : {}),
           warnings,
           sessions: normalizeSessions(valueLine.sessions),
         };

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createUnlockedSessionChangeRequest } from "$lib/server/work/workSessionLockRepository";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
+import { runWithLocalImpersonation } from "$lib/server/auth/localImpersonationContext";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import type { WorkSession } from "$lib/server/db/schema";
 import {
@@ -13,6 +15,10 @@ import {
   requestWorkLogChange,
   startIssueWork,
 } from "$lib/server/work/workService";
+
+vi.mock("$lib/server/work/workSessionLockRepository", () => ({
+  createUnlockedSessionChangeRequest: vi.fn(),
+}));
 
 vi.mock("$lib/server/github/projectClient", () => ({
   setProjectItemStatus: vi.fn(),
@@ -89,6 +95,7 @@ const session = (overrides: Partial<WorkSession> = {}): WorkSession => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(createUnlockedSessionChangeRequest).mockResolvedValue(true);
   vi.mocked(findOpenWorkSession).mockResolvedValue(null);
   vi.mocked(createWorkSession).mockResolvedValue(
     {} as Awaited<ReturnType<typeof createWorkSession>>,
@@ -102,6 +109,20 @@ beforeEach(() => {
 });
 
 describe("startIssueWork", () => {
+  it("擬似ログインでは稼働だけ記録し、外部更新や再試行キューを作らない", async () => {
+    const result = await runWithLocalImpersonation(
+      { adminLogin: "admin", targetLogin: "tashua314" },
+      () => startIssueWork(issueFormData(), [issue()], "tashua314"),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("Statusは更新していません"),
+    });
+    expect(createWorkSession).toHaveBeenCalledOnce();
+    expect(setProjectItemStatus).not.toHaveBeenCalled();
+    expect(recordProjectStatusSyncFailure).not.toHaveBeenCalled();
+  });
+
   it("TodoのIssueで稼働開始したらStatusをIn Progressに更新する", async () => {
     const result = await startIssueWork(
       issueFormData(),
@@ -194,6 +215,25 @@ describe("requestWorkLogChange datetime-local", () => {
 });
 
 describe("requestWorkLogChange", () => {
+  it.each(["edit", "exclude"] as const)(
+    "申請済みログへの%sをサーバー側で拒否する",
+    async (type) => {
+      const target = session({ endedAt: new Date("2026-06-18T01:00:00Z") });
+      vi.mocked(getWorkSessionById).mockResolvedValue(target);
+      vi.mocked(createUnlockedSessionChangeRequest).mockResolvedValue(false);
+      const result = await requestWorkLogChange(
+        changeFormData(type, target.id),
+        [issue()],
+        "tashua314",
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        message: expect.stringContaining("月次確定申請済み"),
+      });
+      expect(createChangeRequest).not.toHaveBeenCalled();
+    },
+  );
+
   it("計測中ログの修正申請を拒否する", async () => {
     vi.mocked(getWorkSessionById).mockResolvedValue(session());
 

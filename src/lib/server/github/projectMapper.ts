@@ -78,6 +78,7 @@ export const mapProjectIssues = (
         state: content.state,
         url: content.url,
         createdAt: content.createdAt ?? "",
+        updatedAt: content.updatedAt ?? null,
         closedAt: content.closedAt ?? null,
         assignees:
           content.assignees?.nodes.map((assignee) => assignee.login) ?? [],

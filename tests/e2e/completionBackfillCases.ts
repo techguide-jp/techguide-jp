@@ -90,6 +90,8 @@ export const registerCompletionBackfillTests = (): void => {
       await expect(
         dialog.getByRole("button", { name: "閉じる", exact: true }),
       ).toBeDisabled();
+      await page.mouse.click(4, 4);
+      await expect(dialog).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(dialog).toBeVisible();
     } finally {
@@ -103,7 +105,8 @@ export const registerCompletionBackfillTests = (): void => {
     ).toBeVisible();
     await trigger.click();
     await expect(dialog.getByRole("radio", { name: /#502/ })).toHaveCount(0);
-    await dialog.getByRole("button", { name: "閉じる", exact: true }).click();
+    await page.mouse.click(4, 4);
+    await expect(dialog).not.toBeVisible();
     await expect(trigger).toBeFocused();
   });
 

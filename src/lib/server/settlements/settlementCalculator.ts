@@ -149,7 +149,7 @@ const buildLine = (
     0,
   );
   const fixedRewardYen = issue.fixedRewardYen ?? 0;
-  const timedRewardYen =
+  const uncappedTimedRewardYen =
     issue.rewardMode === "ハイブリッド" && issue.hourlyRateYen
       ? sessions.reduce((total, session) => {
           return (
@@ -171,13 +171,10 @@ const buildLine = (
   if (issue.rewardMode === "ハイブリッド" && issue.hourlyRateYen === null) {
     warnings.push("ハイブリッドIssueの時間単価が未入力です。");
   }
-  if (
-    issue.rewardMode === "ハイブリッド" &&
-    issue.extraCapYen !== null &&
-    timedRewardYen > issue.extraCapYen
-  ) {
-    warnings.push("時間精算額が追加精算上限を超えています。");
-  }
+  const timedRewardYen =
+    issue.extraCapYen === null
+      ? uncappedTimedRewardYen
+      : Math.min(uncappedTimedRewardYen, Math.max(0, issue.extraCapYen));
 
   return {
     issue,
@@ -185,6 +182,10 @@ const buildLine = (
     fixedRewardYen,
     workMinutes,
     timedRewardYen,
+    timedRewardCalculation: {
+      uncappedYen: uncappedTimedRewardYen,
+      capYen: issue.extraCapYen,
+    },
     taxExcludedYen: fixedRewardYen + timedRewardYen,
     warnings,
     sessions,

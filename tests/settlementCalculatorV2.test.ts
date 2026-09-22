@@ -1,3 +1,5 @@
+import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnapshotRestore";
+import { buildNoticeDocument } from "$lib/server/notices/noticeService";
 import { describe, expect, it } from "vitest";
 import type { IssueCompletionReport, WorkSession } from "$lib/server/db/schema";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
@@ -329,19 +331,26 @@ describe("buildSettlementSummariesV2", () => {
     expect(reportIds).toEqual(new Set([report().id]));
   });
 
-  it("他月を含む時間報酬累計が追加精算上限を超えたらブロックする", () => {
-    const summary = build("2026-08", {
-      completionReports: [],
-      supplementalPayments: [],
-      priorTimedRewardByIssue: new Map([["techguide-jp/example#10", 25_000]]),
-    });
-
-    expect(summary?.blockingReasons).toContain(
-      "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。",
+  it("月またぎの上限残額を古い月から配分する", () => {
+    const sessions = [
+      session({
+        startedAt: new Date("2026-08-31T14:00:00Z"),
+        endedAt: new Date("2026-08-31T16:00:00Z"),
+      }),
+    ];
+    const options = { completionReports: [], supplementalPayments: [] };
+    const values = ["2026-08", "2026-09"].map(
+      (month) =>
+        buildSettlementSummariesV2(
+          month,
+          [issue({ extraCapYen: 10000 })],
+          sessions,
+          [],
+          options,
+        )[0],
     );
-    expect(getWorkSubmissionBlockingReasons(summary!)).toContain(
-      "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。",
-    );
+    expect(values.map((s) => s.timedRewardYen)).toEqual([6000, 4000]);
+    expect(values.every((s) => s.blockingReasons.length === 0)).toBe(true);
   });
 
   it("複数作業者の当月時間報酬をIssue単位で合算して上限判定する", () => {
@@ -360,15 +369,96 @@ describe("buildSettlementSummariesV2", () => {
     );
     const capWarning =
       "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。";
+    expect(
+      summaries.reduce((total, summary) => total + summary.timedRewardYen, 0),
+    ).toBe(10000);
 
     expect(
       summaries.find((summary) => summary.assigneeLogin === "worker")
         ?.blockingReasons,
-    ).toContain(capWarning);
+    ).not.toContain(capWarning);
     expect(
       summaries.find((summary) => summary.assigneeLogin === "replacement")
         ?.blockingReasons,
-    ).toContain(capWarning);
+    ).not.toContain(capWarning);
+  });
+
+  it.each([0, 1000, null])(
+    "上限%s円を適用し、稼働時間と固定報酬を保持する",
+    (cap) => {
+      const [summary] = buildSettlementSummariesV2(
+        "2026-08",
+        [issue({ extraCapYen: cap, hourlyRateYen: 300 })],
+        [session({ endedAt: new Date("2026-08-20T18:00:00Z") })],
+        [],
+        {
+          completionReports: [report({ fixedRewardYen: 2500 })],
+          supplementalPayments: [],
+        },
+      );
+      expect(summary.lines[0].workMinutes).toBe(1080);
+      expect(summary.fixedRewardYen).toBe(2500);
+      expect(summary.timedRewardYen).toBe(cap === null ? 5400 : cap);
+      expect(summary.taxIncludedYen).toBe(
+        cap === null ? 8690 : cap === 0 ? 2750 : 3850,
+      );
+      expect(summary.blockingReasons).toEqual([]);
+      const restored = restoreSettlementSummary(
+        createSettlementSnapshotPayload(summary),
+      );
+      expect(restored?.lines[0].timedRewardCalculation).toEqual({
+        uncappedYen: 5400,
+        capYen: cap,
+      });
+      expect(buildNoticeDocument(restored!).lines[0].timedRewardYen).toBe(
+        summary.timedRewardYen,
+      );
+    },
+  );
+
+  it("ログごとの円丸めを維持し、入力順に依存せず上限を配分する", () => {
+    const sessions = [
+      session({
+        id: "a",
+        startedAt: new Date("2026-08-20T00:00:00Z"),
+        endedAt: new Date("2026-08-20T00:01:00Z"),
+      }),
+      session({
+        id: "b",
+        assigneeLogin: "replacement",
+        startedAt: new Date("2026-08-20T01:00:00Z"),
+        endedAt: new Date("2026-08-20T01:01:00Z"),
+      }),
+    ];
+    const calculate = (logs: WorkSession[]) =>
+      buildSettlementSummariesV2(
+        "2026-08",
+        [issue({ hourlyRateYen: 1000, extraCapYen: 33 })],
+        logs,
+        [],
+        { completionReports: [], supplementalPayments: [] },
+      );
+    const summaries = calculate(sessions);
+    expect(calculate([...sessions].reverse())).toEqual(summaries);
+    expect(
+      summaries.map((summary) => [
+        summary.assigneeLogin,
+        summary.timedRewardYen,
+      ]),
+    ).toEqual([
+      ["replacement", 16],
+      ["worker", 17],
+    ]);
+    expect(
+      summaries.reduce(
+        (sum, summary) =>
+          sum + summary.lines[0].timedRewardCalculation!.uncappedYen,
+        0,
+      ),
+    ).toBe(34);
+    const snapshot = createSettlementSnapshotPayload(summaries[0]);
+    snapshot.source.lines[0].timedRewardCalculation!.capYen = 99999;
+    expect(restoreSettlementSummary(snapshot)).toBeNull();
   });
 
   it("現在のIssueが複数担当者なら保存済みログの帰属を保ったまま申請をブロックする", () => {
@@ -420,7 +510,7 @@ describe("buildSettlementSummariesV2", () => {
     expect(sessionOwnerSummary?.blockingReasons).toContain(assignmentWarning);
   });
 
-  it("上限超過Issueの完了確認待ち完了報告だけを持つ作業者も申請をブロックする", () => {
+  it("上限超過でも完了確認待ちの報告と時間報酬を申請できる", () => {
     const summaries = buildSettlementSummariesV2(
       "2026-08",
       [issue({ assignees: ["replacement"], extraCapYen: 10_000 })],
@@ -438,15 +528,18 @@ describe("buildSettlementSummariesV2", () => {
     );
     const capWarning =
       "techguide-jp/example#10: Issue全期間の時間精算額が追加精算上限を超えています。";
+    expect(
+      summaries.reduce((total, summary) => total + summary.timedRewardYen, 0),
+    ).toBe(10000);
 
     expect(
       summaries.find((summary) => summary.assigneeLogin === "worker")
         ?.blockingReasons,
-    ).toContain(capWarning);
+    ).not.toContain(capWarning);
     expect(
       summaries.find((summary) => summary.assigneeLogin === "replacement")
         ?.blockingReasons,
-    ).toContain(capWarning);
+    ).not.toContain(capWarning);
   });
 
   it("同じ完了報告のIssue完了反映だけでは再申請扱いにしない", () => {

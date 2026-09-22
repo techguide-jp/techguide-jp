@@ -39,6 +39,7 @@ query ProjectSettlementSource($owner: String!, $number: Int!, $after: String) {
               state
               url
               createdAt
+              updatedAt
               closedAt
               repository {
                 nameWithOwner

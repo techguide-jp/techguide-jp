@@ -1,3 +1,4 @@
+import { cancelWorkLogChange } from "$lib/server/work/changeRequestCancellation";
 import { fail } from "@sveltejs/kit";
 import { requireUser } from "$lib/server/auth/guards";
 import {
@@ -23,6 +24,11 @@ import {
   withdrawIssueCompletion,
 } from "$lib/server/completions/completionService";
 import { env } from "$lib/server/env";
+import { currentJstMonth } from "$lib/month";
+import { submissionNextStep } from "$lib/submissionReadiness";
+import { loadSettlementAssignee } from "$lib/server/settlements/settlementService";
+import { listWorkSessionLocks } from "$lib/server/work/workSessionLockRepository";
+import { applyApprovedChangeRequests } from "$lib/server/settlements/settlementCalculator";
 
 export const load = async (event) => {
   const user = requireUser(event);
@@ -33,6 +39,8 @@ export const load = async (event) => {
     requests,
     statusSyncs,
     completionReports,
+    sessionLocks,
+    settlement,
   ] = await Promise.all([
     fetchProjectIssuesForPage(),
     listOpenWorkSessionsForAssignee(user.login),
@@ -42,14 +50,28 @@ export const load = async (event) => {
     env.settlementRuleV2Enabled
       ? listCompletionReportsForWork(user.login)
       : Promise.resolve([]),
+    listWorkSessionLocks(user.login),
+    loadSettlementAssignee(currentJstMonth(), user.login),
   ]);
+  const sessionIds = new Set(sessions.map((session) => session.id));
 
   return {
     health,
     projectFetchError,
     issues: issues.filter((issue) => issue.assignees.includes(user.login)),
     openSessions,
-    sessions,
+    sessions: applyApprovedChangeRequests(sessions, requests).filter(
+      (session) => sessionIds.has(session.id),
+    ),
+    sessionLocks,
+    submissionNotice: submissionNextStep({
+      month: currentJstMonth(),
+      assignee: user.login,
+      required: Boolean(settlement.summary?.approvalRequired),
+      projectFetchError: settlement.projectFetchError,
+      blockingReasons: settlement.submissionBlockingReasons,
+      submission: settlement.submission,
+    }),
     requests: requests.filter(
       (request) => request.assigneeLogin === user.login,
     ),
@@ -60,6 +82,20 @@ export const load = async (event) => {
 };
 
 export const actions = {
+  cancelChange: async (event) => {
+    const user = requireUser(event);
+    const form = await event.request.formData();
+    const result = await cancelWorkLogChange(
+      String(form.get("requestId") ?? ""),
+      user.login,
+    );
+    if (!result.ok)
+      return fail(400, { scope: "changeRequests", message: result.message });
+    return {
+      scope: "changeRequests",
+      message: "申請を取り消しました。元の稼働ログは変更されません。",
+    };
+  },
   start: async (event) => {
     const user = requireUser(event);
     const projectResult = await fetchProjectIssues()

@@ -1,3 +1,8 @@
+import { registerCapAndCancellationTests } from "./capAndCancellationCases";
+import { registerWorkListTests } from "./workListCases";
+import { registerSettlementNavigationTests } from "./settlementNavigationCases";
+import { registerLocalImpersonationTests } from "./localImpersonationCases";
+import { registerMonthlyPreferencesTests } from "./monthlyPreferencesCases";
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
 import { registerCompletionBackfillTests } from "./completionBackfillCases";
 import {
@@ -8,8 +13,13 @@ import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
+registerCapAndCancellationTests();
+registerWorkListTests();
+registerSettlementNavigationTests();
+registerLocalImpersonationTests();
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
+registerMonthlyPreferencesTests();
 registerCompletionBackfillTests();
 registerCompletionMonthTests();
 
@@ -53,7 +63,9 @@ test("稼働開始と終了を記録できる", async ({ page }) => {
   await page.getByRole("button", { name: "終了" }).click();
 
   await expect(page.getByText("稼働を終了しました")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "稼働ログ" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "稼働ログ", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "修正" }).first(),
   ).toBeVisible();
@@ -113,23 +125,25 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(
     page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
+  await page
+    .getByRole("link", { name: "月次確定申請をする", exact: true })
+    .click();
   await page.getByLabel(feedbackQuestions.operatorComment).fill("申請時の質問");
   await page
     .getByLabel(feedbackQuestions.privateReflection)
     .fill("申請時の本人用メモ");
-  await page
-    .getByRole("button", { name: "この月の稼働を確定して申請" })
-    .click();
+  await page.getByRole("button", { name: "この内容で月次確定申請" }).click();
   await expect(
     page.getByText(`${month} の稼働を確定して申請しました。`),
   ).toBeVisible();
 
-  await expect(page.getByLabel(feedbackQuestions.operatorComment)).toHaveValue(
-    "申請時の質問",
-  );
+  await page
+    .getByRole("button", { name: "変更なしで閉じる", exact: true })
+    .click();
+  await expect(page.getByText("申請時の質問", { exact: true })).toBeVisible();
   await expect(
-    page.getByLabel(feedbackQuestions.privateReflection),
-  ).toHaveValue("申請時の本人用メモ");
+    page.getByText("申請時の本人用メモ", { exact: true }),
+  ).toBeVisible();
 
   await page.goto(`/settlements/${month}`);
   const settlementRow = page.getByRole("row").filter({ hasText: "tashua314" });
@@ -400,9 +414,9 @@ test("作業者が着手前にIssueの報酬条件を確認できる", async ({ 
   ];
   for (const example of examples) {
     const row = page.getByRole("row").filter({ hasText: `#${example.issue} ` });
-    await expect(row.getByRole("cell").nth(3)).toHaveText(example.mode);
+    await expect(row.getByRole("cell").nth(4)).toHaveText(example.mode);
     for (const [index, value] of example.values.entries()) {
-      await expect(row.getByRole("cell").nth(4 + index)).toHaveText(value);
+      await expect(row.getByRole("cell").nth(5 + index)).toHaveText(value);
     }
   }
   await expect(

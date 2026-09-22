@@ -20,6 +20,8 @@ export type ProjectIssue = {
   state: "OPEN" | "CLOSED";
   url: string;
   createdAt: string;
+  /** 旧スナップショットには存在しないため、表示上は不明として扱う。 */
+  updatedAt?: string | null;
   closedAt: string | null;
   assignees: string[];
   status: ProjectStatus | null;

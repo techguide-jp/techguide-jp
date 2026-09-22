@@ -1,6 +1,9 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { isIssueCompleted } from "$lib/issueCompletion";
+  import { invalidateAll } from "$app/navigation";
+  import WorkIssueList from "$lib/components/WorkIssueList.svelte";
+  import WorkLogList from "$lib/components/WorkLogList.svelte";
+  import SubmissionNextStep from "$lib/components/SubmissionNextStep.svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -10,6 +13,8 @@
   } from "$lib/components/WorkChangeDialog.svelte";
   import {
     formatDateTime,
+    formatWorkMinutes,
+    requestedWorkMinutes,
     formatIssueName,
     formatProjectName,
   } from "$lib/format";
@@ -20,6 +25,7 @@
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
   let changeDialog = $state<WorkChangeDialogState | null>(null);
+  let changeDialogError = $state<string | null>(null);
 
   const openKeySet = $derived(
     new Set(
@@ -28,26 +34,25 @@
       ),
     ),
   );
-  const activeCompletionByIssue = $derived(
-    new Map(
-      data.completionReports
-        .filter((report) => !report.invalidatedAt)
-        .map((report) => [
-          `${report.repository}#${report.issueNumber}`,
-          report,
-        ]),
-    ),
-  );
-
   const enhanceAction =
     (name: string, closeDialogOnSuccess = false): SubmitFunction =>
     () => {
       pendingAction = name;
       return async ({ result, update }) => {
-        await update();
-        pendingAction = null;
-        if (closeDialogOnSuccess && result.type === "success") {
-          changeDialog = null;
+        try {
+          await update();
+          if (closeDialogOnSuccess && result.type === "success")
+            changeDialog = null;
+          if (closeDialogOnSuccess && result.type === "failure") {
+            changeDialogError = String(
+              result.data?.message ??
+                "申請できませんでした。内容を確認してください。",
+            );
+            // 別画面で申請された場合も、入力を保ったまま編集制限・申請履歴を最新にする。
+            await invalidateAll();
+          }
+        } finally {
+          pendingAction = null;
         }
       };
     };
@@ -56,18 +61,6 @@
 
   const issueKey = (issue: Issue): string =>
     `${issue.repository}#${issue.number}`;
-  const configuredRewardLabel = (amount: number | null): string =>
-    amount === null ? "未設定" : `${amount.toLocaleString("ja-JP")}円`;
-  const canStartIssue = (issue: Issue): boolean =>
-    issue.state !== "CLOSED" && issue.status !== "Done";
-  const issueWorkState = (issue: Issue, key: string): string => {
-    if (isIssueCompleted(issue)) return "完了済み";
-    if (openKeySet.has(key)) return "稼働中";
-    const report = activeCompletionByIssue.get(key);
-    if (report?.eligibilityConfirmedAt) return "Issue完了確認済み";
-    if (report) return "完了報告済み・Issue完了待ち";
-    return canStartIssue(issue) ? "待機" : "完了確認待ち";
-  };
   const issueLabel = (issue: Issue): string =>
     `${formatProjectName(issue.repository)} / ${formatIssueName(issue.number, issue.title)}`;
   const sessionIssueKey = (session: WorkSession): string =>
@@ -95,6 +88,7 @@
   };
 
   const openAddDialog = (issue: Issue) => {
+    changeDialogError = null;
     changeDialog = {
       requestType: "add",
       issueKey: issueKey(issue),
@@ -105,6 +99,7 @@
   };
 
   const openEditDialog = (session: WorkSession) => {
+    changeDialogError = null;
     changeDialog = {
       requestType: "edit",
       issueKey: sessionIssueKey(session),
@@ -116,6 +111,7 @@
   };
 
   const openExcludeDialog = (session: WorkSession) => {
+    changeDialogError = null;
     changeDialog = {
       requestType: "exclude",
       issueKey: sessionIssueKey(session),
@@ -134,6 +130,8 @@
     <p class="notice">{actionMessage}</p>
   {/if}
 </section>
+
+<SubmissionNextStep notice={data.submissionNotice} />
 
 {#if data.projectFetchError}
   <section class="panel alert">
@@ -199,218 +197,99 @@
   {/if}
 </section>
 
-<section class="panel">
-  <h2>Project内Issue</h2>
-  {#if data.projectFetchError}
-    <p class="muted">Issue一覧を表示できません。</p>
-  {:else}
-    <p class="muted reward-guide">
-      現在のProject設定を表示しています。金額はすべて税抜です。追加精算上限は、同じIssueの全期間・全作業者の時間報酬の累計上限です（固定報酬は含みません）。
-      未設定の項目は着手前に運営へ確認し、月次の精算額は「自分の精算」で確認してください。
-    </p>
-    {#if data.settlementRuleV2Enabled}
-      <p class="muted">
-        IssueがClosedかつStatusがDoneなら完了報告は不要です。未報告の固定報酬は、管理者が精算月を指定します。
-      </p>
-    {/if}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Issue</th>
-            <th>Status</th>
-            <th class="reward-mode">報酬方式</th>
-            <th class="reward-amount">固定報酬（税抜）</th>
-            <th class="reward-amount">時給（税抜）</th>
-            <th class="reward-amount">追加精算上限（税抜）</th>
-            <th class="work-state">状態</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each data.issues as issue (`${issue.repository}#${issue.number}`)}
-            {@const key = `${issue.repository}#${issue.number}`}
-            {@const canStart = canStartIssue(issue)}
-            <tr>
-              <td>{formatProjectName(issue.repository)}</td>
-              <td>
-                <a href={issue.url} target="_blank" rel="noreferrer">
-                  {formatIssueName(issue.number, issue.title)}
-                </a>
-              </td>
-              <td>{issue.status ?? "-"}</td>
-              <td class="reward-mode">{issue.rewardMode ?? "未設定"}</td>
-              <td class="reward-amount">
-                {configuredRewardLabel(issue.fixedRewardYen)}
-              </td>
-              <td class="reward-amount">
-                {issue.rewardMode === "固定"
-                  ? "対象外"
-                  : configuredRewardLabel(issue.hourlyRateYen)}
-              </td>
-              <td class="reward-amount">
-                {issue.rewardMode === "固定"
-                  ? "対象外"
-                  : configuredRewardLabel(issue.extraCapYen)}
-              </td>
-              <td class="work-state">{issueWorkState(issue, key)}</td>
-              <td>
-                <div class="row-actions">
-                  <form
-                    method="POST"
-                    action="?/start"
-                    use:enhance={enhanceAction(`start-${key}`)}
-                  >
-                    <input
-                      type="hidden"
-                      name="repository"
-                      value={issue.repository}
-                    />
-                    <input
-                      type="hidden"
-                      name="issueNumber"
-                      value={issue.number}
-                    />
-                    <ActionSubmit
-                      actionName={`start-${key}`}
-                      {pendingAction}
-                      label="開始"
-                      pendingLabel="開始中..."
-                      disabled={openKeySet.has(key) || !canStart}
-                    />
-                  </form>
-                  {#if data.settlementRuleV2Enabled && !isIssueCompleted(issue)}
-                    {@const completion = activeCompletionByIssue.get(key)}
-                    {#if completion && !completion.eligibilityConfirmedAt}
-                      <form
-                        method="POST"
-                        action="?/withdrawCompletion"
-                        use:enhance={enhanceAction(
-                          `withdraw-completion-${key}`,
-                        )}
-                      >
-                        <input
-                          type="hidden"
-                          name="repository"
-                          value={issue.repository}
-                        />
-                        <input
-                          type="hidden"
-                          name="issueNumber"
-                          value={issue.number}
-                        />
-                        <ActionSubmit
-                          actionName={`withdraw-completion-${key}`}
-                          {pendingAction}
-                          label="完了報告を取り下げ"
-                          pendingLabel="取り下げ中..."
-                          variant="danger"
-                        />
-                      </form>
-                    {:else if !completion?.eligibilityConfirmedAt}
-                      <form
-                        method="POST"
-                        action="?/reportCompletion"
-                        use:enhance={enhanceAction(`report-completion-${key}`)}
-                      >
-                        <input
-                          type="hidden"
-                          name="repository"
-                          value={issue.repository}
-                        />
-                        <input
-                          type="hidden"
-                          name="issueNumber"
-                          value={issue.number}
-                        />
-                        <ActionSubmit
-                          actionName={`report-completion-${key}`}
-                          {pendingAction}
-                          label="完了報告"
-                          pendingLabel="報告中..."
-                          disabled={openKeySet.has(key) ||
-                            (issue.rewardMode !== "固定" &&
-                              issue.rewardMode !== "ハイブリッド") ||
-                            issue.fixedRewardYen === null}
-                        />
-                      </form>
-                    {/if}
-                  {/if}
-                  <button
-                    class="button secondary"
-                    type="button"
-                    onclick={() => openAddDialog(issue)}
-                  >
-                    追加申請
-                  </button>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  {/if}
-</section>
+<WorkIssueList
+  issues={data.issues}
+  projectFetchError={data.projectFetchError}
+  settlementRuleV2Enabled={data.settlementRuleV2Enabled}
+  completionReports={data.completionReports}
+  {openKeySet}
+  {pendingAction}
+  {enhanceAction}
+  {openAddDialog}
+/>
 
-<section class="panel">
-  <h2>稼働ログ</h2>
-  {#if data.sessions.length === 0}
-    <p class="muted">修正・除外できる稼働ログはありません。</p>
+<WorkLogList
+  sessions={data.sessions}
+  requests={data.requests}
+  locks={data.sessionLocks}
+  projectFetchError={data.projectFetchError}
+  {openEditDialog}
+  {openExcludeDialog}
+/>
+
+<section class="panel" aria-labelledby="change-requests-heading">
+  <h2 id="change-requests-heading">稼働ログの申請履歴</h2>
+  <p class="muted">
+    未処理の追加・修正・除外申請は取り消せます。取り消しても元の稼働ログは変わりません。
+  </p>
+  {#if form?.scope === "changeRequests"}<p class="notice" role="status">
+      {form.message}
+    </p>{/if}
+  {#if data.requests.length === 0}
+    <p class="muted">申請はありません。</p>
   {:else}
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Issue</th>
-            <th>開始</th>
-            <th>終了</th>
-            <th>操作</th>
-          </tr>
-        </thead>
+        <thead
+          ><tr
+            ><th>Issue</th><th>種別</th><th>希望時刻・稼働時間</th><th>理由</th
+            ><th>状態</th><th>操作</th></tr
+          ></thead
+        >
         <tbody>
-          {#each data.sessions as session (session.id)}
-            {@const isMeasuring = !session.endedAt}
+          {#each [...data.requests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) as request (request.id)}
+            {@const minutes = requestedWorkMinutes(
+              request.requestedStartedAt,
+              request.requestedEndedAt,
+            )}
             <tr>
-              <td>{formatProjectName(session.repository)}</td>
-              <td>
-                <a
-                  href={`https://github.com/${session.repository}/issues/${session.issueNumber}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {formatIssueName(session.issueNumber, session.issueTitle)}
-                </a>
-              </td>
-              <td>{formatDateTime(session.startedAt)}</td>
-              <td>{isMeasuring ? "計測中" : formatDateTime(session.endedAt)}</td
+              <td
+                >{formatProjectName(request.repository)} / {formatIssueName(
+                  request.issueNumber,
+                  request.issueTitle,
+                )}<small>{formatDateTime(request.createdAt)}</small></td
               >
+              <td
+                >{{ add: "追加", edit: "修正", exclude: "除外" }[
+                  request.requestType
+                ]}</td
+              >
+              <td
+                >{#if minutes !== null}{formatDateTime(
+                    request.requestedStartedAt,
+                  )} ～ {formatDateTime(request.requestedEndedAt)}<strong
+                    class="duration">{formatWorkMinutes(minutes)}</strong
+                  >{:else}対象ログを精算から除外{/if}</td
+              >
+              <td>{request.reason}</td>
               <td>
-                {#if isMeasuring}
-                  <span class="muted">終了後に申請可</span>
-                {:else}
-                  <div class="row-actions compact">
-                    <button
-                      class="button secondary"
-                      type="button"
-                      disabled={Boolean(data.projectFetchError)}
-                      onclick={() => openEditDialog(session)}
-                    >
-                      修正
-                    </button>
-                    <button
-                      class="button danger ghost"
-                      type="button"
-                      disabled={Boolean(data.projectFetchError)}
-                      onclick={() => openExcludeDialog(session)}
-                    >
-                      除外
-                    </button>
-                  </div>
-                {/if}
+                <span
+                  class={`status-badge ${{ pending: "measuring", approved: "complete", rejected: "rejected", cancelled: "neutral" }[request.status]}`}
+                >
+                  {{
+                    pending: "確認待ち",
+                    approved: "承認済み",
+                    rejected: "却下",
+                    cancelled: "取り消し済み",
+                  }[request.status]}
+                </span>
               </td>
+              <td
+                >{#if request.status === "pending"}<form
+                    method="POST"
+                    action="?/cancelChange"
+                    use:enhance={enhanceAction(`cancel-change-${request.id}`)}
+                  >
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <ActionSubmit
+                      actionName={`cancel-change-${request.id}`}
+                      {pendingAction}
+                      label="申請を取り消す"
+                      pendingLabel="取り消し中..."
+                      variant="secondary"
+                    />
+                  </form>{/if}</td
+              >
             </tr>
           {/each}
         </tbody>
@@ -422,6 +301,7 @@
 {#if changeDialog}
   <WorkChangeDialog
     dialog={changeDialog}
+    errorMessage={changeDialogError}
     {pendingAction}
     {enhanceAction}
     close={() => (changeDialog = null)}
@@ -429,17 +309,8 @@
 {/if}
 
 <style>
-  .reward-guide {
-    margin-bottom: 1rem;
-  }
-
-  .reward-amount,
-  .reward-mode {
+  .duration {
+    display: block;
     white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .work-state {
-    min-width: 4rem;
   }
 </style>

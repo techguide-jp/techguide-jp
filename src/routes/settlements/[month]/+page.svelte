@@ -6,9 +6,12 @@
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import CompletionRegistrationModal from "$lib/components/CompletionRegistrationModal.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
+  import ChangeRequestPreview from "$lib/components/ChangeRequestPreview.svelte";
   import {
     formatDate,
     formatDateTime,
+    formatWorkMinutes,
+    requestedWorkMinutes,
     formatIssueName,
     formatProjectName,
     formatYen,
@@ -135,6 +138,10 @@
   </section>
 {/if}
 
+{#if data.settlementCalculationError}<p class="notice" role="alert">
+    {data.settlementCalculationError}
+  </p>{/if}
+
 <section class="panel">
   <h2>未処理の修正申請</h2>
   {#if pendingRequests.length === 0}
@@ -147,6 +154,7 @@
           <th>Project</th>
           <th>Issue</th>
           <th>種別</th>
+          <th>申請日時（日本時間）</th>
           <th>希望時刻</th>
           <th>理由</th>
           <th>操作</th>
@@ -154,6 +162,10 @@
       </thead>
       <tbody>
         {#each pendingRequests as request (request.id)}
+          {@const minutes = requestedWorkMinutes(
+            request.requestedStartedAt,
+            request.requestedEndedAt,
+          )}
           <tr>
             <td>{request.assigneeLogin}</td>
             <td>{formatProjectName(request.repository)}</td>
@@ -166,14 +178,23 @@
                 {formatIssueName(request.issueNumber, request.issueTitle)}
               </a>
             </td>
-            <td>{request.requestType}</td>
+            <td
+              >{{ add: "追加", edit: "修正", exclude: "除外" }[
+                request.requestType
+              ]}</td
+            >
+            <td>{formatDateTime(request.createdAt)}</td>
             <td
               >{formatDateTime(request.requestedStartedAt)} - {formatDateTime(
                 request.requestedEndedAt,
-              )}</td
+              )}
+              {#if minutes !== null}<strong class="request-duration"
+                  >{formatWorkMinutes(minutes)}</strong
+                >{/if}</td
             >
             <td>{request.reason}</td>
             <td class="review-actions">
+              <a href={`#request-preview-${request.id}`}>承認後の金額を確認</a>
               <form
                 method="POST"
                 action="?/reviewRequest"
@@ -212,14 +233,56 @@
   {/if}
 </section>
 
+{#if pendingRequests.length > 0}
+  <section class="panel" aria-labelledby="change-preview-heading">
+    <h2 id="change-preview-heading">修正申請の承認前プレビュー</h2>
+    <p class="muted">
+      各申請を1件だけ承認した場合の見込みです。他の未処理申請は反映していません。表示だけでは申請の承認や精算の確定は行われません。
+    </p>
+    <div class="request-previews">
+      {#each data.changeRequestPreviews as preview (preview.requestId)}
+        {@const request = pendingRequests.find(
+          (request) => request.id === preview.requestId,
+        )}
+        {#if request}
+          <article
+            id={`request-preview-${request.id}`}
+            class="request-preview"
+            aria-label={`${request.assigneeLogin} #${request.issueNumber} ${request.reason}の見込み`}
+          >
+            <h3>
+              {request.assigneeLogin} · {formatIssueName(
+                request.issueNumber,
+                request.issueTitle,
+              )}
+            </h3>
+            <p>
+              {request.reason}
+              <small class="muted"
+                >（{formatDateTime(request.createdAt)}申請）</small
+              >
+            </p>
+            <ChangeRequestPreview {preview} />
+          </article>
+        {/if}
+      {/each}
+    </div>
+  </section>
+{/if}
+
 <section class="panel">
   <h2>通常支払い</h2>
+  {#if pendingRequests.length > 0}
+    <p class="muted">
+      現在の金額です。未処理の修正申請は含まれていません。承認した場合の金額は上のプレビューで確認できます。
+    </p>
+  {/if}
   <table>
     <thead>
       <tr>
         <th>Assignee</th>
         <th>固定</th>
-        <th>時間</th>
+        <th>時間報酬</th>
         <th>税抜</th>
         <th>税込</th>
         <th>振込先</th>
@@ -248,7 +311,15 @@
             {/if}
           </td>
           <td>{settlementAmountLabel(summary, "fixedRewardYen")}</td>
-          <td>{settlementAmountLabel(summary, "timedRewardYen")}</td>
+          <td
+            >{settlementAmountLabel(summary, "timedRewardYen")}
+            {#if summary.lines.some((line) => line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen)}
+              <small>上限適用後の金額で精算</small>
+              <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
+                >計算内訳を確認</a
+              >
+            {/if}
+          </td>
           <td>{settlementAmountLabel(summary, "taxExcludedYen")}</td>
           <td>{settlementAmountLabel(summary, "taxIncludedYen")}</td>
           <td>
@@ -567,3 +638,28 @@
     {/if}
   {/if}
 {/each}
+
+<style>
+  th {
+    white-space: nowrap;
+  }
+  .request-previews {
+    display: grid;
+    gap: 1rem;
+  }
+  .request-preview {
+    border: 1px solid #dce3ed;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    scroll-margin-top: 1rem;
+    overflow-wrap: anywhere;
+  }
+  .request-preview h3 {
+    margin-top: 0;
+    font-size: 1rem;
+  }
+  .request-duration {
+    display: block;
+    white-space: nowrap;
+  }
+</style>
