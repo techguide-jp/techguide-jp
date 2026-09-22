@@ -157,7 +157,7 @@
   }
 
   .status-badge {
-    @apply whitespace-nowrap rounded-full px-2 py-1 text-xs font-bold;
+    @apply inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-bold;
   }
 
   .status-badge.complete {
@@ -170,6 +170,14 @@
 
   .status-badge.reference {
     @apply bg-indigo-50 text-indigo-800;
+  }
+
+  .status-badge.neutral {
+    @apply bg-slate-100 text-slate-700;
+  }
+
+  .status-badge.rejected {
+    @apply bg-red-50 text-red-700;
   }
 
   .log-detail-block {

@@ -261,14 +261,18 @@
                   >{:else}対象ログを精算から除外{/if}</td
               >
               <td>{request.reason}</td>
-              <td
-                >{{
-                  pending: "未処理",
-                  approved: "承認済み",
-                  rejected: "却下",
-                  cancelled: "取り消し済み",
-                }[request.status]}</td
-              >
+              <td>
+                <span
+                  class={`status-badge ${{ pending: "measuring", approved: "complete", rejected: "rejected", cancelled: "neutral" }[request.status]}`}
+                >
+                  {{
+                    pending: "確認待ち",
+                    approved: "承認済み",
+                    rejected: "却下",
+                    cancelled: "取り消し済み",
+                  }[request.status]}
+                </span>
+              </td>
               <td
                 >{#if request.status === "pending"}<form
                     method="POST"

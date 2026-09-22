@@ -84,7 +84,11 @@
               </a>
             </td>
             <td>{formatDateTime(issue.updatedAt ?? null)}</td>
-            <td>{issue.status ?? "-"}</td>
+            <td
+              ><span class="status-badge neutral"
+                >{issue.status ?? "未設定"}</span
+              ></td
+            >
             <td class="reward-mode">{issue.rewardMode ?? "未設定"}</td>
             <td class="reward-amount">
               {configuredRewardLabel(issue.fixedRewardYen)}
@@ -99,7 +103,12 @@
                 ? "対象外"
                 : configuredRewardLabel(issue.extraCapYen)}
             </td>
-            <td class="work-state">{issueWorkState(issue, key)}</td>
+            <td class="work-state">
+              <span
+                class={`status-badge ${isIssueCompleted(issue) ? "complete" : openKeySet.has(key) ? "reference" : canStart && !activeCompletionByIssue.has(key) ? "neutral" : "measuring"}`}
+                >{issueWorkState(issue, key)}</span
+              >
+            </td>
             <td>
               <div class="row-actions">
                 <form

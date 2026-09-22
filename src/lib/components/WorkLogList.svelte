@@ -36,7 +36,8 @@
           <th>更新日時</th>
           <th>開始</th>
           <th>終了</th>
-          <th>操作</th>
+          <th>状態</th>
+          <th class="log-actions">操作</th>
         </tr>
       </thead>
       <tbody>
@@ -55,15 +56,23 @@
             </td>
             <td>{formatDateTime(session.updatedAt)}</td>
             <td>{formatDateTime(session.startedAt)}</td>
-            <td>{isMeasuring ? "計測中" : formatDateTime(session.endedAt)}</td>
+            <td>{isMeasuring ? "-" : formatDateTime(session.endedAt)}</td>
             <td>
               {#if locks[session.id] === "submitted"}
-                <span>月次確定申請済み・編集不可</span>
+                <span class="status-badge complete">確定済み</span>
               {:else if locks[session.id] === "pending"}
-                <span>稼働時刻の管理者の確認待ち</span>
-                <a href="#change-requests-heading">申請を確認・取り消す</a>
+                <span class="status-badge measuring">確認待ち</span>
               {:else if isMeasuring}
-                <span class="muted">終了後に申請可</span>
+                <span class="status-badge reference">計測中</span>
+              {:else}
+                <span class="status-badge neutral">未確定</span>
+              {/if}
+            </td>
+            <td class="log-actions">
+              {#if locks[session.id] === "submitted" || isMeasuring}
+                <span class="muted">-</span>
+              {:else if locks[session.id] === "pending"}
+                <a href="#change-requests-heading">申請を確認・取り消す</a>
               {:else}
                 <div class="row-actions compact">
                   <button
@@ -114,6 +123,9 @@
 </section>
 
 <style>
+  .log-actions {
+    min-width: 10rem;
+  }
   details {
     margin-top: 1rem;
   }

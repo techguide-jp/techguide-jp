@@ -41,7 +41,10 @@ export const registerWorkListTests = (): void => {
     await dialog.getByLabel("理由").fill("時刻確認待ちのテスト");
     await dialog.getByRole("button", { name: "申請", exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(newest).toContainText("稼働時刻の管理者の確認待ち");
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("確認待ち");
+    await expect(newest.getByRole("cell").nth(6)).toHaveText(
+      "申請を確認・取り消す",
+    );
     await expect(newest.getByRole("button")).toHaveCount(0);
     await expect(
       page.getByRole("heading", {
@@ -102,7 +105,8 @@ export const registerWorkListTests = (): void => {
       .getByRole("button", { name: "変更なしで閉じる", exact: true })
       .click();
     await page.goto("/work");
-    await expect(newest).toContainText("月次確定申請済み・編集不可");
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("確定済み");
+    await expect(newest.getByRole("cell").nth(6)).toHaveText("-");
     await expect(logs.getByRole("button", { name: /修正|除外/ })).toHaveCount(
       0,
     );
