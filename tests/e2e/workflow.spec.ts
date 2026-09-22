@@ -123,13 +123,14 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(
     page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
+  await page
+    .getByRole("link", { name: "月次確定申請をする", exact: true })
+    .click();
   await page.getByLabel(feedbackQuestions.operatorComment).fill("申請時の質問");
   await page
     .getByLabel(feedbackQuestions.privateReflection)
     .fill("申請時の本人用メモ");
-  await page
-    .getByRole("button", { name: "この月の稼働を確定して申請" })
-    .click();
+  await page.getByRole("button", { name: "この内容で月次確定申請" }).click();
   await expect(
     page.getByText(`${month} の稼働を確定して申請しました。`),
   ).toBeVisible();
@@ -137,12 +138,10 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await page
     .getByRole("button", { name: "変更なしで閉じる", exact: true })
     .click();
-  await expect(page.getByLabel(feedbackQuestions.operatorComment)).toHaveValue(
-    "申請時の質問",
-  );
+  await expect(page.getByText("申請時の質問", { exact: true })).toBeVisible();
   await expect(
-    page.getByLabel(feedbackQuestions.privateReflection),
-  ).toHaveValue("申請時の本人用メモ");
+    page.getByText("申請時の本人用メモ", { exact: true }),
+  ).toBeVisible();
 
   await page.goto(`/settlements/${month}`);
   const settlementRow = page.getByRole("row").filter({ hasText: "tashua314" });

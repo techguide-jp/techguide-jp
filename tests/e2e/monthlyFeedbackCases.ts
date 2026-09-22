@@ -38,13 +38,20 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page.goto(detail);
       await page.waitForLoadState("networkidle");
       await page
+        .getByRole("link", { name: "コメントを編集", exact: true })
+        .click();
+      await page
         .getByLabel(feedbackQuestions.operatorComment)
         .fill("8月だけの下書き");
       await page
         .getByLabel(feedbackQuestions.privateReflection)
         .fill("8月の振り返り下書き");
+      await page.keyboard.press("Escape");
       await page.getByRole("link", { name: "前月", exact: true }).click();
       await expect(page).toHaveURL(/\/settlements\/2026-07\/worker$/);
+      await page
+        .getByRole("link", { name: "コメントを編集", exact: true })
+        .click();
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveValue("");
@@ -62,11 +69,14 @@ export const registerMonthlyFeedbackTests = (): void => {
       const url = `/settlements/${month}/tashua314`;
       await page.goto(url);
       await page
+        .getByRole("link", { name: "月次確定申請をする", exact: true })
+        .click();
+      await page
         .getByLabel(feedbackQuestions.operatorComment)
         .fill("最初の質問");
       await page
         .getByRole("button", {
-          name: "この月の稼働を確定して申請",
+          name: "この内容で月次確定申請",
           exact: true,
         })
         .click();
@@ -81,6 +91,9 @@ export const registerMonthlyFeedbackTests = (): void => {
       });
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await page
+        .getByRole("link", { name: "コメントを編集", exact: true })
+        .click();
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveCount(1);
@@ -97,10 +110,13 @@ export const registerMonthlyFeedbackTests = (): void => {
         page.getByText("月次コメントを保存しました。"),
       ).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "変更内容で再申請", exact: true }),
+        page.getByRole("link", { name: "変更内容で再申請", exact: true }),
       ).toBeVisible();
       await page
-        .getByRole("button", { name: "変更内容で再申請", exact: true })
+        .getByRole("link", { name: "変更内容で再申請", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "この内容で再申請", exact: true })
         .click();
       await expect(
         page.getByText(`${month} の稼働を確定して申請しました。`),
@@ -111,9 +127,10 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page
         .getByRole("button", { name: "変更なしで閉じる", exact: true })
         .click();
-      await expect(
-        page.getByLabel(feedbackQuestions.operatorComment),
-      ).toHaveCount(1);
+      await expect(page.getByRole("textbox")).toHaveCount(0);
+      await page
+        .getByRole("link", { name: "コメントを編集", exact: true })
+        .click();
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveValue("再申請前の質問");
@@ -208,6 +225,9 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page.goto("/__e2e/login?login=worker");
       await page.goto(detail);
       await page.waitForLoadState("networkidle");
+      await page
+        .getByRole("link", { name: "コメントを編集", exact: true })
+        .click();
       await expect(
         page.getByLabel(feedbackQuestions.privateReflection),
       ).toHaveValue(privateText);
@@ -253,8 +273,8 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page.goto(detail);
       await page.waitForLoadState("networkidle");
       await expect(
-        page.getByLabel(feedbackQuestions.operatorComment),
-      ).toHaveValue("追記した質問");
+        page.getByText("追記した質問", { exact: true }),
+      ).toBeVisible();
     });
 
     test("承認後はコメントを固定し、希望はプロフィールで更新できる", async ({
@@ -345,6 +365,9 @@ export const registerMonthlyFeedbackTests = (): void => {
         await page.goto(detail);
         await page.waitForLoadState("networkidle");
         await page
+          .getByRole("link", { name: "コメントを編集", exact: true })
+          .click();
+        await page
           .getByLabel(feedbackQuestions.operatorComment)
           .fill("残すべき入力");
         await withDb(async (sql) => {
@@ -353,7 +376,7 @@ export const registerMonthlyFeedbackTests = (): void => {
         await page
           .getByRole("button", { name: "コメントを保存", exact: true })
           .click();
-        await expect(page.getByRole("status")).toContainText(
+        await expect(page.getByRole("alert")).toContainText(
           "入力内容を控えて再読み込み",
         );
         await expect(

@@ -1,12 +1,10 @@
 <script lang="ts">
   import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
-  import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
   import MonthlyPreferencesModal from "$lib/components/MonthlyPreferencesModal.svelte";
   import MonthlyFeedbackPanel from "$lib/components/MonthlyFeedbackPanel.svelte";
-  import MonthlyFeedbackFields from "$lib/components/MonthlyFeedbackFields.svelte";
-  import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import MonthlySubmissionPanel from "$lib/components/MonthlySubmissionPanel.svelte";
   import SettlementPaymentPanel from "$lib/components/SettlementPaymentPanel.svelte";
   import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
   import UnsettledSettlementPanel from "$lib/components/UnsettledSettlementPanel.svelte";
@@ -41,11 +39,8 @@
 
   const enhanceAction =
     (name: string): SubmitFunction =>
-    ({ submitter }) => {
-      pendingAction =
-        submitter?.getAttribute("formaction") === "?/saveFeedback"
-          ? "save-feedback"
-          : name;
+    () => {
+      pendingAction = name;
       return async ({ update }) => {
         try {
           await update({ reset: false });
@@ -83,18 +78,10 @@
   );
   const submission = $derived(data.submission);
   const canSubmitWork = $derived(data.user?.login === data.assignee);
-  const resubmissionFormVisible = $derived(
-    canSubmitWork &&
-      Boolean(summary?.approvalRequired) &&
-      Boolean(submission?.hasChanges) &&
-      !data.projectFetchError &&
-      !data.snapshot,
-  );
   const actionMessage = $derived(
-    formResult?.scope === "submission" ||
+    (formResult?.scope === "submission" && !("feedbackInput" in formResult)) ||
       (formResult?.scope === "preferences" &&
-        !("preferencesInput" in formResult)) ||
-      (resubmissionFormVisible && formResult?.scope === "feedback")
+        !("preferencesInput" in formResult))
       ? formResult.message
       : undefined,
   );
@@ -216,10 +203,12 @@
     }}
   />
 {/if}
-{#if (submission || data.feedback) && !resubmissionFormVisible}
+{#if submission || data.feedback}
   {#key `${data.month}:${data.assignee}`}
     <MonthlyFeedbackPanel
       month={data.month}
+      assignee={data.assignee}
+      initiallyOpen={data.requestedForm === "feedback"}
       feedback={data.feedback}
       canEdit={canSubmitWork && Boolean(submission) && !data.snapshot}
       result={form}
@@ -387,105 +376,23 @@
     </section>
   {/if}
 
-  <section class="panel">
-    <h2>月次確定申請</h2>
-    {#if data.projectFetchError}
-      <p class="muted">
-        {submission
-          ? "申請済みです。最新の変更有無は確認できません。"
-          : "GitHubの取得が復旧するまで申請できません。"}
-      </p>
-    {:else if !summary.approvalRequired}
-      <p class="muted">この月は精算対象がないため、月次確定申請は不要です。</p>
-    {:else}
-      <div class="submission-status">
-        {#if submission}
-          <div>
-            <span>申請状態</span>
-            {#if submission.hasChanges}
-              <strong class="bad">申請後変更あり</strong>
-            {:else}
-              <strong class="ok">申請済み</strong>
-            {/if}
-          </div>
-          <div>
-            <span>申請日時</span>
-            <strong>{formatDateTime(submission.submittedAt)}</strong>
-          </div>
-        {:else}
-          <div>
-            <span>申請状態</span>
-            <strong class="bad">未申請</strong>
-          </div>
-        {/if}
-      </div>
-
-      {#if data.submissionBlockingReasons.length}
-        <div class="inline-alert">
-          <strong>申請前に確認が必要です</strong>
-          <ul>
-            <!-- 同一Issueの複数申請や集計元の重複があっても、警告文をキーにした描画を壊さない。 -->
-            {#each new Set(data.submissionBlockingReasons) as reason (reason)}
-              <li>{reason}</li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-
-      {#if !canSubmitWork}
-        <p class="muted">月次確定申請はassignee本人だけが実行できます。</p>
-      {:else if submission && !submission.hasChanges}
-        <p class="ok">
-          この月の稼働は確定申請済みです。申請後に内容が変わった場合は再申請が必要です。
-        </p>
-      {:else}
-        <form
-          method="POST"
-          action="?/submitWork"
-          use:enhance={enhanceAction("submit-work")}
-        >
-          {#if !data.snapshot}
-            {#key `${data.month}:${data.assignee}`}
-              <MonthlyFeedbackFields input={feedbackInput} />
-            {/key}
-          {/if}
-          <ActionSubmit
-            actionName="submit-work"
-            {pendingAction}
-            label={submission
-              ? "変更内容で再申請"
-              : "この月の稼働を確定して申請"}
-            pendingLabel={submission ? "再申請中..." : "申請中..."}
-            disabled={data.submissionBlockingReasons.length > 0}
-          />
-          {#if submission && !data.snapshot}
-            <button
-              class="button secondary"
-              type="submit"
-              formaction="?/saveFeedback"
-              disabled={pendingAction !== null}
-              aria-busy={pendingAction === "save-feedback"}
-            >
-              {pendingAction === "save-feedback"
-                ? "保存中..."
-                : "コメントを保存"}
-            </button>
-          {/if}
-        </form>
-      {/if}
-    {/if}
-  </section>
-
-  {#if summary.blockingReasons.length}
-    <section class="panel alert">
-      <h2>要確認</h2>
-      <ul>
-        {#each new Set(summary.blockingReasons) as reason (reason)}
-          <li>{reason}</li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
+  {#key `${data.month}:${data.assignee}`}
+    <MonthlySubmissionPanel
+      month={data.month}
+      assignee={data.assignee}
+      isSelf={canSubmitWork}
+      isAdmin={Boolean(data.user?.isAdmin)}
+      required={summary.approvalRequired}
+      approved={Boolean(data.snapshot)}
+      projectFetchError={data.projectFetchError}
+      blockingReasons={data.submissionBlockingReasons}
+      {submission}
+      {feedbackInput}
+      amountLabel={formatYen(summary.taxIncludedYen)}
+      result={form}
+      initiallyOpen={data.requestedForm === "submission"}
+    />
+  {/key}
 
   <section class="panel">
     <h2>明細</h2>

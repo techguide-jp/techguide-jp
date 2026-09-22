@@ -47,6 +47,7 @@ export const load = async (event) => {
     ),
     preferences: await loadPreferencesForViewer(assignee, viewer),
     month: event.params.month,
+    requestedForm: event.url.searchParams.get("form"),
     assignee,
     payoutAccountStatus: await getPayoutAccountStatus(assignee),
     payment: await getPaymentForViewer(

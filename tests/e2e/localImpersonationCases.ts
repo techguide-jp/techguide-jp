@@ -89,7 +89,10 @@ export const registerLocalImpersonationTests = (): void => {
     ).toHaveValue("擬似ログインで編集した表示名");
     await page.goto("/settlements/2026-09/reward-worker");
     await page
-      .getByRole("button", { name: "この月の稼働を確定して申請", exact: true })
+      .getByRole("link", { name: "月次確定申請をする", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "この内容で月次確定申請", exact: true })
       .click();
     await expect(
       page.getByText("2026-09 の稼働を確定して申請しました。", { exact: true }),

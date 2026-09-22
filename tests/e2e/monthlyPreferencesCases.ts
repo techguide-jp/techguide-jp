@@ -30,7 +30,10 @@ const prepare = async (page: Page) => {
 };
 const submit = async (page: Page) => {
   await page
-    .getByRole("button", { name: "この月の稼働を確定して申請", exact: true })
+    .getByRole("link", { name: "月次確定申請をする", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "この内容で月次確定申請", exact: true })
     .click();
   await expect(modal(page)).toBeVisible();
 };
@@ -143,7 +146,9 @@ export const registerMonthlyPreferencesTests = (): void => {
       await page.reload();
       await expect(modal(page)).toHaveCount(0);
       await expect(
-        page.getByText("この月の稼働は確定申請済みです。", { exact: false }),
+        page.getByText("月次確定申請済み・管理者の精算承認待ち", {
+          exact: false,
+        }),
       ).toBeVisible();
       await withDb(async (sql) => {
         await sql`INSERT INTO work_sessions (repository, issue_number, issue_title, assignee_login, created_by, started_at, ended_at) VALUES ('techguide-jp/akademy_fes', 502, 'E2E', 'tashua314', 'tashua314', ${currentJstMonth() + "-01T03:00:00Z"}, ${currentJstMonth() + "-01T04:00:00Z"})`;
@@ -151,7 +156,10 @@ export const registerMonthlyPreferencesTests = (): void => {
       await page.reload();
       await page.waitForLoadState("networkidle");
       await page
-        .getByRole("button", { name: "変更内容で再申請", exact: true })
+        .getByRole("link", { name: "変更内容で再申請", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "この内容で再申請", exact: true })
         .click();
       await expect(modal(page)).toBeVisible();
       await page.keyboard.press("Escape");
@@ -200,18 +208,27 @@ export const registerMonthlyPreferencesTests = (): void => {
       });
     });
 
-    test("月次申請に失敗した場合はモーダルを開かない", async ({ page }) => {
+    test("月次申請の失敗時は申請モーダルに入力を保持し、希望確認へ進まない", async ({
+      page,
+    }) => {
       await prepare(page);
+      await page
+        .getByRole("link", { name: "月次確定申請をする", exact: true })
+        .click();
       const comment = page.getByLabel(feedbackQuestions.operatorComment);
       await comment.evaluate((element) => element.removeAttribute("maxlength"));
       await comment.fill("あ".repeat(2001));
       await page
         .getByRole("button", {
-          name: "この月の稼働を確定して申請",
+          name: "この内容で月次確定申請",
           exact: true,
         })
         .click();
-      await expect(page.getByRole("status")).toContainText("2,000文字以内");
+      await expect(page.getByRole("alert")).toContainText("2,000文字以内");
+      await expect(comment).toHaveValue("あ".repeat(2001));
+      await expect(
+        page.getByRole("dialog", { name: "月次確定申請", exact: true }),
+      ).toBeVisible();
       await expect(modal(page)).toHaveCount(0);
       await withDb(async (sql) => {
         expect(await sql`SELECT * FROM monthly_work_submissions`).toHaveLength(

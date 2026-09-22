@@ -15,7 +15,10 @@ export const registerSettlementNavigationTests = (): void => {
     await page.goto(`/settlements/${month}/tashua314`);
     await page.waitForLoadState("networkidle");
     await page
-      .getByRole("button", { name: "この月の稼働を確定して申請", exact: true })
+      .getByRole("link", { name: "月次確定申請をする", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "この内容で月次確定申請", exact: true })
       .click();
     await page
       .getByRole("button", { name: "変更なしで閉じる", exact: true })
@@ -41,13 +44,24 @@ export const registerSettlementNavigationTests = (): void => {
       page.getByRole("heading", { name: "月次確定申請", exact: true }),
     ).toBeVisible();
     const warning = "未処理の修正申請: techguide-jp/akademy_fes#502";
-    // 申請前の確認欄と要確認欄に各1件ずつ表示し、両方の申請データは保持する。
     await expect(
-      page.getByRole("listitem").filter({ hasText: warning }),
-    ).toHaveCount(2);
+      page.getByRole("heading", { name: "稼働時刻の管理者の確認待ち" }),
+    ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "変更内容で再申請", exact: true }),
-    ).toBeDisabled();
+      page
+        .getByRole("listitem")
+        .filter({ hasText: "techguide-jp/akademy_fes#502" }),
+    ).toHaveCount(1);
+    await expect(page.getByText("申請前に確認が必要です")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "要確認", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('form[action="?/submitWork"], textarea'),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "変更内容で再申請", exact: true }),
+    ).toHaveCount(0);
     for (const name of [
       "稼働",
       "自分の精算",

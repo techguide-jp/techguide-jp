@@ -1,3 +1,4 @@
+import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 
 export const registerCapAndCancellationTests = () => {
@@ -34,6 +35,23 @@ export const registerCapAndCancellationTests = () => {
     await page.waitForLoadState("networkidle");
     await expect(cancelled).toContainText("取り消し済み");
     await add("上限を適用する申請");
+    await page.goto("/settlements/2026-09/reward-worker?form=submission");
+    const monthlyPanel = page.getByRole("region", {
+      name: "月次確定申請",
+      exact: true,
+    });
+    await expect(
+      monthlyPanel.getByRole("heading", { name: "稼働時刻の管理者の確認待ち" }),
+    ).toBeVisible();
+    await expect(monthlyPanel).toContainText(
+      "すべての確認が終わったら、reward-workerさんがこの画面から月次確定申請してください。",
+    );
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "月次確定申請をする", exact: true }),
+    ).toHaveCount(0);
+
     await page.goto("/__e2e/login?login=tashua314");
     await page.goto("/settlements/2026-09");
     await expect(page.getByText("取り消す申請", { exact: true })).toHaveCount(
@@ -90,6 +108,62 @@ export const registerCapAndCancellationTests = () => {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(527);
+    await page.goto("/__e2e/login?login=reward-worker");
+    await page.goto("/settlements/2026-09/reward-worker");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    const apply = page.getByRole("link", {
+      name: "月次確定申請をする",
+      exact: true,
+    });
+    await apply.click();
+    const application = page.getByRole("dialog", {
+      name: "月次確定申請",
+      exact: true,
+    });
+    await expect(application).toContainText("申請額（税込） ￥16,500");
+    await expect(application.getByRole("heading")).toBeFocused();
+    for (const key of ["Tab", "Shift+Tab"]) {
+      for (let i = 0; i < 6; i++) {
+        await page.keyboard.press(key);
+        expect(
+          await application.evaluate((element) =>
+            element.contains(document.activeElement),
+          ),
+        ).toBe(true);
+      }
+    }
+    const box = await application.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(527);
+    expect(box!.height).toBeLessThanOrEqual(863);
+    await page.keyboard.press("Escape");
+    await expect(application).toHaveCount(0);
+    await expect(apply).toBeFocused();
+    await page.reload();
+    await expect(apply).toBeVisible();
+    await expect(
+      page.getByText("月次確定申請済み・管理者の精算承認待ち"),
+    ).toHaveCount(0);
+    await apply.click();
+    await application
+      .getByLabel(feedbackQuestions.operatorComment)
+      .fill("確認後に本人から申請");
+    await application
+      .getByRole("button", { name: "この内容で月次確定申請", exact: true })
+      .click();
+    await expect(application).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "変更なしで閉じる", exact: true })
+      .click();
+    await expect(
+      page.getByText("月次確定申請済み・管理者の精算承認待ち"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("確認後に本人から申請", { exact: true }),
+    ).toBeVisible();
+    await expect(apply).toHaveCount(0);
+    await expect(page.getByRole("textbox")).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 };
