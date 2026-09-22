@@ -22,9 +22,11 @@
           </p>
         {/if}
         <p class="total">
-          現在 {formatYen(month.before.taxIncludedYen)}
+          {#if month.before.taxIncludedYen !== month.after.taxIncludedYen}
+            <span>現在 {formatYen(month.before.taxIncludedYen)} →</span>
+          {/if}
           <span
-            >→ 承認後の見込み <strong
+            >承認後の見込み <strong
               >{formatYen(month.after.taxIncludedYen)}</strong
             >（税込）</span
           >
