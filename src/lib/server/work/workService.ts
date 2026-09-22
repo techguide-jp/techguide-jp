@@ -13,6 +13,7 @@ import {
   getWorkSessionById,
 } from "$lib/server/work/workRepository";
 import { env } from "$lib/server/env";
+import { createUnlockedSessionChangeRequest } from "$lib/server/work/workSessionLockRepository";
 
 const issueInputSchema = z.object({
   repository: z.string().min(1),
@@ -258,7 +259,7 @@ export const requestWorkLogChange = async (
       }
     }
 
-    await createChangeRequest({
+    const change = {
       requestType: input.requestType,
       assigneeLogin: userLogin,
       repository: issue.repository,
@@ -269,7 +270,23 @@ export const requestWorkLogChange = async (
       requestedEndedAt,
       reason: input.reason,
       requestedBy: userLogin,
-    });
+    };
+
+    if (input.requestType === "add") {
+      await createChangeRequest(change);
+    } else if (
+      !(await createUnlockedSessionChangeRequest({
+        ...change,
+        requestType: input.requestType,
+        targetSessionId: input.targetSessionId!,
+      }))
+    ) {
+      return {
+        ok: false,
+        message:
+          "管理者の確認待ち、または月次確定申請済みのログは修正・除外できません。画面を再読み込みして状態を確認してください。",
+      };
+    }
 
     return { ok: true };
   } catch (error) {

@@ -17,6 +17,7 @@ const issueSchema = z
     url: z.string().optional(),
     projectItemId: z.string().optional(),
     createdAt: z.string().optional(),
+    updatedAt: z.string().nullable().optional(),
     state: z.enum(["OPEN", "CLOSED"]),
     closedAt: z.string().nullable(),
     assignees: z.array(z.string()),

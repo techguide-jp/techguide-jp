@@ -34,9 +34,11 @@
       closeDialogOnSuccess?: boolean,
     ) => SubmitFunction;
     close: () => void;
+    errorMessage?: string | null;
   };
 
-  let { dialog, pendingAction, enhanceAction, close }: Props = $props();
+  let { dialog, pendingAction, enhanceAction, close, errorMessage }: Props =
+    $props();
 
   const dialogTitle = $derived(
     {
@@ -63,6 +65,7 @@
         class="icon-button"
         type="button"
         aria-label="閉じる"
+        disabled={pendingAction !== null}
         onclick={close}
       >
         ×
@@ -108,7 +111,13 @@
         <textarea name="reason" rows="4" required></textarea>
       </label>
       <div class="form-actions">
-        <button class="button secondary ghost" type="button" onclick={close}>
+        {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
+        <button
+          class="button secondary ghost"
+          type="button"
+          onclick={close}
+          disabled={pendingAction !== null}
+        >
           キャンセル
         </button>
         <ActionSubmit

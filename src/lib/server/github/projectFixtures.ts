@@ -26,6 +26,7 @@ export const e2eProjectIssues = (): ProjectIssuesResult => {
       state: "OPEN",
       url: "https://github.com/techguide-jp/akademy_fes/issues/501",
       createdAt: e2eClosedAtForCurrentMonth(),
+      updatedAt: e2eClosedAtForCurrentMonth(),
       closedAt: null,
       assignees: ["tashua314"],
       status: "Todo",
@@ -42,6 +43,7 @@ export const e2eProjectIssues = (): ProjectIssuesResult => {
       state: "CLOSED",
       url: "https://github.com/techguide-jp/akademy_fes/issues/502",
       createdAt: e2eClosedAtForCurrentMonth(),
+      updatedAt: e2eClosedAtForCurrentMonth(),
       closedAt: e2eClosedAtForCurrentMonth(),
       assignees: ["tashua314"],
       status: "Done",
@@ -93,12 +95,34 @@ export const e2eProjectIssues = (): ProjectIssuesResult => {
       state: "OPEN" as const,
       url: `https://github.com/techguide-jp/akademy_fes/issues/${503 + index}`,
       createdAt: e2eClosedAtForCurrentMonth(),
+      updatedAt: e2eClosedAtForCurrentMonth(),
       closedAt: null,
       assignees: ["reward-worker"],
       status: "Todo",
       ...reward,
     })),
   );
+
+  // 一覧の並び替え・折りたたみ専用。報酬未設定なので精算月指定候補には追加しない。
+  for (const [index, completed] of [true, false, true, true].entries()) {
+    issues.push({
+      projectItemId: `e2e-list-${index}`,
+      repository: "techguide-jp/akademy_fes",
+      number: 507 + index,
+      title: `E2E: 一覧表示${index}`,
+      state: completed ? "CLOSED" : "OPEN",
+      status: completed ? "Done" : "Todo",
+      url: `https://github.com/techguide-jp/akademy_fes/issues/${507 + index}`,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: `2026-09-${10 + index}T00:00:00Z`,
+      closedAt: completed ? "2026-09-01T00:00:00Z" : null,
+      assignees: ["list-worker"],
+      rewardMode: null,
+      fixedRewardYen: null,
+      extraCapYen: null,
+      hourlyRateYen: null,
+    });
+  }
 
   return {
     health: buildProjectHealth("E2E Project", [

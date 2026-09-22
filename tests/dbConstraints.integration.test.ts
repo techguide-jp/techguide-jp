@@ -1,3 +1,4 @@
+import { registerWorkSessionLockDbTests } from "./workSessionLock.dbCases";
 import { registerChangeRequestCancellationDbTests } from "./changeRequestCancellation.dbCases";
 import { registerMonthlyFeedbackDbTests } from "./monthlyFeedback.dbCases";
 import { registerCompletionMonthDbTests } from "./completionMonth.dbCases";
@@ -135,6 +136,7 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  registerWorkSessionLockDbTests();
   registerChangeRequestCancellationDbTests();
   registerCompletionMonthDbTests();
   registerSettlementWriteDbTests();

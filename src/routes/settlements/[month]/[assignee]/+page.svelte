@@ -5,6 +5,8 @@
   import MonthlyPreferencesModal from "$lib/components/MonthlyPreferencesModal.svelte";
   import MonthlyFeedbackPanel from "$lib/components/MonthlyFeedbackPanel.svelte";
   import MonthlySubmissionPanel from "$lib/components/MonthlySubmissionPanel.svelte";
+  import SubmissionNextStep from "$lib/components/SubmissionNextStep.svelte";
+  import { submissionNextStep } from "$lib/submissionReadiness";
   import SettlementPaymentPanel from "$lib/components/SettlementPaymentPanel.svelte";
   import SettlementWorkLogTable from "$lib/components/SettlementWorkLogTable.svelte";
   import UnsettledSettlementPanel from "$lib/components/UnsettledSettlementPanel.svelte";
@@ -121,6 +123,19 @@
     {/if}
   </nav>
 </section>
+
+{#if canSubmitWork}
+  <SubmissionNextStep
+    notice={submissionNextStep({
+      month: data.month,
+      assignee: data.assignee,
+      required: Boolean(summary?.approvalRequired),
+      projectFetchError: data.projectFetchError,
+      blockingReasons: data.submissionBlockingReasons,
+      submission,
+    })}
+  />
+{/if}
 
 {#if !data.payoutAccountStatus.registered}
   <section class="panel alert">

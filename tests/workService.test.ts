@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createUnlockedSessionChangeRequest } from "$lib/server/work/workSessionLockRepository";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
 import { runWithLocalImpersonation } from "$lib/server/auth/localImpersonationContext";
@@ -14,6 +15,10 @@ import {
   requestWorkLogChange,
   startIssueWork,
 } from "$lib/server/work/workService";
+
+vi.mock("$lib/server/work/workSessionLockRepository", () => ({
+  createUnlockedSessionChangeRequest: vi.fn(),
+}));
 
 vi.mock("$lib/server/github/projectClient", () => ({
   setProjectItemStatus: vi.fn(),
@@ -90,6 +95,7 @@ const session = (overrides: Partial<WorkSession> = {}): WorkSession => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(createUnlockedSessionChangeRequest).mockResolvedValue(true);
   vi.mocked(findOpenWorkSession).mockResolvedValue(null);
   vi.mocked(createWorkSession).mockResolvedValue(
     {} as Awaited<ReturnType<typeof createWorkSession>>,
@@ -209,6 +215,25 @@ describe("requestWorkLogChange datetime-local", () => {
 });
 
 describe("requestWorkLogChange", () => {
+  it.each(["edit", "exclude"] as const)(
+    "申請済みログへの%sをサーバー側で拒否する",
+    async (type) => {
+      const target = session({ endedAt: new Date("2026-06-18T01:00:00Z") });
+      vi.mocked(getWorkSessionById).mockResolvedValue(target);
+      vi.mocked(createUnlockedSessionChangeRequest).mockResolvedValue(false);
+      const result = await requestWorkLogChange(
+        changeFormData(type, target.id),
+        [issue()],
+        "tashua314",
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        message: expect.stringContaining("月次確定申請済み"),
+      });
+      expect(createChangeRequest).not.toHaveBeenCalled();
+    },
+  );
+
   it("計測中ログの修正申請を拒否する", async () => {
     vi.mocked(getWorkSessionById).mockResolvedValue(session());
 

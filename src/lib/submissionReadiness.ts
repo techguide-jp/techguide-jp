@@ -22,3 +22,30 @@ export const groupSubmissionTasks = (reasons: string[]) => {
     settlementSettings: [...settlementSettings],
   };
 };
+
+export type SubmissionNotice = {
+  month: string;
+  assignee: string;
+  kind: "ready" | "waiting";
+} | null;
+
+export const submissionNextStep = (input: {
+  month: string;
+  assignee: string;
+  required: boolean;
+  projectFetchError: string | null;
+  blockingReasons: string[];
+  submission: { hasChanges: boolean | null } | null;
+}): SubmissionNotice => {
+  if (input.projectFetchError) return null;
+  const identity = { month: input.month, assignee: input.assignee };
+  if (groupSubmissionTasks(input.blockingReasons).timeReviews.length)
+    return { ...identity, kind: "waiting" };
+  if (
+    input.required &&
+    !input.blockingReasons.length &&
+    (!input.submission || input.submission.hasChanges)
+  )
+    return { ...identity, kind: "ready" };
+  return null;
+};

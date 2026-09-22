@@ -1,4 +1,5 @@
 import { registerCapAndCancellationTests } from "./capAndCancellationCases";
+import { registerWorkListTests } from "./workListCases";
 import { registerSettlementNavigationTests } from "./settlementNavigationCases";
 import { registerLocalImpersonationTests } from "./localImpersonationCases";
 import { registerMonthlyPreferencesTests } from "./monthlyPreferencesCases";
@@ -13,6 +14,7 @@ import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
 registerCapAndCancellationTests();
+registerWorkListTests();
 registerSettlementNavigationTests();
 registerLocalImpersonationTests();
 registerPaymentCommentTests();
@@ -412,9 +414,9 @@ test("作業者が着手前にIssueの報酬条件を確認できる", async ({ 
   ];
   for (const example of examples) {
     const row = page.getByRole("row").filter({ hasText: `#${example.issue} ` });
-    await expect(row.getByRole("cell").nth(3)).toHaveText(example.mode);
+    await expect(row.getByRole("cell").nth(4)).toHaveText(example.mode);
     for (const [index, value] of example.values.entries()) {
-      await expect(row.getByRole("cell").nth(4 + index)).toHaveText(value);
+      await expect(row.getByRole("cell").nth(5 + index)).toHaveText(value);
     }
   }
   await expect(

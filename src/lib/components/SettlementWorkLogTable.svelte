@@ -4,6 +4,10 @@
     formatIssueName,
     formatProjectName,
   } from "$lib/format";
+  import {
+    byUpdatedAtDescending,
+    RECENT_WORK_LOG_COUNT,
+  } from "$lib/workListDisplay";
   import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
   type Props = {
@@ -37,24 +41,18 @@
           source: session.id.startsWith("request-") ? "追加申請" : "記録",
         })),
       )
-      .sort(
-        (a, b) =>
-          new Date(a.session.startedAt).getTime() -
-          new Date(b.session.startedAt).getTime(),
-      ),
+      .sort((a, b) => byUpdatedAtDescending(a.session, b.session)),
   );
 </script>
 
-<section class="panel">
-  <h2>稼働ログ</h2>
-  {#if settledWorkLogs.length === 0}
-    <p class="muted">精算対象Issueに紐づく稼働ログはありません。</p>
-  {:else}
+{#snippet logTable(logs: typeof settledWorkLogs)}
+  <div class="table-wrap">
     <table class="log-table">
       <thead>
         <tr>
           <th>Project</th>
           <th>Issue</th>
+          <th>更新日時</th>
           <th>開始</th>
           <th>終了</th>
           <th>稼働</th>
@@ -63,7 +61,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each settledWorkLogs as log (`${log.session.id}-${log.line.issue.repository}#${log.line.issue.number}`)}
+        {#each logs as log (`${log.session.id}-${log.line.issue.repository}#${log.line.issue.number}`)}
           <tr>
             <td>{formatProjectName(log.line.issue.repository)}</td>
             <td>
@@ -71,6 +69,7 @@
                 {formatIssueName(log.line.issue.number, log.line.issue.title)}
               </a>
             </td>
+            <td>{formatDateTime(log.session.updatedAt)}</td>
             <td>{formatDateTime(log.session.startedAt)}</td>
             <td
               >{log.session.endedAt
@@ -92,5 +91,37 @@
         {/each}
       </tbody>
     </table>
+  </div>
+{/snippet}
+
+<section class="panel">
+  <h2>稼働ログ</h2>
+  {#if settledWorkLogs.length === 0}
+    <p class="muted">精算対象Issueに紐づく稼働ログはありません。</p>
+  {:else}
+    <p class="muted">
+      更新日時が新しい順に最新{RECENT_WORK_LOG_COUNT}件を表示します。
+    </p>
+    {@render logTable(settledWorkLogs.slice(0, RECENT_WORK_LOG_COUNT))}
+    {#if settledWorkLogs.length > RECENT_WORK_LOG_COUNT}
+      <details>
+        <summary
+          >過去の稼働ログを表示（{settledWorkLogs.length -
+            RECENT_WORK_LOG_COUNT}件）</summary
+        >
+        {@render logTable(settledWorkLogs.slice(RECENT_WORK_LOG_COUNT))}
+      </details>
+    {/if}
   {/if}
 </section>
+
+<style>
+  details {
+    margin-top: 1rem;
+  }
+  summary {
+    cursor: pointer;
+    padding: 0.75rem 0;
+    font-weight: 600;
+  }
+</style>
