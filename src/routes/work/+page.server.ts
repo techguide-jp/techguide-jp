@@ -1,3 +1,4 @@
+import { cancelWorkLogChange } from "$lib/server/work/changeRequestCancellation";
 import { fail } from "@sveltejs/kit";
 import { requireUser } from "$lib/server/auth/guards";
 import {
@@ -60,6 +61,20 @@ export const load = async (event) => {
 };
 
 export const actions = {
+  cancelChange: async (event) => {
+    const user = requireUser(event);
+    const form = await event.request.formData();
+    const result = await cancelWorkLogChange(
+      String(form.get("requestId") ?? ""),
+      user.login,
+    );
+    if (!result.ok)
+      return fail(400, { scope: "changeRequests", message: result.message });
+    return {
+      scope: "changeRequests",
+      message: "申請を取り消しました。元の稼働ログは変更されません。",
+    };
+  },
   start: async (event) => {
     const user = requireUser(event);
     const projectResult = await fetchProjectIssues()

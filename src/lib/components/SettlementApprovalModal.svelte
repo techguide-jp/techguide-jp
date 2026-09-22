@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -175,13 +176,23 @@
               </div>
               <div>
                 <dt>時間</dt>
-                <dd>{formatYen(line.timedRewardYen)}</dd>
+                <dd>
+                  {formatYen(
+                    line.timedRewardYen,
+                  )}{#if line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen}<small
+                      >上限適用</small
+                    >{/if}
+                </dd>
               </div>
               <div>
                 <dt>小計</dt>
                 <dd>{formatYen(line.taxExcludedYen)}</dd>
               </div>
             </dl>
+            <TimedRewardDetail
+              calculation={line.timedRewardCalculation}
+              payableYen={line.timedRewardYen}
+            />
           </article>
         {/each}
       </div>

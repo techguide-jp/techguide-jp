@@ -9,6 +9,8 @@
   import {
     formatDate,
     formatDateTime,
+    formatWorkMinutes,
+    requestedWorkMinutes,
     formatIssueName,
     formatProjectName,
     formatYen,
@@ -135,6 +137,10 @@
   </section>
 {/if}
 
+{#if data.settlementCalculationError}<p class="notice" role="alert">
+    {data.settlementCalculationError}
+  </p>{/if}
+
 <section class="panel">
   <h2>未処理の修正申請</h2>
   {#if pendingRequests.length === 0}
@@ -147,6 +153,7 @@
           <th>Project</th>
           <th>Issue</th>
           <th>種別</th>
+          <th>申請日時（日本時間）</th>
           <th>希望時刻</th>
           <th>理由</th>
           <th>操作</th>
@@ -154,6 +161,10 @@
       </thead>
       <tbody>
         {#each pendingRequests as request (request.id)}
+          {@const minutes = requestedWorkMinutes(
+            request.requestedStartedAt,
+            request.requestedEndedAt,
+          )}
           <tr>
             <td>{request.assigneeLogin}</td>
             <td>{formatProjectName(request.repository)}</td>
@@ -166,11 +177,19 @@
                 {formatIssueName(request.issueNumber, request.issueTitle)}
               </a>
             </td>
-            <td>{request.requestType}</td>
+            <td
+              >{{ add: "追加", edit: "修正", exclude: "除外" }[
+                request.requestType
+              ]}</td
+            >
+            <td>{formatDateTime(request.createdAt)}</td>
             <td
               >{formatDateTime(request.requestedStartedAt)} - {formatDateTime(
                 request.requestedEndedAt,
-              )}</td
+              )}
+              {#if minutes !== null}<strong class="request-duration"
+                  >{formatWorkMinutes(minutes)}</strong
+                >{/if}</td
             >
             <td>{request.reason}</td>
             <td class="review-actions">
@@ -219,7 +238,7 @@
       <tr>
         <th>Assignee</th>
         <th>固定</th>
-        <th>時間</th>
+        <th>時間報酬</th>
         <th>税抜</th>
         <th>税込</th>
         <th>振込先</th>
@@ -248,7 +267,15 @@
             {/if}
           </td>
           <td>{settlementAmountLabel(summary, "fixedRewardYen")}</td>
-          <td>{settlementAmountLabel(summary, "timedRewardYen")}</td>
+          <td
+            >{settlementAmountLabel(summary, "timedRewardYen")}
+            {#if summary.lines.some((line) => line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen)}
+              <small>上限適用後の金額で精算</small>
+              <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
+                >計算内訳を確認</a
+              >
+            {/if}
+          </td>
           <td>{settlementAmountLabel(summary, "taxExcludedYen")}</td>
           <td>{settlementAmountLabel(summary, "taxIncludedYen")}</td>
           <td>
@@ -567,3 +594,10 @@
     {/if}
   {/if}
 {/each}
+
+<style>
+  .request-duration {
+    display: block;
+    white-space: nowrap;
+  }
+</style>

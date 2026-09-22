@@ -79,6 +79,9 @@ const summarySchema = z.object({
       fixedRewardYen: amount,
       workMinutes: amount,
       timedRewardYen: amount,
+      timedRewardCalculation: z
+        .object({ uncappedYen: amount, capYen: amount.nullable() })
+        .optional(),
       taxExcludedYen: amount,
       warnings: z.array(z.string()),
       sessions: z.array(sessionSchema),

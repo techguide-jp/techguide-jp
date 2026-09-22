@@ -5,6 +5,7 @@ import type {
   WorkSession,
 } from "$lib/server/db/schema";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
+import type { TimedRewardCalculation } from "$lib/timedReward";
 
 export type SettlementIssueLine = {
   issue: ProjectIssue;
@@ -12,6 +13,7 @@ export type SettlementIssueLine = {
   fixedRewardYen: number;
   workMinutes: number;
   timedRewardYen: number;
+  timedRewardCalculation?: TimedRewardCalculation;
   taxExcludedYen: number;
   warnings: string[];
   sessions: WorkSession[];

@@ -36,3 +36,19 @@ export const formatIssueName = (
 ): string => {
   return `#${issueNumber} ${issueTitle}`;
 };
+
+export const formatWorkMinutes = (minutes: number): string =>
+  `${Math.floor(minutes / 60)}時間${String(minutes % 60).padStart(2, "0")}分`;
+
+export const requestedWorkMinutes = (
+  start: Date | string | null,
+  end: Date | string | null,
+): number | null =>
+  start && end
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(end).getTime() - new Date(start).getTime()) / 60000,
+        ),
+      )
+    : null;

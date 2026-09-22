@@ -26,6 +26,7 @@ export const changeRequestStatus = pgEnum("work_log_change_request_status", [
   "pending",
   "approved",
   "rejected",
+  "cancelled",
 ]);
 
 export const githubProjectStatusSyncStatus = pgEnum(

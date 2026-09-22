@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
@@ -470,6 +471,15 @@
 
   <section class="panel">
     <h2>明細</h2>
+    {#each summary.lines.filter((line) => line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen) as line (`${line.issue.repository}#${line.issue.number}`)}
+      <div class="notice cap-explanation">
+        <p>{formatIssueName(line.issue.number, line.issue.title)}</p>
+        <TimedRewardDetail
+          calculation={line.timedRewardCalculation}
+          payableYen={line.timedRewardYen}
+        />
+      </div>
+    {/each}
     <table>
       <thead>
         <tr>
@@ -494,7 +504,13 @@
             <td>{line.issue.rewardMode ?? "-"}</td>
             <td>{formatYen(line.fixedRewardYen)}</td>
             <td>{line.workMinutes}分</td>
-            <td>{formatYen(line.timedRewardYen)}</td>
+            <td
+              >{formatYen(
+                line.timedRewardYen,
+              )}{#if line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen}<small
+                  >上限適用</small
+                >{/if}</td
+            >
             <td>{formatYen(line.taxExcludedYen)}</td>
           </tr>
         {/each}

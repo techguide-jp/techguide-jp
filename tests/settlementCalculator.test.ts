@@ -125,7 +125,7 @@ describe("buildSettlementSummaries", () => {
     expect(summaries[0].blockingReasons[0]).toContain("未終了ログ");
   });
 
-  it("時間精算上限超過を承認ブロックにする", () => {
+  it("時間報酬を上限までにして承認を許可する", () => {
     const summaries = buildSettlementSummaries(
       "2026-07",
       [issue({ extraCapYen: 1000 })],
@@ -133,7 +133,8 @@ describe("buildSettlementSummaries", () => {
       requests,
     );
 
-    expect(summaries[0].blockingReasons[0]).toContain("追加精算上限");
+    expect(summaries[0].timedRewardYen).toBe(1000);
+    expect(summaries[0].blockingReasons).toEqual([]);
   });
 
   it("承認済み追加申請を有効ログとして集計する", () => {

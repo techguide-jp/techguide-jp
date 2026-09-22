@@ -1,3 +1,4 @@
+import { registerChangeRequestCancellationDbTests } from "./changeRequestCancellation.dbCases";
 import { registerMonthlyFeedbackDbTests } from "./monthlyFeedback.dbCases";
 import { registerCompletionMonthDbTests } from "./completionMonth.dbCases";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -134,6 +135,7 @@ beforeEach(async () => {
 });
 
 describeDb("DB constraints", () => {
+  registerChangeRequestCancellationDbTests();
   registerCompletionMonthDbTests();
   registerSettlementWriteDbTests();
   registerCompletionOwnershipDbTests();

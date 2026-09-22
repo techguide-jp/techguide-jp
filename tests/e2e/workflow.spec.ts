@@ -1,3 +1,4 @@
+import { registerCapAndCancellationTests } from "./capAndCancellationCases";
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
 import { registerCompletionBackfillTests } from "./completionBackfillCases";
 import {
@@ -8,6 +9,7 @@ import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
+registerCapAndCancellationTests();
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
 registerCompletionBackfillTests();
@@ -53,7 +55,9 @@ test("稼働開始と終了を記録できる", async ({ page }) => {
   await page.getByRole("button", { name: "終了" }).click();
 
   await expect(page.getByText("稼働を終了しました")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "稼働ログ" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "稼働ログ", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "修正" }).first(),
   ).toBeVisible();

@@ -18,7 +18,7 @@ export const settlementSourceLabel = (
 ): string | null => {
   switch (summary.dataSource) {
     case "approved":
-      return "承認時点の保存結果を表示しています。最新状態は確認できません。";
+      return "承認時点の保存結果を表示しています。";
     case "submitted":
       return "申請時点の保存結果を表示しています。最新状態は確認できません。";
     case "unavailable":

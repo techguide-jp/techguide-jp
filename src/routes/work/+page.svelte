@@ -10,6 +10,8 @@
   } from "$lib/components/WorkChangeDialog.svelte";
   import {
     formatDateTime,
+    formatWorkMinutes,
+    requestedWorkMinutes,
     formatIssueName,
     formatProjectName,
   } from "$lib/format";
@@ -44,10 +46,12 @@
     () => {
       pendingAction = name;
       return async ({ result, update }) => {
-        await update();
-        pendingAction = null;
-        if (closeDialogOnSuccess && result.type === "success") {
-          changeDialog = null;
+        try {
+          await update();
+          if (closeDialogOnSuccess && result.type === "success")
+            changeDialog = null;
+        } finally {
+          pendingAction = null;
         }
       };
     };
@@ -206,6 +210,7 @@
   {:else}
     <p class="muted reward-guide">
       現在のProject設定を表示しています。金額はすべて税抜です。追加精算上限は、同じIssueの全期間・全作業者の時間報酬の累計上限です（固定報酬は含みません）。
+      上限を超えた時間報酬は、上限残額までの金額で精算します。
       未設定の項目は着手前に運営へ確認し、月次の精算額は「自分の精算」で確認してください。
     </p>
     {#if data.settlementRuleV2Enabled}
@@ -419,6 +424,83 @@
   {/if}
 </section>
 
+<section class="panel" aria-labelledby="change-requests-heading">
+  <h2 id="change-requests-heading">稼働ログの申請履歴</h2>
+  <p class="muted">
+    未処理の追加・修正・除外申請は取り消せます。取り消しても元の稼働ログは変わりません。
+  </p>
+  {#if form?.scope === "changeRequests"}<p class="notice" role="status">
+      {form.message}
+    </p>{/if}
+  {#if data.requests.length === 0}
+    <p class="muted">申請はありません。</p>
+  {:else}
+    <div class="table-wrap">
+      <table>
+        <thead
+          ><tr
+            ><th>Issue</th><th>種別</th><th>希望時刻・稼働時間</th><th>理由</th
+            ><th>状態</th><th>操作</th></tr
+          ></thead
+        >
+        <tbody>
+          {#each [...data.requests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) as request (request.id)}
+            {@const minutes = requestedWorkMinutes(
+              request.requestedStartedAt,
+              request.requestedEndedAt,
+            )}
+            <tr>
+              <td
+                >{formatProjectName(request.repository)} / {formatIssueName(
+                  request.issueNumber,
+                  request.issueTitle,
+                )}<small>{formatDateTime(request.createdAt)}</small></td
+              >
+              <td
+                >{{ add: "追加", edit: "修正", exclude: "除外" }[
+                  request.requestType
+                ]}</td
+              >
+              <td
+                >{#if minutes !== null}{formatDateTime(
+                    request.requestedStartedAt,
+                  )} ～ {formatDateTime(request.requestedEndedAt)}<strong
+                    class="duration">{formatWorkMinutes(minutes)}</strong
+                  >{:else}対象ログを精算から除外{/if}</td
+              >
+              <td>{request.reason}</td>
+              <td
+                >{{
+                  pending: "未処理",
+                  approved: "承認済み",
+                  rejected: "却下",
+                  cancelled: "取り消し済み",
+                }[request.status]}</td
+              >
+              <td
+                >{#if request.status === "pending"}<form
+                    method="POST"
+                    action="?/cancelChange"
+                    use:enhance={enhanceAction(`cancel-change-${request.id}`)}
+                  >
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <ActionSubmit
+                      actionName={`cancel-change-${request.id}`}
+                      {pendingAction}
+                      label="申請を取り消す"
+                      pendingLabel="取り消し中..."
+                      variant="secondary"
+                    />
+                  </form>{/if}</td
+              >
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+</section>
+
 {#if changeDialog}
   <WorkChangeDialog
     dialog={changeDialog}
@@ -429,6 +511,10 @@
 {/if}
 
 <style>
+  .duration {
+    display: block;
+    white-space: nowrap;
+  }
   .reward-guide {
     margin-bottom: 1rem;
   }
