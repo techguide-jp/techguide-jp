@@ -65,6 +65,14 @@ pnpm db:migrate
 pnpm dev
 ```
 
+### ローカルで別ユーザーの画面・操作を確認する
+
+管理者でログインし、ナビゲーションの「ユーザー切替」から登録ユーザーを選んで「このユーザーで確認する」を押します。対象者のGitHubログインは不要で、本人の権限で稼働・プロフィール編集・月次申請を試せます。画面上部の「管理者に戻る」で元の管理者へ復帰できます。
+
+`pnpm dev`、ループバックのURLとDB接続、`EMAIL_DELIVERY_MODE=preview`（未指定時の既定値）の組み合わせでのみ使えます。本番ビルド・Vercel・リモートDB・メール実送信モードでは無効です。`E2E_TEST_MODE`を有効にする必要はなく、通常のGitHub Project情報と現在の精算ルールを使います。
+
+申請や編集の結果はローカルDBへ保存され、メールはプレビューへ保存します。擬似ログイン中はGitHub Projectの更新・再同期を行いません。切り替えは同じブラウザーの全タブに適用され、有効期間は1時間です。元の管理者セッションが終了した場合も無効になります。
+
 ## 本番DB migration
 
 mainブランチへのpush時、GitHub Actionsの `verify` が成功したあとに `migrate-production-database` job が実行され、Drizzle migrationを本番DBへ反映します。

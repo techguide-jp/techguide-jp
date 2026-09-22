@@ -76,6 +76,7 @@ export const registerMonthlyFeedbackTests = (): void => {
         await sql`INSERT INTO work_sessions (repository, issue_number, issue_title, assignee_login, created_by, started_at, ended_at) VALUES ('techguide-jp/akademy_fes', 502, 'E2E', 'tashua314', 'tashua314', ${month + "-01T03:00:00Z"}, ${month + "-01T04:00:00Z"})`;
       });
       await page.reload();
+      await page.waitForLoadState("networkidle");
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveCount(1);

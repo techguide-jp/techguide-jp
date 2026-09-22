@@ -3,6 +3,8 @@ import { db } from "$lib/server/db/client";
 import { auditLogs, type AuditLog } from "$lib/server/db/schema";
 
 export type AuditAction =
+  | "local_impersonation_started"
+  | "local_impersonation_stopped"
   | "monthly_work_submitted"
   | "monthly_settlement_approved"
   | "work_log_change_reviewed"

@@ -140,6 +140,8 @@ export const registerPaymentCommentTests = (): void => {
     }) => {
       await page.goto("/__e2e/login");
       await page.goto(detailUrl);
+      // hydration後に制限を外し、maxlengthが復元されて入力が切り詰められる競合を避ける。
+      await page.waitForLoadState("networkidle");
       const textarea = page.getByLabel("作業者へのコメント（任意）");
       await expect(textarea).toHaveAttribute("maxlength", "2000");
       await textarea.evaluate((element) =>

@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import type { LayoutProps } from "./$types";
   import { currentJstMonth, formatMonthLabel } from "$lib/month";
+  import LocalImpersonationBanner from "$lib/components/LocalImpersonationBanner.svelte";
   import "../app.css";
 
   type BreadcrumbItem = {
@@ -136,6 +137,9 @@
             メール通知
           </a>
         {/if}
+        {#if data.localImpersonationAvailable && !data.localImpersonation}
+          <a href="/dev/impersonation">ユーザー切替</a>
+        {/if}
         <a
           href="/help"
           class:active={isHelpActive}
@@ -162,6 +166,9 @@
       {/if}
     </nav>
   </header>
+  {#if data.localImpersonation}
+    <LocalImpersonationBanner {...data.localImpersonation} />
+  {/if}
   <main class="page-main">
     {#if breadcrumbs.length}
       <nav class="breadcrumb" aria-label="パンくず">

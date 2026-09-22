@@ -1,4 +1,5 @@
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
+import { isLocalImpersonationActive } from "$lib/server/auth/localImpersonationContext";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import {
   getPendingProjectStatusSync,
@@ -34,6 +35,11 @@ export const retryProjectStatusSync = async (
   userLogin: string,
   isAdmin: boolean,
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> => {
+  if (isLocalImpersonationActive())
+    return {
+      ok: false,
+      message: "擬似ログイン中はGitHub Projectを再同期できません。",
+    };
   const sync = await getPendingProjectStatusSync(syncId);
   if (!sync) {
     return { ok: false, message: "再同期対象が見つかりません。" };

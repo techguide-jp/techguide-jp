@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
+import { isLocalImpersonationActive } from "$lib/server/auth/localImpersonationContext";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import { parseJstDatetimeLocal } from "$lib/server/time";
 import {
@@ -124,6 +125,12 @@ export const startIssueWork = async (
     }
 
     if (issue.status === "Todo") {
+      if (isLocalImpersonationActive())
+        return {
+          ok: true,
+          message:
+            "稼働を開始しました。擬似ログイン中のため、GitHub ProjectのStatusは更新していません。",
+        };
       try {
         await setProjectItemStatus(issue.projectItemId, "In Progress");
         return {

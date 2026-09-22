@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setProjectItemStatus } from "$lib/server/github/projectClient";
 import { recordProjectStatusSyncFailure } from "$lib/server/github/statusSyncService";
+import { runWithLocalImpersonation } from "$lib/server/auth/localImpersonationContext";
 import type { ProjectIssue } from "$lib/server/github/projectTypes";
 import type { WorkSession } from "$lib/server/db/schema";
 import {
@@ -102,6 +103,20 @@ beforeEach(() => {
 });
 
 describe("startIssueWork", () => {
+  it("擬似ログインでは稼働だけ記録し、外部更新や再試行キューを作らない", async () => {
+    const result = await runWithLocalImpersonation(
+      { adminLogin: "admin", targetLogin: "tashua314" },
+      () => startIssueWork(issueFormData(), [issue()], "tashua314"),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("Statusは更新していません"),
+    });
+    expect(createWorkSession).toHaveBeenCalledOnce();
+    expect(setProjectItemStatus).not.toHaveBeenCalled();
+    expect(recordProjectStatusSyncFailure).not.toHaveBeenCalled();
+  });
+
   it("TodoのIssueで稼働開始したらStatusをIn Progressに更新する", async () => {
     const result = await startIssueWork(
       issueFormData(),
