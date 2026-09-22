@@ -8,22 +8,38 @@
     byUpdatedAtDescending,
     RECENT_WORK_LOG_COUNT,
   } from "$lib/workListDisplay";
-  import type { WorkSession } from "$lib/server/db/schema";
+  import type {
+    WorkLogChangeRequest,
+    WorkSession,
+  } from "$lib/server/db/schema";
   import type { WorkSessionLock } from "$lib/server/work/workSessionLockRepository";
   let {
     sessions,
+    requests,
     locks,
     projectFetchError,
     openEditDialog,
     openExcludeDialog,
   }: {
     sessions: WorkSession[];
+    requests: WorkLogChangeRequest[];
     locks: Record<string, WorkSessionLock>;
     projectFetchError: string | null;
     openEditDialog: (session: WorkSession) => void;
     openExcludeDialog: (session: WorkSession) => void;
   } = $props();
   const sorted = $derived([...sessions].sort(byUpdatedAtDescending));
+  // 時刻修正の承認と月次の確定は別段階。再申請が取り消されても、反映済みの承認は残る。
+  const approvedSessionIds = $derived(
+    new Set(
+      requests
+        .filter(
+          (request) =>
+            request.status === "approved" && request.requestType === "edit",
+        )
+        .map((request) => request.targetSessionId),
+    ),
+  );
 </script>
 
 {#snippet logTable(rows: WorkSession[])}
@@ -64,8 +80,12 @@
                 <span class="status-badge measuring">確認待ち</span>
               {:else if isMeasuring}
                 <span class="status-badge reference">計測中</span>
+              {:else if session.excludedAt}
+                <span class="status-badge neutral">除外済み</span>
+              {:else if approvedSessionIds.has(session.id)}
+                <span class="status-badge complete">承認済み</span>
               {:else}
-                <span class="status-badge neutral">未確定</span>
+                <span class="status-badge neutral">記録済み</span>
               {/if}
             </td>
             <td class="log-actions">

@@ -210,6 +210,7 @@
 
 <WorkLogList
   sessions={data.sessions}
+  requests={data.requests}
   locks={data.sessionLocks}
   projectFetchError={data.projectFetchError}
   {openEditDialog}

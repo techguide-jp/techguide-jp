@@ -36,6 +36,7 @@ export const registerWorkListTests = (): void => {
       .getByText("過去の稼働ログを表示（3件）", { exact: true })
       .click();
     const newest = logs.getByRole("row").filter({ hasText: "ログ8" });
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("記録済み");
     await newest.getByRole("button", { name: "修正", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("理由").fill("時刻確認待ちのテスト");
@@ -67,6 +68,28 @@ export const registerWorkListTests = (): void => {
     await history
       .getByRole("button", { name: "申請を取り消す", exact: true })
       .click();
+    await newest.getByRole("button", { name: "修正", exact: true }).click();
+    await dialog.getByLabel("理由").fill("管理者が承認する修正");
+    await dialog.getByRole("button", { name: "申請", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.goto("/__e2e/login?login=tashua314");
+    await page.goto(`/settlements/${month}`);
+    const pending = page
+      .getByRole("row")
+      .filter({ hasText: "管理者が承認する修正" });
+    await pending.getByRole("button", { name: "承認", exact: true }).click();
+    await expect(pending).toHaveCount(0);
+    await page.goto("/__e2e/login?login=reward-worker");
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("承認済み");
+    await newest.getByRole("button", { name: "修正", exact: true }).click();
+    await dialog.getByLabel("理由").fill("承認後の再修正は取り消す");
+    await dialog.getByRole("button", { name: "申請", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("確認待ち");
+    await history
+      .getByRole("button", { name: "申請を取り消す", exact: true })
+      .click();
+    await expect(newest.getByRole("cell").nth(5)).toHaveText("承認済み");
     await expect(
       newest.getByRole("button", { name: "修正", exact: true }),
     ).toBeVisible();
