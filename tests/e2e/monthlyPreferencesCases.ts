@@ -134,14 +134,14 @@ export const registerMonthlyPreferencesTests = (): void => {
       expect(errors).toEqual([]);
     });
 
-    test("変更なしやEscapeで閉じても申請は完了し、希望は更新されず再読込で開かない", async ({
+    test("背景クリックやEscapeで閉じても申請は完了し、希望は更新されず再読込で開かない", async ({
       page,
     }) => {
       await prepare(page);
       await submit(page);
-      await modal(page)
-        .getByRole("button", { name: "変更なしで閉じる", exact: true })
-        .click();
+      await modal(page).getByRole("heading").click();
+      await expect(modal(page)).toBeVisible();
+      await page.mouse.click(4, 4);
       await expect(modal(page)).toHaveCount(0);
       await page.reload();
       await expect(modal(page)).toHaveCount(0);

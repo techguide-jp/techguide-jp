@@ -6,6 +6,7 @@
   import { currentJstMonth } from "$lib/month";
   import CompletionBackfillFields from "$lib/components/CompletionBackfillFields.svelte";
   import { formatProjectName } from "$lib/format";
+  import { dismissOnBackdrop } from "$lib/dialogBackdrop";
   import type { ProjectIssue } from "$lib/server/github/projectTypes";
 
   let {
@@ -98,6 +99,9 @@
 
 <dialog
   bind:this={dialog}
+  use:dismissOnBackdrop={() => {
+    if (!pendingAction) dialog?.close();
+  }}
   class="backfill-dialog"
   aria-labelledby={titleId}
   oncancel={(event) => {

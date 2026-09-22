@@ -39,6 +39,14 @@ export const registerWorkListTests = (): void => {
     await expect(newest.getByRole("cell").nth(5)).toHaveText("記録済み");
     await newest.getByRole("button", { name: "修正", exact: true }).click();
     const dialog = page.getByRole("dialog");
+    await dialog.getByRole("heading").click();
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(4, 4);
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      newest.getByRole("button", { name: "修正", exact: true }),
+    ).toBeFocused();
+    await newest.getByRole("button", { name: "修正", exact: true }).click();
     await dialog.getByLabel("理由").fill("時刻確認待ちのテスト");
     await dialog.getByRole("button", { name: "申請", exact: true }).click();
     await expect(dialog).toHaveCount(0);

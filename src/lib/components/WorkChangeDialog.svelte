@@ -39,6 +39,7 @@
 
   let { dialog, pendingAction, enhanceAction, close, errorMessage }: Props =
     $props();
+  let modalElement = $state<HTMLElement>();
 
   const dialogTitle = $derived(
     {
@@ -47,10 +48,26 @@
       exclude: "稼働ログ除外申請",
     }[dialog.requestType],
   );
+  $effect(() => {
+    const trigger = modalElement?.ownerDocument.activeElement;
+    return () => {
+      if (trigger instanceof HTMLElement && trigger.isConnected)
+        trigger.focus();
+    };
+  });
 </script>
 
 <div class="modal-backdrop">
+  <button
+    type="button"
+    class="modal-scrim"
+    tabindex="-1"
+    aria-label="モーダルを閉じる"
+    disabled={pendingAction !== null}
+    onclick={close}
+  ></button>
   <div
+    bind:this={modalElement}
     class="modal"
     role="dialog"
     aria-modal="true"

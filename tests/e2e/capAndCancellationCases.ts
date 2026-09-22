@@ -137,6 +137,17 @@ export const registerCapAndCancellationTests = () => {
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(527);
     expect(box!.height).toBeLessThanOrEqual(863);
+    await page.mouse.click(box!.x + 4, box!.y + 4);
+    await expect(application).toBeVisible();
+    await page.mouse.move(box!.x + 8, box!.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(4, 4);
+    await page.mouse.up();
+    await expect(application).toBeVisible();
+    await page.mouse.click(4, 4);
+    await expect(application).toHaveCount(0);
+    await expect(apply).toBeFocused();
+    await apply.click();
     await page.keyboard.press("Escape");
     await expect(application).toHaveCount(0);
     await expect(apply).toBeFocused();

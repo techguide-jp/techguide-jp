@@ -3,6 +3,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import WorkerPreferencesFields from "$lib/components/WorkerPreferencesFields.svelte";
+  import { dismissOnBackdrop } from "$lib/dialogBackdrop";
   import type {
     WorkerPreferencesInput,
     WorkerPreferencesView,
@@ -77,6 +78,7 @@
 
 <dialog
   bind:this={dialog}
+  use:dismissOnBackdrop={dismiss}
   open
   aria-labelledby="monthly-preferences-heading"
   aria-describedby="monthly-preferences-description"

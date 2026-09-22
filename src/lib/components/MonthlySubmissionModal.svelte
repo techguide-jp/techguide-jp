@@ -7,6 +7,7 @@
   import MonthlyFeedbackFields from "$lib/components/MonthlyFeedbackFields.svelte";
   import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
   import { formatMonthLabel } from "$lib/month";
+  import { dismissOnBackdrop } from "$lib/dialogBackdrop";
 
   let {
     month,
@@ -134,6 +135,9 @@
 {#if visible}
   <dialog
     bind:this={dialog}
+    use:dismissOnBackdrop={() => {
+      if (!pending) dismiss();
+    }}
     open
     aria-labelledby={titleId}
     oncancel={(event) => {
