@@ -83,6 +83,42 @@ VercelのGit連携デプロイ自体はこのworkflowからは制御していま
 DATABASE_URL="postgresql://..." pnpm db:migrate
 ```
 
+## 本番DBのdumpとローカルへのrestore
+
+love-matchingと同じコマンド形式で、本番DBのdumpを取得してローカルDBに復元できます。
+Node.js 22.9以降と、`pg_dump`・`pg_restore`・`psql` をPATHに用意してください。PostgreSQL CLIは接続先サーバー以上のメジャーバージョンを使い、復元先も本番と同じメジャーバージョンに揃えます。
+
+`.env.production` に本番のdirect connection URLを設定します。Neonでは `-pooler` を含まない接続文字列を使います。
+
+```env
+DATABASE_URL=postgresql://user:password@direct-host/db?sslmode=require
+```
+
+復元先は `.env` の `DATABASE_URL` です。
+
+```env
+DATABASE_URL=postgresql://user:password@localhost:5434/techguide-jp
+```
+
+```bash
+# 本番DBをcustom形式で .db-dumps/techguide-jp-prod-<UTC日時>.dump に保存
+pnpm db:dump:prod
+
+# .db-dumps/ 内で更新日時が最新のdumpをローカルDBに復元
+pnpm db:restore:local
+
+# 復元するdumpを指定
+pnpm db:restore:local -- .db-dumps/techguide-jp-prod-2026-09-22T08-30-45-123Z.dump
+```
+
+`db:dump:prod` は `.env.production` の `DATABASE_URL` だけを読みます。`.env` やシェルの環境変数にはフォールバックしません。dump作成後は `pg_restore --list` でarchive形式を確認し、失敗したdumpは削除します。`.db-dumps/` はGit管理対象外で、ディレクトリは700、ファイルは600の権限で保存します。
+
+**`db:restore:local` は対象のローカルDBへの接続を切断し、DBを削除・再作成して全置換します。** 開発サーバーを停止し、残したいローカルデータがある場合は先に退避してください。dumpをarchiveとして読み出せることを確認してから再作成します。復元先は `localhost`・`127.0.0.1`・`[::1]` のみ許可し、テストDBとsystem DBは拒否します。接続ユーザーにはDBの削除・作成権限が必要です。
+
+両コマンドとも接続先を上書きするURLパラメーター（`host`・`hostaddr`・`dbname`・`service` など）を拒否し、シェルの `PG*` 設定も引き継ぎません。許可するURLパラメーターは `sslmode`・`sslrootcert`・`sslcert`・`sslkey`・`channel_binding`・`connect_timeout`・`application_name` です。
+
+復元後のmigrationは自動実行しません。必要なら `pnpm db:migrate` を実行してください。振込先情報などの暗号化データを読み出すには、dump取得元と同じ `PAYOUT_ACCOUNT_ENCRYPTION_KEY` が必要です。ローカルのメール送信は `.env` の `EMAIL_DELIVERY_MODE=preview` を使います。
+
 ## 検証
 
 ```bash

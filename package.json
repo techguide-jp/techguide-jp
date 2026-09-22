@@ -18,7 +18,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:query": "node scripts/db-query.mjs",
-    "db:query:prod": "node scripts/db-query.mjs --dotenv .env.production --read-only"
+    "db:query:prod": "node scripts/db-query.mjs --dotenv .env.production --read-only",
+    "db:dump:prod": "node scripts/db-dump-prod.mjs",
+    "db:restore:local": "node scripts/db-restore-local.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
