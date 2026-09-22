@@ -65,7 +65,10 @@ function isTestDatabaseName(name) {
 
 /** @param {string | undefined} value */
 export function assertProductionDumpUrl(value) {
-  const url = validateDatabaseUrl(value, ".env.production の DATABASE_URL");
+  const url = validateDatabaseUrl(
+    value,
+    ".env.production の PRODUCTION_MIGRATION_DATABASE_URL",
+  );
   if (localHosts.has(url.hostname.toLowerCase())) {
     throw new Error("本番dumpにはローカル以外の接続URLを指定してください。");
   }

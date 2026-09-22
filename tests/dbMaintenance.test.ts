@@ -131,7 +131,7 @@ if (process.env.FAIL_COMMAND === command || (process.env.FAIL_LIST === "1" && ar
     writeFileSync(join(directory, ".env"), `DATABASE_URL=${localUrl}\n`);
     writeFileSync(
       join(directory, ".env.production"),
-      `DATABASE_URL=${prodUrl}\n`,
+      `DATABASE_URL=postgresql://worker@runtime-pooler.example/app\nPRODUCTION_MIGRATION_DATABASE_URL=${prodUrl}\n`,
     );
   });
 
@@ -209,14 +209,15 @@ if (process.env.FAIL_COMMAND === command || (process.env.FAIL_LIST === "1" && ar
     },
   );
 
-  it(".env.productionにDATABASE_URLがなければシェルや.envを採用しない", () => {
+  it("本番dump専用キーがなければDATABASE_URLやシェルの値を採用しない", () => {
     writeFileSync(
       join(directory, ".env.production"),
-      "# DATABASE_URL is missing\n",
+      `DATABASE_URL=${prodUrl}\n`,
     );
     expect(
       run("db-dump-prod.mjs", [], {
         DATABASE_URL: prodUrl,
+        PRODUCTION_MIGRATION_DATABASE_URL: prodUrl,
       }).status,
     ).not.toBe(0);
     expect(calls()).toEqual([]);

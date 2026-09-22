@@ -91,7 +91,7 @@ Node.js 22.9以降と、`pg_dump`・`pg_restore`・`psql` をPATHに用意して
 `.env.production` に本番のdirect connection URLを設定します。Neonでは `-pooler` を含まない接続文字列を使います。
 
 ```env
-DATABASE_URL=postgresql://user:password@direct-host/db?sslmode=require
+PRODUCTION_MIGRATION_DATABASE_URL=postgresql://user:password@direct-host/db?sslmode=require
 ```
 
 復元先は `.env` の `DATABASE_URL` です。
@@ -111,7 +111,7 @@ pnpm db:restore:local
 pnpm db:restore:local -- .db-dumps/techguide-jp-prod-2026-09-22T08-30-45-123Z.dump
 ```
 
-`db:dump:prod` は `.env.production` の `DATABASE_URL` だけを読みます。`.env` やシェルの環境変数にはフォールバックしません。dump作成後は `pg_restore --list` でarchive形式を確認し、失敗したdumpは削除します。`.db-dumps/` はGit管理対象外で、ディレクトリは700、ファイルは600の権限で保存します。
+`db:dump:prod` は `.env.production` の `PRODUCTION_MIGRATION_DATABASE_URL` だけを読みます。アプリ用の `DATABASE_URL` やシェルの環境変数にはフォールバックしません。dump作成後は `pg_restore --list` でarchive形式を確認し、失敗したdumpは削除します。`.db-dumps/` はGit管理対象外で、ディレクトリは700、ファイルは600の権限で保存します。
 
 **`db:restore:local` は対象のローカルDBへの接続を切断し、DBを削除・再作成して全置換します。** 開発サーバーを停止し、残したいローカルデータがある場合は先に退避してください。dumpをarchiveとして読み出せることを確認してから再作成します。復元先は `localhost`・`127.0.0.1`・`[::1]` のみ許可し、テストDBとsystem DBは拒否します。接続ユーザーにはDBの削除・作成権限が必要です。
 

@@ -13,13 +13,15 @@ async function main() {
   if (args[0] === "--") args.shift();
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     console.log(
-      "Usage: pnpm db:dump:prod\n.env.production の DATABASE_URL から .db-dumps/ に保存します。",
+      "Usage: pnpm db:dump:prod\n.env.production の PRODUCTION_MIGRATION_DATABASE_URL から .db-dumps/ に保存します。",
     );
     return;
   }
   if (args.length) throw new Error("Usage: pnpm db:dump:prod");
   const env = loadRequiredEnvFile(".env.production");
-  const databaseUrl = assertProductionDumpUrl(env.DATABASE_URL);
+  const databaseUrl = assertProductionDumpUrl(
+    env.PRODUCTION_MIGRATION_DATABASE_URL,
+  );
   const directory = resolve(databaseDumpDirectoryName);
   const outputPath = resolve(
     directory,
