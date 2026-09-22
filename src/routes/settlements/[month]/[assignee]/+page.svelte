@@ -424,7 +424,8 @@
         <div class="inline-alert">
           <strong>申請前に確認が必要です</strong>
           <ul>
-            {#each data.submissionBlockingReasons as reason (reason)}
+            <!-- 同一Issueの複数申請や集計元の重複があっても、警告文をキーにした描画を壊さない。 -->
+            {#each new Set(data.submissionBlockingReasons) as reason (reason)}
               <li>{reason}</li>
             {/each}
           </ul>
@@ -479,7 +480,7 @@
     <section class="panel alert">
       <h2>要確認</h2>
       <ul>
-        {#each summary.blockingReasons as reason (reason)}
+        {#each new Set(summary.blockingReasons) as reason (reason)}
           <li>{reason}</li>
         {/each}
       </ul>

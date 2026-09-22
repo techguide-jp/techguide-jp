@@ -120,7 +120,8 @@
       <div class="modal-alert">
         <strong>承認不可</strong>
         <ul>
-          {#each summary.blockingReasons as reason (reason)}
+          <!-- 保存済みの精算を含め、同一の警告文は表示時にまとめてキーの重複を避ける。 -->
+          {#each new Set(summary.blockingReasons) as reason (reason)}
             <li>{reason}</li>
           {/each}
         </ul>
@@ -136,7 +137,7 @@
           {:else if submission.hasChanges}
             <li>稼働者の月次確定申請後に内容が変更されています。</li>
           {/if}
-          {#each submission?.blockingReasons ?? [] as reason (reason)}
+          {#each new Set(submission?.blockingReasons ?? []) as reason (reason)}
             <li>{reason}</li>
           {/each}
         </ul>

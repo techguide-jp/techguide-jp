@@ -1,4 +1,5 @@
 import { registerCapAndCancellationTests } from "./capAndCancellationCases";
+import { registerSettlementNavigationTests } from "./settlementNavigationCases";
 import { registerLocalImpersonationTests } from "./localImpersonationCases";
 import { registerMonthlyPreferencesTests } from "./monthlyPreferencesCases";
 import { registerMonthlyFeedbackTests } from "./monthlyFeedbackCases";
@@ -12,6 +13,7 @@ import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
 
 registerCapAndCancellationTests();
+registerSettlementNavigationTests();
 registerLocalImpersonationTests();
 registerPaymentCommentTests();
 registerMonthlyFeedbackTests();
