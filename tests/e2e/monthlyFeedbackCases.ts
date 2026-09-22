@@ -71,6 +71,19 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page
         .getByRole("link", { name: "月次確定申請をする", exact: true })
         .click();
+      const breakdown = page
+        .getByRole("dialog")
+        .getByRole("region", { name: "申請金額の内訳" });
+      await expect(breakdown).toContainText("申請額（税込） ￥2,200");
+      await expect(
+        breakdown.getByText("消費税", { exact: true }).locator(".."),
+      ).toContainText("￥200");
+      await expect(
+        breakdown.getByRole("article", {
+          name: "akademy_fes #502",
+          exact: true,
+        }),
+      ).toContainText("￥2,000");
       await page
         .getByLabel(feedbackQuestions.operatorComment)
         .fill("最初の質問");
@@ -94,6 +107,7 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page
         .getByRole("link", { name: "コメントを編集", exact: true })
         .click();
+      await expect(breakdown).toHaveCount(0);
       await expect(
         page.getByLabel(feedbackQuestions.operatorComment),
       ).toHaveCount(1);
@@ -115,6 +129,8 @@ export const registerMonthlyFeedbackTests = (): void => {
       await page
         .getByRole("link", { name: "変更内容で再申請", exact: true })
         .click();
+      await expect(breakdown).toContainText("1時間00分");
+      await expect(breakdown).toContainText("申請額（税込） ￥2,200");
       await page
         .getByRole("button", { name: "この内容で再申請", exact: true })
         .click();

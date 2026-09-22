@@ -8,13 +8,15 @@
   import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
   import { formatMonthLabel } from "$lib/month";
   import { dismissOnBackdrop } from "$lib/dialogBackdrop";
+  import MonthlySubmissionBreakdown from "$lib/components/MonthlySubmissionBreakdown.svelte";
+  import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
 
   let {
     month,
     assignee,
     input,
     result,
-    amountLabel,
+    summary,
     resubmission = false,
     includeFeedback = true,
     mode = "submission",
@@ -23,7 +25,7 @@
     month: string;
     assignee: string;
     input: MonthlyFeedbackInput;
-    amountLabel?: string;
+    summary?: SettlementSummary;
     resubmission?: boolean;
     includeFeedback?: boolean;
     mode?: "submission" | "feedback";
@@ -166,7 +168,7 @@
     <h2 id={titleId} bind:this={heading} tabindex="-1">{title}</h2>
     <p>{assignee} / {formatMonthLabel(month)}</p>
     {#if mode === "submission"}
-      <p class="amount">申請額（税込） <strong>{amountLabel}</strong></p>
+      {#if summary}<MonthlySubmissionBreakdown {summary} />{/if}
       <p>この月の稼働内容を確定し、管理者に精算の承認を依頼します。</p>
     {:else}
       <p>
@@ -239,11 +241,6 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.75rem;
-  }
-  .amount {
-    padding: 1rem;
-    background: #f0fdfa;
-    border-radius: 0.5rem;
   }
   @media (max-width: 640px) {
     dialog {

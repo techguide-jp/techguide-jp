@@ -3,6 +3,7 @@
   import { formatDateTime } from "$lib/format";
   import { groupSubmissionTasks } from "$lib/submissionReadiness";
   import type { MonthlyFeedbackInput } from "$lib/monthlyFeedback";
+  import type { SettlementSummary } from "$lib/server/settlements/settlementTypes";
   let {
     month,
     assignee,
@@ -14,7 +15,7 @@
     blockingReasons,
     submission,
     feedbackInput,
-    amountLabel,
+    summary,
     result,
     initiallyOpen,
   }: {
@@ -31,7 +32,7 @@
       hasChanges: boolean | null;
     } | null;
     feedbackInput: MonthlyFeedbackInput;
-    amountLabel: string;
+    summary: SettlementSummary;
     initiallyOpen: boolean;
     result?: {
       scope?: string;
@@ -123,7 +124,7 @@
           <MonthlySubmissionModal
             {month}
             {assignee}
-            {amountLabel}
+            {summary}
             input={feedbackInput}
             {result}
             resubmission={Boolean(submission)}

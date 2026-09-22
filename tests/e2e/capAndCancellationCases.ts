@@ -122,7 +122,34 @@ export const registerCapAndCancellationTests = () => {
       exact: true,
     });
     await expect(application).toContainText("申請額（税込） ￥16,500");
-    await expect(application.getByRole("heading")).toBeFocused();
+    const breakdown = application.getByRole("region", {
+      name: "申請金額の内訳",
+    });
+    await expect(
+      breakdown.getByText("税抜合計", { exact: true }).locator(".."),
+    ).toContainText("￥15,000");
+    await expect(
+      breakdown.getByText("消費税", { exact: true }).locator(".."),
+    ).toContainText("￥1,500");
+    const issueBreakdown = breakdown.getByRole("article", {
+      name: "akademy_fes #504",
+      exact: true,
+    });
+    await expect(issueBreakdown).toContainText("18時間00分");
+    await expect(
+      issueBreakdown.getByText("時給（税抜）", { exact: true }).locator(".."),
+    ).toContainText("￥3,000");
+    await expect(
+      issueBreakdown
+        .getByText("固定報酬（税抜）", { exact: true })
+        .locator(".."),
+    ).toContainText("￥0");
+    await expect(issueBreakdown).toContainText(
+      "実績計算 ￥54,000 → 時間報酬 ￥15,000",
+    );
+    await expect(
+      application.getByRole("heading", { name: "月次確定申請", exact: true }),
+    ).toBeFocused();
     for (const key of ["Tab", "Shift+Tab"]) {
       for (let i = 0; i < 6; i++) {
         await page.keyboard.press(key);

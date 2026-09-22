@@ -403,7 +403,7 @@
       blockingReasons={data.submissionBlockingReasons}
       {submission}
       {feedbackInput}
-      amountLabel={formatYen(summary.taxIncludedYen)}
+      {summary}
       result={form}
       initiallyOpen={data.requestedForm === "submission"}
     />
