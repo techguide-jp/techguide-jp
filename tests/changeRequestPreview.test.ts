@@ -82,16 +82,13 @@ const input = (
 });
 
 describe("修正申請の承認前プレビュー", () => {
-  it("旧ルールでは8月0円の理由と9月3,850円を表示する", () => {
+  it("旧ルールでは表示中の8月を含めず、精算対象の9月3,850円だけを表示する", () => {
     const [preview] = buildChangeRequestPreviews(input({ ruleVersion: 1 }));
     expect(preview.error).toBeNull();
     expect(
       preview.months.map((month) => [month.month, month.after.taxIncludedYen]),
-    ).toEqual([
-      ["2026-08", 0],
-      ["2026-09", 3850],
-    ]);
-    expect(preview.months[1].issueDetail).toMatchObject({
+    ).toEqual([["2026-09", 3850]]);
+    expect(preview.months[0].issueDetail).toMatchObject({
       workMinutes: 1080,
       timedRewardYen: 1000,
       calculation: { uncappedYen: 5400, capYen: 1000 },

@@ -198,7 +198,7 @@ export const buildChangeRequestPreviews = (
           : report,
       );
       const after = buildCalculator(input, requests, reports);
-      const months = new Set([input.month]);
+      const months = new Set<string>();
       const notes: string[] = [];
       if (input.ruleVersion === 1) {
         if (issue.closedAt) months.add(toJstMonth(issue.closedAt));
@@ -208,6 +208,7 @@ export const buildChangeRequestPreviews = (
             : "現在の精算ルールではIssue完了月に計上します。Issueが未完了のため金額はまだ計上されません。",
         );
       } else {
+        months.add(input.month);
         // 修正で空になった月や、上限配分が移る他月も比較対象に残す。
         for (const session of [
           ...currentSessions,
