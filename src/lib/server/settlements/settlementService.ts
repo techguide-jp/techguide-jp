@@ -61,6 +61,7 @@ import {
   listActiveCompletionReports,
   listCompletionReportsForMonth,
   listSupplementalPaymentsForMonth,
+  listSupplementalPaymentsForAssignee,
 } from "$lib/server/completions/completionRepository";
 import { env } from "$lib/server/env";
 import { listCompletionMonthCandidates } from "$lib/server/completions/completionMonthService";
@@ -69,6 +70,8 @@ import { restoreSettlementSummary } from "$lib/server/settlements/settlementSnap
 import { restoreSettlementFallback } from "$lib/server/settlements/settlementFallback";
 import { listFrozenHourlyRates } from "$lib/server/settlements/hourlyRateRepository";
 import { readSettlementSourceToken } from "$lib/server/settlements/settlementWriteGuard";
+import { buildChangeRequestPreviews } from "$lib/server/settlements/changeRequestPreview";
+import type { ChangeRequestPreview } from "$lib/changeRequestPreview";
 
 const PROJECT_FETCH_BLOCKING_REASON =
   "GitHub Projectを取得できないため、精算額を確定できません。";
@@ -170,7 +173,10 @@ const toSubmissionMeta = (
     : ["対象assigneeの精算データがありません。"],
 });
 
-export const loadSettlementMonth = async (month: string) => {
+export const loadSettlementMonth = async (
+  month: string,
+  options: { includeChangeRequestPreviews?: boolean } = {},
+) => {
   const { health, issues, projectFetchError } =
     await fetchProjectIssuesForPage();
   const range = jstMonthRangeUtc(month);
@@ -220,6 +226,7 @@ export const loadSettlementMonth = async (month: string) => {
 
   let summaries: SettlementSummary[];
   let settlementCalculationError: string | null = null;
+  let changeRequestPreviews: ChangeRequestPreview[] = [];
   if (env.settlementRuleV2Enabled) {
     const [
       allSnapshots,
@@ -263,6 +270,37 @@ export const loadSettlementMonth = async (month: string) => {
         // 作業者ごとにIssueを初めて申請した月の単価を、以後の月と再申請でも維持する。
         if (!frozenHourlyRates.has(key)) frozenHourlyRates.set(key, rate);
       }
+    }
+
+    if (
+      options.includeChangeRequestPreviews &&
+      requests.some((request) => request.status === "pending")
+    ) {
+      const previewPayments = (
+        await Promise.all(
+          [
+            ...new Set(
+              requests
+                .filter((request) => request.status === "pending")
+                .map((request) => request.assigneeLogin),
+            ),
+          ].map((login) => listSupplementalPaymentsForAssignee(login)),
+        )
+      ).flat();
+      changeRequestPreviews = buildChangeRequestPreviews({
+        month,
+        ruleVersion: 2,
+        visibleRequests: requests,
+        issues,
+        sessions: allSessions,
+        requests: allRequests,
+        snapshots: allSnapshots,
+        completionReports: allCompletionReports,
+        supplementalPayments: previewPayments,
+        frozenHourlyRates,
+        settledCompletionReportAssignees,
+        projectFetchError,
+      });
     }
 
     let timedRewardAllocations;
@@ -318,6 +356,29 @@ export const loadSettlementMonth = async (month: string) => {
     }
   } else {
     summaries = buildSettlementSummaries(month, issues, sessions, requests);
+    if (
+      options.includeChangeRequestPreviews &&
+      requests.some((request) => request.status === "pending")
+    ) {
+      const [allSessions, allRequests] = await Promise.all([
+        listWorkSessions(),
+        listChangeRequests(),
+      ]);
+      changeRequestPreviews = buildChangeRequestPreviews({
+        month,
+        ruleVersion: 1,
+        visibleRequests: requests,
+        issues,
+        sessions: allSessions,
+        requests: allRequests,
+        snapshots: [],
+        completionReports: [],
+        supplementalPayments: [],
+        frozenHourlyRates: new Map(),
+        settledCompletionReportAssignees: new Map(),
+        projectFetchError,
+      });
+    }
   }
   if (projectFetchError || settlementCalculationError) {
     summaries = restoreSettlementFallback(
@@ -349,6 +410,7 @@ export const loadSettlementMonth = async (month: string) => {
     projectFetchError,
     sourceToken,
     settlementCalculationError,
+    changeRequestPreviews,
     snapshots: snapshots.map((snapshot) =>
       toSnapshotMeta(
         snapshot,

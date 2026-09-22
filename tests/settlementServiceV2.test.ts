@@ -122,6 +122,8 @@ vi.mock("$lib/server/completions/completionRepository", () => ({
   listCompletionReportsForMonth: async (month: string) =>
     state.reports.filter((r) => r.settlementMonth === month),
   listSupplementalPaymentsForMonth: async () => state.supplemental,
+  listSupplementalPaymentsForAssignee: async (login: string) =>
+    state.supplemental.filter((payment) => payment.assigneeLogin === login),
 }));
 
 const session = (
@@ -223,6 +225,38 @@ beforeEach(() => {
 });
 
 describe("V2 月次処理の回帰", () => {
+  it("管理者用プレビューを読み込んでも未処理申請と通常支払いを変更しない", async () => {
+    state.requests = [
+      {
+        id: "preview-request",
+        repository: "example/repo",
+        issueNumber: 1,
+        issueTitle: "保存時の件名",
+        assigneeLogin: "worker",
+        requestedBy: "worker",
+        requestType: "edit",
+        status: "pending",
+        targetSessionId: "session-2026-08",
+        requestedStartedAt: new Date("2026-08-20T00:00:00Z"),
+        requestedEndedAt: new Date("2026-08-20T02:00:00Z"),
+        createdAt: new Date("2026-09-01T00:00:00Z"),
+        reason: "2時間へ修正",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: null,
+      },
+    ];
+    const data = await loadSettlementMonth("2026-08", {
+      includeChangeRequestPreviews: true,
+    });
+    expect(data.summaries[0].timedRewardYen).toBe(6000);
+    expect(data.changeRequestPreviews[0].months[0].after.timedRewardYen).toBe(
+      10000,
+    );
+    expect(state.requests[0].status).toBe("pending");
+    expect(state.persistSubmission).not.toHaveBeenCalled();
+    expect(state.persistApproval).not.toHaveBeenCalled();
+  });
   it("申請明細からIssueを除外しても永続保存した本人の単価を維持する", async () => {
     state.frozenRates.set("example/repo#1#worker", 6000);
     state.issues[0].hourlyRateYen = 9000;

@@ -6,6 +6,7 @@
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import CompletionRegistrationModal from "$lib/components/CompletionRegistrationModal.svelte";
   import SettlementApprovalModal from "$lib/components/SettlementApprovalModal.svelte";
+  import ChangeRequestPreview from "$lib/components/ChangeRequestPreview.svelte";
   import {
     formatDate,
     formatDateTime,
@@ -193,6 +194,7 @@
             >
             <td>{request.reason}</td>
             <td class="review-actions">
+              <a href={`#request-preview-${request.id}`}>承認後の金額を確認</a>
               <form
                 method="POST"
                 action="?/reviewRequest"
@@ -231,8 +233,50 @@
   {/if}
 </section>
 
+{#if pendingRequests.length > 0}
+  <section class="panel" aria-labelledby="change-preview-heading">
+    <h2 id="change-preview-heading">修正申請の承認前プレビュー</h2>
+    <p class="muted">
+      各申請を1件だけ承認した場合の見込みです。他の未処理申請は反映していません。表示だけでは申請の承認や精算の確定は行われません。
+    </p>
+    <div class="request-previews">
+      {#each data.changeRequestPreviews as preview (preview.requestId)}
+        {@const request = pendingRequests.find(
+          (request) => request.id === preview.requestId,
+        )}
+        {#if request}
+          <article
+            id={`request-preview-${request.id}`}
+            class="request-preview"
+            aria-label={`${request.assigneeLogin} #${request.issueNumber} ${request.reason}の見込み`}
+          >
+            <h3>
+              {request.assigneeLogin} · {formatIssueName(
+                request.issueNumber,
+                request.issueTitle,
+              )}
+            </h3>
+            <p>
+              {request.reason}
+              <small class="muted"
+                >（{formatDateTime(request.createdAt)}申請）</small
+              >
+            </p>
+            <ChangeRequestPreview {preview} />
+          </article>
+        {/if}
+      {/each}
+    </div>
+  </section>
+{/if}
+
 <section class="panel">
   <h2>通常支払い</h2>
+  {#if pendingRequests.length > 0}
+    <p class="muted">
+      現在の金額です。未処理の修正申請は含まれていません。承認した場合の金額は上のプレビューで確認できます。
+    </p>
+  {/if}
   <table>
     <thead>
       <tr>
@@ -596,6 +640,24 @@
 {/each}
 
 <style>
+  th {
+    white-space: nowrap;
+  }
+  .request-previews {
+    display: grid;
+    gap: 1rem;
+  }
+  .request-preview {
+    border: 1px solid #dce3ed;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    scroll-margin-top: 1rem;
+    overflow-wrap: anywhere;
+  }
+  .request-preview h3 {
+    margin-top: 0;
+    font-size: 1rem;
+  }
   .request-duration {
     display: block;
     white-space: nowrap;

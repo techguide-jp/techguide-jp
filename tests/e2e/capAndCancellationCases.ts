@@ -43,8 +43,27 @@ export const registerCapAndCancellationTests = () => {
       .getByRole("row")
       .filter({ hasText: "上限を適用する申請" });
     await expect(pending).toContainText("18時間00分");
+    const preview = page.getByRole("article", {
+      name: "reward-worker #504 上限を適用する申請の見込み",
+    });
+    await pending.getByRole("link", { name: "承認後の金額を確認" }).click();
+    await expect(preview).toContainText("承認後の見込み ￥16,500");
+    await expect(preview).toContainText("上限適用前の時間報酬 ￥54,000");
+    await page.setViewportSize({ width: 527, height: 863 });
+    await expect(preview).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(527);
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(
+      pending.getByRole("button", { name: "承認", exact: true }),
+    ).toBeVisible();
+    await expect(preview).toContainText("承認後の見込み ￥16,500");
+    await page.setViewportSize({ width: 1280, height: 900 });
     await pending.getByRole("button", { name: "承認", exact: true }).click();
     await expect(pending).toHaveCount(0);
+    await expect(preview).toHaveCount(0);
     await expect(
       page.getByText("上限適用後の金額で精算").filter({ visible: true }),
     ).toBeVisible();
