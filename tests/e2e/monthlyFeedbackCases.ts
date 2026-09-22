@@ -75,6 +75,7 @@ export const registerMonthlyFeedbackTests = (): void => {
         .getByRole("dialog")
         .getByRole("region", { name: "申請金額の内訳" });
       await expect(breakdown).toContainText("申請額（税込） ￥2,200");
+      await expect(breakdown.getByRole("note")).toHaveCount(0);
       await expect(
         breakdown.getByText("消費税", { exact: true }).locator(".."),
       ).toContainText("￥200");
@@ -131,6 +132,7 @@ export const registerMonthlyFeedbackTests = (): void => {
         .click();
       await expect(breakdown).toContainText("1時間00分");
       await expect(breakdown).toContainText("申請額（税込） ￥2,200");
+      await expect(breakdown.getByRole("note")).toHaveCount(0);
       await page
         .getByRole("button", { name: "この内容で再申請", exact: true })
         .click();

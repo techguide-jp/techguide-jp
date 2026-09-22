@@ -87,10 +87,12 @@ export const registerCapAndCancellationTests = () => {
     ).toBeVisible();
     await page.goto("/settlements/2026-09/reward-worker");
     const line = page.getByRole("row").filter({ hasText: "#504 " }).first();
-    await expect(page.getByText(/実績計算.*54,000/)).toBeVisible();
+    await expect(
+      page.getByText("実績から計算した時間報酬", { exact: true }).locator(".."),
+    ).toContainText("￥54,000");
     await expect(line).toContainText("15,000");
     await expect(
-      page.getByText("上限適用後の金額で精算").filter({ visible: true }),
+      page.getByText("時間報酬が上限に達しています").filter({ visible: true }),
     ).toBeVisible();
     await expect(
       page.getByText("Issue全期間の時間精算額が追加精算上限を超えています。", {
@@ -99,11 +101,11 @@ export const registerCapAndCancellationTests = () => {
     ).toHaveCount(0);
     await page.setViewportSize({ width: 527, height: 863 });
     await page
-      .getByText("上限適用後の金額で精算")
+      .getByText("時間報酬が上限に達しています")
       .filter({ visible: true })
       .scrollIntoViewIfNeeded();
     await expect(
-      page.getByText("上限適用後の金額で精算").filter({ visible: true }),
+      page.getByText("時間報酬が上限に達しています").filter({ visible: true }),
     ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
@@ -144,9 +146,28 @@ export const registerCapAndCancellationTests = () => {
         .getByText("固定報酬（税抜）", { exact: true })
         .locator(".."),
     ).toContainText("￥0");
-    await expect(issueBreakdown).toContainText(
-      "実績計算 ￥54,000 → 時間報酬 ￥15,000",
+    await expect(breakdown.getByRole("note")).toContainText(
+      "上限を適用した申請額です",
     );
+    await expect(issueBreakdown).toContainText("時間報酬が上限に達しています");
+    await expect(
+      issueBreakdown.getByText("設定された上限", { exact: true }).locator(".."),
+    ).toContainText("￥15,000");
+    await expect(
+      issueBreakdown
+        .getByText("実績から計算した時間報酬", { exact: true })
+        .locator(".."),
+    ).toContainText("￥54,000");
+    await expect(
+      issueBreakdown
+        .getByText("今回精算する時間報酬", { exact: true })
+        .locator(".."),
+    ).toContainText("￥15,000");
+    await expect(
+      issueBreakdown
+        .getByText("上限により精算対象外", { exact: true })
+        .locator(".."),
+    ).toContainText("￥39,000");
     await expect(
       application.getByRole("heading", { name: "月次確定申請", exact: true }),
     ).toBeFocused();
