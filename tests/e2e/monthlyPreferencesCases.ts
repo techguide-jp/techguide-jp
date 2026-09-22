@@ -39,7 +39,7 @@ export const registerMonthlyPreferencesTests = (): void => {
   test.describe("申請後の希望確認モーダル", () => {
     test("通常表示から希望を外し、申請後にプロフィールの全項目を引き継いで保存する", async ({
       page,
-    }) => {
+    }, testInfo) => {
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await prepare(page);
@@ -94,7 +94,7 @@ export const registerMonthlyPreferencesTests = (): void => {
       expect(box!.x + box!.width).toBeLessThanOrEqual(390);
       expect(box!.height).toBeLessThanOrEqual(844);
       await page.screenshot({
-        path: "/private/tmp/techguide-monthly-preferences-mobile.png",
+        path: testInfo.outputPath("monthly-preferences-mobile.png"),
       });
       await dialog
         .getByLabel(preferenceQuestions.availabilityNote)
