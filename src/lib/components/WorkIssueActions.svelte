@@ -36,10 +36,14 @@
     </p>
   {:else}
     <p class="issue-hint">
-      内容を確認できたらチャットで返信し、実際に作業を始めるときに稼働を開始してください。
+      内容を確認できたらチャットで返信し、実際に作業するときに「計測を開始」を押してください。
+    </p>
+    <p class="work-timer-guide">
+      <strong>休憩・中断するときは「計測を停止」。</strong>
+      案件の途中でも停止できます。再開時に「計測を開始」を押すと、作業時間が積み上がります。
     </p>
     {#if data.openSession}<p class="issue-running">
-        <span class="status-badge measuring">稼働中</span><span
+        <span class="status-badge measuring">計測中</span><span
           >開始 {formatDateTime(data.openSession.startedAt)}</span
         >
       </p>
@@ -51,9 +55,9 @@
         /><ActionSubmit
           actionName="stop"
           {pendingAction}
-          label="稼働を終了"
-          pendingLabel="終了中..."
-          variant="danger"
+          label="計測を停止"
+          pendingLabel="停止中..."
+          variant="secondary"
         />
       </form>
     {:else if canStart}<form
@@ -64,7 +68,7 @@
         <ActionSubmit
           actionName="start"
           {pendingAction}
-          label="稼働を開始"
+          label="計測を開始"
           pendingLabel="開始中..."
           disabled={Boolean(data.descriptionError) || !data.body.trim()}
         />
@@ -106,7 +110,7 @@
           />
         </form>
         <p class="issue-hint">
-          成果物を提出し、稼働を終了してから報告してください。
+          成果物をすべて提出し、計測を停止してから「完了報告」をしてください。
         </p>{/if}
     {/if}
   {/if}

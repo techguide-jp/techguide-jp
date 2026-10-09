@@ -154,9 +154,13 @@
 {/if}
 
 <section class="panel">
-  <h2>稼働中</h2>
+  <h2>作業時間の計測</h2>
+  <p class="work-timer-guide">
+    <strong>休憩・中断するときは「計測を停止」。</strong>
+    案件の途中でも停止できます。再開時に「計測を開始」を押すと、作業時間が積み上がります。
+  </p>
   {#if data.openSessions.length === 0}
-    <p class="muted">稼働中のIssueはありません。</p>
+    <p class="muted">現在、計測中の作業はありません。</p>
   {:else}
     <div class="session-list">
       {#each data.openSessions as session (session.id)}
@@ -187,9 +191,9 @@
           <ActionSubmit
             actionName={`stop-${session.id}`}
             {pendingAction}
-            label="終了"
-            pendingLabel="終了中..."
-            variant="danger"
+            label="計測を停止"
+            pendingLabel="停止中..."
+            variant="secondary"
           />
         </form>
       {/each}

@@ -58,13 +58,19 @@ test("稼働開始と終了を記録できる", async ({ page }) => {
   const issueRow = page.getByRole("row").filter({
     hasText: "#501 E2E: 稼働開始と終了を確認する",
   });
-  await issueRow.getByRole("button", { name: "開始" }).click();
+  await issueRow.getByRole("button", { name: "計測を開始" }).click();
 
   await expect(page.getByText("稼働を開始し").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "稼働中" })).toBeVisible();
-  await page.getByRole("button", { name: "終了" }).click();
+  await expect(
+    page.getByRole("heading", { name: "作業時間の計測" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "計測を停止" }).click();
 
-  await expect(page.getByText("稼働を終了しました")).toBeVisible();
+  await expect(
+    page.getByText("計測を停止して、今回の作業時間を記録しました。", {
+      exact: false,
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "稼働ログ", exact: true }),
   ).toBeVisible();
@@ -80,8 +86,10 @@ test("稼働画面で完了報告を提出・取り下げできる", async ({ pa
     hasText: "#501 E2E: 稼働開始と終了を確認する",
   });
 
-  await issueRow.getByRole("button", { name: "開始", exact: true }).click();
-  await page.getByRole("button", { name: "終了", exact: true }).click();
+  await issueRow
+    .getByRole("button", { name: "計測を開始", exact: true })
+    .click();
+  await page.getByRole("button", { name: "計測を停止", exact: true }).click();
   await issueRow.getByRole("button", { name: "完了報告", exact: true }).click();
 
   await expect(

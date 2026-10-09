@@ -47,16 +47,18 @@ test("案件詳細から稼働開始・終了・完了報告を行える", async
     page.getByRole("heading", { name: "完了条件", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("1,000円", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "稼働を開始", exact: true }).click();
+  await page.getByRole("button", { name: "計測を開始", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "稼働を終了", exact: true }),
+    page.getByRole("button", { name: "計測を停止", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "完了報告", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "稼働を終了", exact: true }).click();
+  await page.getByRole("button", { name: "計測を停止", exact: true }).click();
   await expect(
-    page.getByText("稼働を終了しました。", { exact: true }),
+    page.getByText("計測を停止して、今回の作業時間を記録しました。", {
+      exact: false,
+    }),
   ).toBeVisible();
   await page.getByRole("button", { name: "完了報告", exact: true }).click();
   await expect(
@@ -93,7 +95,7 @@ test("管理者が依頼文とURLをコピーでき、担当外案件は閲覧�
   await expect(
     page.getByText("管理者として閲覧中です。", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "稼働を開始" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "計測を開始" })).toHaveCount(0);
   await expect(page.getByText("30,000円", { exact: true })).toBeVisible();
 });
 

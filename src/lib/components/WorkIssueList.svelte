@@ -48,7 +48,7 @@
     issue.state !== "CLOSED" && issue.status !== "Done";
   const issueWorkState = (issue: Issue, key: string): string => {
     if (isIssueCompleted(issue)) return "完了済み";
-    if (openKeySet.has(key)) return "稼働中";
+    if (openKeySet.has(key)) return "計測中";
     const report = activeCompletionByIssue.get(key);
     if (report?.eligibilityConfirmedAt) return "Issue完了確認済み";
     if (report) return "完了報告済み・Issue完了待ち";
@@ -130,7 +130,7 @@
                   <ActionSubmit
                     actionName={`start-${key}`}
                     {pendingAction}
-                    label="開始"
+                    label="計測を開始"
                     pendingLabel="開始中..."
                     disabled={openKeySet.has(key) || !canStart}
                   />
@@ -220,6 +220,9 @@
       未設定の項目は着手前に運営へ確認し、月次の精算額は「自分の精算」で確認してください。
     </p>
     {#if settlementRuleV2Enabled}
+      <p class="muted">
+        「完了報告」は、案件の作業と成果物の提出がすべて終わってから行ってください。
+      </p>
       <p class="muted">
         IssueがClosedかつStatusがDoneなら完了報告は不要です。未報告の固定報酬は、管理者が精算月を指定します。
       </p>

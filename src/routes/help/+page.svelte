@@ -25,16 +25,16 @@
     <p class="eyebrow">daily work</p>
     <h2 id="daily-work-heading">毎作業時の操作</h2>
     <p class="mt-1 text-slate-600">
-      作業を始めるたび、終えるたびに行う記録です。
+      作業開始時と、休憩・中断・その日の作業を終えるたびに行う記録です。
     </p>
   </div>
   <div class="guide-grid">
     <article class="guide-card">
       <span class="step">1</span>
       <div>
-        <h2>稼働を開始する</h2>
+        <h2>作業時間の計測を開始する</h2>
         <p>
-          <a href={workHref}>稼働</a> でProject内Issueを選び、開始ボタンを押します。同じIssueの二重開始はできませんが、別Issueは同時に開始できます。
+          <a href={workHref}>稼働</a> でProject内Issueを選び、「計測を開始」を押します。同じIssueの二重開始はできませんが、別Issueは同時に開始できます。
           固定報酬のIssueでも、作業状況を把握するために稼働記録を入力してください。
         </p>
       </div>
@@ -42,9 +42,12 @@
     <article class="guide-card">
       <span class="step">2</span>
       <div>
-        <h2>稼働を終了する</h2>
+        <h2>休憩・中断時に計測を停止する</h2>
         <p>
-          作業が終わったIssueの終了ボタンを押します。終了が未入力のログは集計対象外になり、未精算予定として確認できます。
+          休憩・中断・その日の作業を終えるときは「計測を停止」を押します。案件の途中でも停止できます。再開時に「計測を開始」を押すと、新しい稼働ログが追加され、同じ案件の作業時間が積み上がります。案件全体が終わったときの完了報告は別に行います。
+        </p>
+        <p>
+          停止していないログは集計対象外になり、未精算予定として確認できます。
         </p>
       </div>
     </article>

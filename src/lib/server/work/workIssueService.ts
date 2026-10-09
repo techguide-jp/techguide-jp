@@ -145,7 +145,11 @@ export const performIssueWorkAction = async (
     form.set("sessionId", sessionId);
     const result = await stopIssueWork(form, user.login);
     return result.ok
-      ? { ok: true, message: "稼働を終了しました。" }
+      ? {
+          ok: true,
+          message:
+            "計測を停止して、今回の作業時間を記録しました。再開時は「計測を開始」を押してください。",
+        }
       : { ...result, status: 400 };
   }
   if (action === "start") {
