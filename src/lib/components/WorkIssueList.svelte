@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
+  import { workIssueHref } from "$lib/workIssueRoute";
   import { isIssueCompleted } from "$lib/issueCompletion";
   import { splitWorkIssues } from "$lib/workListDisplay";
   import {
@@ -79,7 +80,7 @@
           <tr>
             <td>{formatProjectName(issue.repository)}</td>
             <td>
-              <a href={issue.url} target="_blank" rel="noreferrer">
+              <a href={workIssueHref(issue.repository, issue.number)}>
                 {formatIssueName(issue.number, issue.title)}
               </a>
             </td>

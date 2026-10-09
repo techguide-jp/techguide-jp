@@ -3,6 +3,15 @@ import type { RequestEvent } from "@sveltejs/kit";
 
 export const requireUser = (event: RequestEvent) => {
   if (!event.locals.user) {
+    if (
+      event.request.method === "GET" &&
+      event.url.pathname.startsWith("/work/")
+    ) {
+      throw redirect(
+        303,
+        `/login?returnTo=${encodeURIComponent(event.url.pathname)}`,
+      );
+    }
     throw redirect(303, "/login");
   }
   return event.locals.user;

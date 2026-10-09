@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { PageProps } from "./$types";
   import CopyLoginButton from "$lib/components/CopyLoginButton.svelte";
+  import CopyIssueRequestButton from "$lib/components/CopyIssueRequestButton.svelte";
+  import { workIssueHref } from "$lib/workIssueRoute";
   import {
     formatDateTime,
     formatIssueName,
@@ -304,6 +306,53 @@
       {/each}
     </div>
   {/if}
+</section>
+
+<section
+  class="panel admin-work-section"
+  aria-labelledby="request-issues-heading"
+>
+  <h2 id="request-issues-heading">案件の依頼URL</h2>
+  <p class="muted">
+    GitHubで担当者・報酬・依頼内容を設定し、依頼文とURLをコピーしてチャットで送れます。
+  </p>
+  {#if data.projectFetchError}<p class="alert">
+      案件一覧を取得できませんでした。時間をおいて再読み込みしてください。
+    </p>
+  {:else if data.requestIssues.length === 0}<p class="muted">
+      依頼できる未完了Issueはありません。
+    </p>
+  {:else}<div class="table-wrap">
+      <table>
+        <thead
+          ><tr
+            ><th>Project / 案件</th><th>担当者</th><th>Status</th><th>依頼</th
+            ></tr
+          ></thead
+        ><tbody>
+          {#each data.requestIssues as issue (`${issue.repository}#${issue.number}`)}<tr
+            >
+              <td
+                ><small>{formatProjectName(issue.repository)}</small><a
+                  href={workIssueHref(issue.repository, issue.number)}
+                  >{formatIssueName(issue.number, issue.title)}</a
+                ></td
+              >
+              <td>{issue.assignees.join("、") || "未設定"}</td><td
+                >{issue.status ?? "未設定"}</td
+              ><td
+                >{#if issue.assignees.length}<CopyIssueRequestButton
+                    repository={issue.repository}
+                    number={issue.number}
+                    title={issue.title}
+                  />{:else}<a href={issue.url} target="_blank" rel="noreferrer"
+                    >GitHubで担当者を設定 ↗</a
+                  >{/if}</td
+              >
+            </tr>{/each}
+        </tbody>
+      </table>
+    </div>{/if}
 </section>
 
 <section class="panel admin-work-section" data-tone="todo">

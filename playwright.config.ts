@@ -19,6 +19,8 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
+  // 全ケースが同じ専用DBをresetするため、ファイル間も並列実行しない。
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {

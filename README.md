@@ -7,6 +7,7 @@ Assignee別の月次稼働精算を管理する内部向けSvelteKitアプリで
 - GitHub OAuthによるログイン
 - GitHub Project v2 `techguide-jp/projects/7` からのIssue・報酬情報取得
 - Issueごとの稼働開始/終了ログ
+- 案件詳細ページでの依頼内容・報酬確認、依頼文とURLのコピー、ログイン後の案件復帰（[運用手順](docs/work-issue-request-flow.md)）
 - 複数Issueの同時稼働記録
 - 後追い追加、時刻修正、除外申請
 - assignee別の月次精算表示
