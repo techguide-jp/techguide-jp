@@ -254,7 +254,7 @@
   </div>
 </section>
 
-{#if data.canEditSelf}
+{#if data.canViewNotificationContact}
   <section class="panel">
     <h2>メール通知先</h2>
     {#if data.notificationContact}
@@ -268,8 +268,9 @@
       <p class="notice">通知先はまだ同期されていません。</p>
     {/if}
     <p class="muted">
-      GitHub
-      側でメールアドレスを変更した場合は、一度ログアウトして再ログインすると更新されます。
+      GitHub 側でメールアドレスを変更した場合は、{data.canEditSelf
+        ? "一度ログアウトして再ログインすると更新されます。"
+        : "ワーカー本人が一度ログアウトして再ログインすると更新されます。"}
     </p>
   </section>
 {/if}

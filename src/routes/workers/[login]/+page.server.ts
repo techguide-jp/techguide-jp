@@ -25,8 +25,10 @@ export const load = async (event) => {
 
   const profile = await loadWorkerProfile(login);
   const payoutAccount = await loadPayoutAccountForViewer(login, user);
-  const notificationContact =
-    user.login === login ? await getNotificationContact(login) : null;
+  const canViewNotificationContact = user.isAdmin || user.login === login;
+  const notificationContact = canViewNotificationContact
+    ? await getNotificationContact(login)
+    : null;
 
   return {
     profile: user.isAdmin
@@ -40,6 +42,7 @@ export const load = async (event) => {
     preferences: await loadPreferencesForViewer(login, user),
     payoutAccount,
     notificationContact,
+    canViewNotificationContact,
     canEditSelf: user.login === login,
     canEditAdminNote: user.isAdmin,
     canEditPayoutAccount: user.login === login,
