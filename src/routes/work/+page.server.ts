@@ -120,7 +120,10 @@ export const actions = {
       user.login,
     );
     if (!result.ok) return fail(400, { message: result.message });
-    return { message: "稼働を終了しました。" };
+    return {
+      message:
+        "計測を停止して、今回の作業時間を記録しました。再開時は「計測を開始」を押してください。",
+    };
   },
   requestChange: async (event) => {
     const user = requireUser(event);

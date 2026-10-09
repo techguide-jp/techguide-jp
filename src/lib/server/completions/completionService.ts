@@ -109,7 +109,7 @@ export const reportIssueCompletion = async (
       issue.number,
     );
     if (openSession) {
-      return { ok: false, message: "稼働を終了してから完了報告してください。" };
+      return { ok: false, message: "計測を停止してから完了報告してください。" };
     }
     const current = await getActiveCompletionReport({
       repository: issue.repository,

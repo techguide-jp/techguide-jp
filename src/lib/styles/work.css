@@ -1,4 +1,12 @@
 @layer components {
+  .work-timer-guide {
+    @apply my-3 rounded-md border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm leading-7 text-teal-950;
+  }
+
+  .work-timer-guide strong {
+    @apply block;
+  }
+
   .session-list {
     @apply grid gap-3;
   }
