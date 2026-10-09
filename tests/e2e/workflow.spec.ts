@@ -12,6 +12,7 @@ import {
 import { feedbackQuestions } from "../../src/lib/monthlyFeedback";
 import { expect, test } from "@playwright/test";
 import { registerPaymentCommentTests } from "./paymentCommentCases";
+import { registerWorkerNotificationContactTests } from "./workerNotificationContactCases";
 
 registerCapAndCancellationTests();
 registerWorkListTests();
@@ -22,6 +23,7 @@ registerMonthlyFeedbackTests();
 registerMonthlyPreferencesTests();
 registerCompletionBackfillTests();
 registerCompletionMonthTests();
+registerWorkerNotificationContactTests();
 
 const currentJstMonth = (): string => {
   const parts = new Intl.DateTimeFormat("ja-JP", {
