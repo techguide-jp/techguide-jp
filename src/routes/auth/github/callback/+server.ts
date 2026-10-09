@@ -1,5 +1,9 @@
 import { error, redirect } from "@sveltejs/kit";
 import {
+  loginReturnCookieName,
+  safeLoginReturn,
+} from "$lib/server/auth/loginReturn";
+import {
   exchangeGithubCode,
   fetchGithubPrimaryEmail,
   fetchGithubUser,
@@ -19,6 +23,8 @@ export const GET = async ({ cookies, url }) => {
   }
 
   cookies.delete(githubStateCookieName, { path: "/" });
+  const returnTo = safeLoginReturn(cookies.get(loginReturnCookieName));
+  cookies.delete(loginReturnCookieName, { path: "/" });
   const token = await exchangeGithubCode(code, resolveOAuthAppOrigin(url));
   const githubUser = await fetchGithubUser(token);
 
@@ -46,5 +52,5 @@ export const GET = async ({ cookies, url }) => {
     expires: session.expiresAt,
   });
 
-  throw redirect(303, "/work");
+  throw redirect(303, returnTo);
 };

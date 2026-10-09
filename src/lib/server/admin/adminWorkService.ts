@@ -43,6 +43,7 @@ export type AdminIssueSummary = {
 };
 
 export type AdminWorkDashboard = {
+  requestIssues: ProjectIssue[];
   health: ProjectFieldHealth;
   projectFetchError: string | null;
   issueSummary: AdminIssueSummary;
@@ -198,6 +199,9 @@ export const buildAdminWorkDashboard = (
   );
 
   return {
+    requestIssues: [...input.issues]
+      .filter((issue) => issue.state === "OPEN")
+      .sort(compareIssues),
     health: input.health,
     projectFetchError: input.projectFetchError,
     issueSummary: summarizeIssues(input.issues),

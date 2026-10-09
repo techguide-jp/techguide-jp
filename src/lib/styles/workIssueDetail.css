@@ -1,0 +1,124 @@
+@layer components {
+  .issue-detail-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .issue-detail-heading h1 {
+    font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+    line-height: 1.4;
+    margin: 0.4rem 0 0.8rem;
+    overflow-wrap: anywhere;
+  }
+  .issue-detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+  .issue-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1.25rem;
+    align-items: start;
+  }
+  .issue-detail-main,
+  .issue-detail-sidebar {
+    display: grid;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+  .issue-section-heading {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+  .issue-section-heading h2 {
+    margin: 0;
+  }
+  .issue-section-heading a {
+    font-size: 0.85rem;
+  }
+  .issue-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.3rem;
+  }
+  .issue-labels span {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+  }
+  .issue-reward-panel {
+    border-top: 3px solid #0f766e;
+  }
+  .issue-reward-panel dl {
+    margin: 1rem 0;
+  }
+  .issue-reward-panel dl > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .issue-reward-panel dt {
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+  .issue-reward-panel dd {
+    font-weight: 700;
+  }
+  .issue-reward-panel .issue-fixed-reward {
+    display: block;
+  }
+  .issue-fixed-reward dd {
+    margin-top: 0.35rem;
+    color: #115e59;
+    font-size: 1.8rem;
+  }
+  .issue-hint {
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: #64748b;
+    margin: 0.7rem 0;
+  }
+  .issue-action-panel form {
+    margin: 0.75rem 0;
+  }
+  .issue-action-panel .button {
+    width: 100%;
+  }
+  .issue-running {
+    display: grid;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+  }
+  .issue-action-panel > a,
+  .issue-consult-panel > a,
+  .issue-history-panel > a {
+    display: inline-block;
+    margin-top: 0.7rem;
+    font-size: 0.85rem;
+  }
+  @media (max-width: 800px) {
+    .issue-detail-heading {
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .issue-detail-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
