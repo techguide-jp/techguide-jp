@@ -29,6 +29,7 @@ export const registerLocalImpersonationTests = (): void => {
     const adminCookie = (await context.cookies()).find(
       (cookie) => cookie.name === "tg_session",
     )!.value;
+    await page.getByRole("link", { name: "管理モード", exact: true }).click();
     await page.getByRole("link", { name: "ユーザー切替", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "ユーザー切替", exact: true }),
@@ -48,6 +49,9 @@ export const registerLocalImpersonationTests = (): void => {
       name: "ローカルの擬似ログイン",
     });
     await expect(banner).toContainText("reward-worker として擬似ログイン中");
+    await expect(
+      page.getByRole("navigation", { name: "表示モード" }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: "月次一覧", exact: true }),
     ).toHaveCount(0);

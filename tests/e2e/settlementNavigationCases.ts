@@ -62,15 +62,12 @@ export const registerSettlementNavigationTests = (): void => {
     await expect(
       page.getByRole("link", { name: "変更内容で再申請", exact: true }),
     ).toHaveCount(0);
-    for (const name of [
-      "稼働",
-      "自分の精算",
-      "プロフィール",
-      "月次一覧",
-      "ログアウト",
-    ]) {
+    for (const name of ["稼働", "自分の精算", "プロフィール", "ログアウト"]) {
       await expect(nav.getByRole("link", { name, exact: true })).toBeVisible();
     }
+    await expect(
+      nav.getByRole("link", { name: "月次一覧", exact: true }),
+    ).toHaveCount(0);
     await nav.getByRole("link", { name: "プロフィール", exact: true }).click();
     await expect(page).toHaveURL("/workers/tashua314");
     await nav.getByRole("link", { name: "自分の精算", exact: true }).click();
@@ -82,6 +79,14 @@ export const registerSettlementNavigationTests = (): void => {
     await expect(
       nav.getByRole("link", { name: "自分の精算", exact: true }),
     ).toBeVisible();
+    const switcher = page.getByRole("navigation", { name: "表示モード" });
+    await switcher.getByRole("link", { name: "管理モード" }).click();
+    await expect(
+      switcher.getByRole("link", { name: "管理モード" }),
+    ).toHaveAttribute("aria-current", "true");
+    await expect(
+      nav.getByRole("link", { name: "自分の精算", exact: true }),
+    ).toHaveCount(0);
     await nav.getByRole("link", { name: "月次一覧", exact: true }).click();
     await expect(page.getByText("修正A", { exact: true })).toBeVisible();
     await expect(page.getByText("修正B", { exact: true })).toBeVisible();

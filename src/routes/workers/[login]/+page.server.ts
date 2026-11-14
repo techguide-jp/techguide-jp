@@ -44,8 +44,6 @@ export const load = async (event) => {
     notificationContact,
     canViewNotificationContact,
     canEditSelf: user.login === login,
-    canEditAdminNote: user.isAdmin,
-    canEditPayoutAccount: user.login === login,
   };
 };
 

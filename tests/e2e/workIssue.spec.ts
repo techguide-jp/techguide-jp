@@ -97,6 +97,27 @@ test("管理者が依頼文とURLをコピーでき、担当外案件は閲覧�
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "計測を開始" })).toHaveCount(0);
   await expect(page.getByText("30,000円", { exact: true })).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "パンくず" })
+    .getByRole("link", { name: "稼働確認" })
+    .click();
+  const ownIssueLink = {
+    name: "#501 E2E: 稼働開始と終了を確認する",
+    exact: true,
+  };
+  await page.getByRole("link", ownIssueLink).click();
+  await expect(page).toHaveURL(`${issuePath}?mode=admin`);
+  await expect(page.getByRole("button", { name: "計測を開始" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "作業モード" }).click();
+  await page.getByRole("link", ownIssueLink).click();
+  await expect(page).toHaveURL(issuePath);
+  await expect(page.getByRole("button", { name: "計測を開始" })).toBeVisible();
+  await page.getByRole("link", { name: "今月の精算を確認 →" }).click();
+  await expect(
+    page.getByRole("link", { name: "自分の精算", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("コピーが拒否されたら手動用の文面を表示し、スマートフォンで横にはみ出さない", async ({

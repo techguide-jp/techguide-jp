@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
@@ -147,7 +148,8 @@
     <div class="modal-section">
       <div class="section-heading">
         <h3>精算対象明細</h3>
-        <a href={`/settlements/${month}/${summary.assigneeLogin}`}
+        <a
+          href={adminViewHref(`/settlements/${month}/${summary.assigneeLogin}`)}
           >個人明細を開く</a
         >
       </div>
