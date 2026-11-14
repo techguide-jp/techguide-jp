@@ -2,6 +2,7 @@ import { fail } from "@sveltejs/kit";
 import { addMonths, currentJstMonth } from "$lib/month";
 import { monthlyLetterMaxLength } from "$lib/monthlyLetter";
 import { requireAdmin } from "$lib/server/auth/guards";
+import { env } from "$lib/server/env";
 import {
   getMonthlyWorkerLetter,
   saveMonthlyWorkerLetter,
@@ -15,6 +16,8 @@ export const load: PageServerLoad = async (event) => {
   return {
     sendMonth,
     settlementMonth,
+    previewOrigin: env.appOrigin ?? event.url.origin,
+    previewHasReplyTo: Boolean(env.emailReplyTo),
     letter: await getMonthlyWorkerLetter(sendMonth),
   };
 };

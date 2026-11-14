@@ -24,7 +24,7 @@ import type {
   PreparedNotificationWrite,
 } from "$lib/server/notifications/notificationWrite";
 import { saveEmailPreview } from "$lib/server/notifications/previewStore";
-import { buildSettlementNotification } from "$lib/server/notifications/templates";
+import { buildSettlementNotification } from "$lib/notifications/templates";
 import type { SettlementNotificationInput } from "$lib/server/notifications/notificationTypes";
 import { getWorkerProfile } from "$lib/server/workers/workerProfileRepository";
 
@@ -81,7 +81,7 @@ export const prepareSettlementNotification = async (
       workerDisplayName: profile?.displayName ?? input.workerDisplayName,
     },
     appOrigin,
-    env.emailReplyTo,
+    Boolean(env.emailReplyTo),
   );
   const contactByLogin = new Map(
     contacts.map((contact) => [contact.githubLogin, contact]),

@@ -3,7 +3,7 @@ import { defaultPaymentDueDate } from "$lib/server/payments/paymentDate";
 import { getNotificationContact } from "$lib/server/notifications/contactRepository";
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 import { saveEmailPreview } from "$lib/server/notifications/previewStore";
-import { buildSettlementNotification } from "$lib/server/notifications/templates";
+import { buildSettlementNotification } from "$lib/notifications/templates";
 import type {
   NotificationType,
   SettlementNotificationInput,
@@ -71,7 +71,7 @@ export const createTestEmailPreview = async (
   const message = buildSettlementNotification(
     input,
     requestOrigin,
-    env.emailReplyTo,
+    Boolean(env.emailReplyTo),
   );
 
   // 動作確認では業務レコードや配送履歴を作らず、管理者本人宛てのローカルファイルだけを作る。
