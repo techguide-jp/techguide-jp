@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import type { PageProps } from "./$types";
   import { formatDateTime } from "$lib/format";
 
@@ -37,7 +38,7 @@
               <td>
                 <a
                   class="worker-directory-name"
-                  href={`/workers/${worker.login}`}
+                  href={adminViewHref(`/workers/${worker.login}`)}
                 >
                   {worker.displayName}
                 </a>
@@ -65,7 +66,8 @@
               <td>
                 <a
                   class="button secondary compact-button"
-                  href={`/workers/${worker.login}`}>プロフィール</a
+                  href={adminViewHref(`/workers/${worker.login}`)}
+                  >プロフィール</a
                 >
               </td>
             </tr>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
@@ -91,10 +92,9 @@
 
   const profileSyncKey = $derived(profileKey(data.profile));
   const skillsFieldValue = $derived(skills.join("\n"));
+  const canEditSelf = $derived(!data.isAdminView && data.canEditSelf);
   const headingDisplayName = $derived(
-    data.canEditSelf
-      ? displayName || data.profile.login
-      : data.profile.displayName,
+    canEditSelf ? displayName || data.profile.login : data.profile.displayName,
   );
 
   $effect(() => {
@@ -244,9 +244,9 @@
     </div>
   </div>
   <div class="profile-status">
-    {#if data.canEditSelf}
+    {#if canEditSelf}
       本人編集
-    {:else if data.canEditAdminNote}
+    {:else if data.isAdminView}
       管理者閲覧
     {:else}
       閲覧
@@ -268,7 +268,7 @@
       <p class="notice">通知先はまだ同期されていません。</p>
     {/if}
     <p class="muted">
-      GitHub 側でメールアドレスを変更した場合は、{data.canEditSelf
+      GitHub 側でメールアドレスを変更した場合は、{canEditSelf
         ? "一度ログアウトして再ログインすると更新されます。"
         : "ワーカー本人が一度ログアウトして再ログインすると更新されます。"}
     </p>
@@ -277,7 +277,7 @@
 
 <WorkerPreferencesPanel
   preferences={data.preferences}
-  canEdit={data.canEditSelf}
+  canEdit={canEditSelf}
   result={form}
 />
 
@@ -295,7 +295,7 @@
 
     <FormFeedback feedback={profileFeedback} bind:element={profileFeedbackEl} />
 
-    {#if data.canEditSelf}
+    {#if canEditSelf}
       <form
         method="POST"
         action="?/saveSelfProfile"
@@ -420,7 +420,7 @@
     {/if}
   </section>
 
-  {#if data.canEditAdminNote}
+  {#if data.isAdminView}
     <aside class="profile-panel profile-side-panel">
       <div class="profile-panel-heading">
         <div>
@@ -431,7 +431,7 @@
       <FormFeedback feedback={adminFeedback} bind:element={adminFeedbackEl} />
       <form
         method="POST"
-        action="?/saveAdminNote"
+        action={adminViewHref("?/saveAdminNote")}
         use:enhance={enhanceAction("save-admin-note")}
         class="profile-admin-form"
       >
@@ -470,9 +470,11 @@
       <div>
         <p class="eyebrow">payout account</p>
         <h2>振込先情報</h2>
-        <p class="payout-panel-lead">
-          支払い振込に使用する宛先と口座です。通帳またはネットバンキングの表示どおりに入力してください。
-        </p>
+        {#if canEditSelf}
+          <p class="payout-panel-lead">
+            支払い振込に使用する宛先と口座です。通帳またはネットバンキングの表示どおりに入力してください。
+          </p>
+        {/if}
       </div>
       <div class="payout-panel-meta">
         <span
@@ -503,7 +505,7 @@
       <p class="form-error" role="alert">
         振込先情報を読み込めませんでした。管理者にお問い合わせください。
       </p>
-    {:else if data.canEditPayoutAccount}
+    {:else if canEditSelf}
       <form
         method="POST"
         action="?/savePayoutAccount"

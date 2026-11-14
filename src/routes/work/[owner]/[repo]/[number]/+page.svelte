@@ -14,6 +14,7 @@
 
   let { data, form }: PageProps = $props();
   const issue = $derived(data.issue);
+  const canWork = $derived(!data.isAdminView && data.isAssignee);
   const complete = $derived(isIssueCompleted(issue));
   const reward = (amount: number | null): string =>
     amount === null ? "未設定" : `${amount.toLocaleString("ja-JP")}円`;
@@ -24,8 +25,8 @@
 <nav class="breadcrumb" aria-label="パンくず">
   <ol>
     <li>
-      <a href={data.user?.isAdmin ? "/admin/work" : "/work"}
-        >{data.user?.isAdmin ? "稼働管理" : "稼働"}</a
+      <a href={data.isAdminView ? "/admin/work" : "/work"}
+        >{data.isAdminView ? "稼働確認" : "稼働"}</a
       >
     </li>
     <li><span>案件詳細</span></li>
@@ -75,7 +76,7 @@
         </p>{/if}
     </section>
 
-    {#if data.isAssignee}<section class="panel issue-history-panel">
+    {#if canWork}<section class="panel issue-history-panel">
         <h2>あなたの稼働履歴</h2>
         {#if data.sessions.length}<div class="table-wrap">
             <table>
@@ -143,15 +144,29 @@
         </p>{/if}
     </section>
 
-    <WorkIssueActions {data} message={form?.message} />
-    <section class="panel issue-consult-panel">
-      <h2>相談・変更があるとき</h2>
-      <p class="issue-hint">
-        作業範囲・期限・報酬の不明点は着手前に相談してください。決まった内容はIssueに残します。
-      </p>
-      <a href={issue.url} target="_blank" rel="noreferrer"
-        >GitHubで質問・成果物を共有 ↗</a
-      >
-    </section>
+    {#if canWork && data.user}
+      <WorkIssueActions
+        {data}
+        login={data.user.login}
+        message={form?.message}
+      />
+      <section class="panel issue-consult-panel">
+        <h2>相談・変更があるとき</h2>
+        <p class="issue-hint">
+          作業範囲・期限・報酬の不明点は着手前に相談してください。決まった内容はIssueに残します。
+        </p>
+        <a href={issue.url} target="_blank" rel="noreferrer"
+          >GitHubで質問・成果物を共有 ↗</a
+        >
+      </section>
+    {:else}
+      <section class="panel">
+        <p class="muted">
+          {data.isAssignee
+            ? "計測・完了報告は作業モードで行えます。"
+            : "管理者として閲覧中です。稼働・完了報告は担当者本人が操作します。"}
+        </p>
+      </section>
+    {/if}
   </aside>
 </div>

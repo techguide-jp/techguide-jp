@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
@@ -124,7 +125,7 @@
                 </p>
                 <form
                   method="POST"
-                  action="?/revertPayment"
+                  action={adminViewHref("?/revertPayment")}
                   use:enhance={enhanceRevert}
                 >
                   <div class="modal-actions">
@@ -150,7 +151,7 @@
         {:else if paymentEditable}
           <form
             method="POST"
-            action="?/markPaid"
+            action={adminViewHref("?/markPaid")}
             use:enhance={enhanceAction("mark-paid")}
             class="payment-form"
           >
@@ -194,7 +195,7 @@
           <h3>支払い予定日</h3>
           <form
             method="POST"
-            action="?/updatePaymentSchedule"
+            action={adminViewHref("?/updatePaymentSchedule")}
             use:enhance={enhanceAction("update-payment-schedule")}
             class="payment-form"
           >

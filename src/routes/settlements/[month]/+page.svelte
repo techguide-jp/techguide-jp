@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import { enhance } from "$app/forms";
   import { replaceState } from "$app/navigation";
   import type { SubmitFunction } from "@sveltejs/kit";
@@ -303,8 +304,10 @@
         {@const noticeAvailable = noticeAssignees.has(summary.assigneeLogin)}
         <tr>
           <td>
-            <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
-              >{summary.assigneeLogin}</a
+            <a
+              href={adminViewHref(
+                `/settlements/${data.month}/${summary.assigneeLogin}`,
+              )}>{summary.assigneeLogin}</a
             >
             {#if settlementSourceLabel(summary)}
               <small class="muted">{settlementSourceLabel(summary)}</small>
@@ -315,8 +318,10 @@
             >{settlementAmountLabel(summary, "timedRewardYen")}
             {#if summary.lines.some((line) => line.timedRewardCalculation && line.timedRewardCalculation.uncappedYen > line.timedRewardYen)}
               <small>上限適用後の金額で精算</small>
-              <a href={`/settlements/${data.month}/${summary.assigneeLogin}`}
-                >計算内訳を確認</a
+              <a
+                href={adminViewHref(
+                  `/settlements/${data.month}/${summary.assigneeLogin}`,
+                )}>計算内訳を確認</a
               >
             {/if}
           </td>
@@ -334,8 +339,10 @@
               <span class="bad">未登録</span>
             {/if}
             <div>
-              <a href={workerPayoutAccountHref(summary.assigneeLogin)}
-                >振込先を確認</a
+              <a
+                href={adminViewHref(
+                  workerPayoutAccountHref(summary.assigneeLogin),
+                )}>振込先を確認</a
               >
             </div>
           </td>
@@ -429,7 +436,9 @@
               {#if noticeAvailable}
                 <a
                   class="button secondary"
-                  href={`/settlements/${data.month}/${summary.assigneeLogin}/notice`}
+                  href={adminViewHref(
+                    `/settlements/${data.month}/${summary.assigneeLogin}/notice`,
+                  )}
                 >
                   通知書を見る
                 </a>
@@ -528,8 +537,9 @@
                   {#if entry.payment.scheduledDate}
                     <a
                       class="button secondary"
-                      href={`/settlements/${entry.payment.month}/${entry.payment.assigneeLogin}/notice?supplemental=${entry.payment.id}`}
-                      >通知書を見る</a
+                      href={adminViewHref(
+                        `/settlements/${entry.payment.month}/${entry.payment.assigneeLogin}/notice?supplemental=${entry.payment.id}`,
+                      )}>通知書を見る</a
                     >
                   {/if}
                   {#if !entry.payment.scheduledDate}

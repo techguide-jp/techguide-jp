@@ -176,7 +176,7 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
   await expect(noticeLink).toBeVisible();
   await noticeLink.click();
   await expect(page).toHaveURL(
-    new RegExp(`/settlements/${month}/tashua314/notice$`),
+    `/settlements/${month}/tashua314/notice?mode=admin`,
   );
   await expect(
     page.getByRole("heading", { name: "支払い通知書", exact: true }).first(),
@@ -189,7 +189,14 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
     page.getByText("#502 E2E: 月次申請と承認を確認する").first(),
   ).toBeVisible();
 
-  await page.goto(`/settlements/${month}/tashua314`);
+  await page.getByRole("link", { name: "月次精算に戻る" }).click();
+  await expect(page.getByRole("link", { name: "管理モード" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(
+    page.getByText("申請時の本人用メモ", { exact: true }),
+  ).toHaveCount(0);
   const detailNoticeLink = page.getByRole("link", {
     name: "支払い通知書を確認する",
     exact: true,
@@ -209,6 +216,18 @@ test("本人申請後に管理者が月次承認できる", async ({ page }) => 
     page.getByRole("heading", { name: "支払い通知書", exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText("通知書には含めない支払い連絡")).toHaveCount(0);
+  await page.getByRole("link", { name: "作業モード" }).click();
+  await page.getByRole("link", { name: "自分の精算", exact: true }).click();
+  await expect(page.locator(".payment-comment")).toHaveText(
+    "通知書には含めない支払い連絡",
+  );
+  await expect(page.getByRole("button", { name: "未処理に戻す" })).toHaveCount(
+    0,
+  );
+  await detailNoticeLink.click();
+  await expect(
+    page.getByRole("button", { name: "通知書を再作成" }),
+  ).toHaveCount(0);
 });
 
 test("管理者が動作確認用メールプレビューを生成して確認できる", async ({
@@ -302,12 +321,76 @@ test("管理者メモは作業者本人のプロフィールデータに含め�
   await expect(page.getByText("管理者メモを保存しました。")).toBeVisible();
 
   await page.goto("/__e2e/login?login=worker-user");
-  await page.goto("/workers/worker-user");
+  await page.goto("/workers/worker-user?mode=admin");
 
   await expect(page.getByRole("heading", { name: "管理者メモ" })).toHaveCount(
     0,
   );
+  await expect(
+    page.getByRole("navigation", { name: "表示モード" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "プロフィールを保存" }),
+  ).toBeVisible();
   expect(await page.content()).not.toContain(adminNote);
+});
+
+test("管理者本人のプロフィールは導線に応じて編集操作を表示する", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/__e2e/login");
+  const nav = page.getByRole("navigation", { name: "主要ナビゲーション" });
+  const switcher = page.getByRole("navigation", { name: "表示モード" });
+  await expect(
+    switcher.getByRole("link", { name: "作業モード" }),
+  ).toBeInViewport();
+  await expect(
+    switcher.getByRole("link", { name: "管理モード" }),
+  ).toBeInViewport();
+  expect(
+    await switcher.evaluate((element) => element.getBoundingClientRect().right),
+  ).toBeLessThanOrEqual(390);
+
+  await nav.getByRole("link", { name: "プロフィール" }).click();
+  await expect(
+    page.getByRole("button", { name: "プロフィールを保存" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "管理者メモ" })).toHaveCount(
+    0,
+  );
+
+  await switcher.getByRole("link", { name: "管理モード" }).click();
+  await nav.getByRole("link", { name: "登録者一覧" }).click();
+  await page
+    .getByRole("row")
+    .filter({ hasText: "tashua314" })
+    .getByRole("link", { name: "プロフィール" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "管理者メモを保存" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "プロフィールを保存" }),
+  ).toHaveCount(0);
+  await page.getByRole("textbox", { name: "メモ" }).fill("管理モードから記入");
+  await page.getByRole("button", { name: "管理者メモを保存" }).click();
+  await expect(page.getByText("管理者メモを保存しました。")).toBeVisible();
+  await page.reload();
+  await expect(
+    switcher.getByRole("link", { name: "管理モード" }),
+  ).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("textbox", { name: "メモ" })).toHaveValue(
+    "管理モードから記入",
+  );
+  await page.goBack();
+  await expect(nav.getByRole("link", { name: "登録者一覧" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
 });
 
 test("本人がSlack IDを保存し管理者が登録者一覧で確認できる", async ({

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import type { PageProps } from "./$types";
   import CopyLoginButton from "$lib/components/CopyLoginButton.svelte";
   import CopyIssueRequestButton from "$lib/components/CopyIssueRequestButton.svelte";
@@ -125,7 +126,9 @@
           <div class="worker-card-heading">
             <div>
               <h3>
-                <a href={`/workers/${worker.login}`}>{worker.displayName}</a>
+                <a href={adminViewHref(`/workers/${worker.login}`)}
+                  >{worker.displayName}</a
+                >
               </h3>
               <p class="muted">{worker.login}</p>
             </div>
@@ -176,7 +179,9 @@
           <div class="worker-card-heading">
             <div>
               <h3>
-                <a href={`/workers/${worker.login}`}>{worker.displayName}</a>
+                <a href={adminViewHref(`/workers/${worker.login}`)}
+                  >{worker.displayName}</a
+                >
               </h3>
               <code>{worker.login}</code>
             </div>
@@ -228,7 +233,9 @@
           <div class="worker-card-heading">
             <div>
               <h3>
-                <a href={`/workers/${worker.login}`}>{worker.displayName}</a>
+                <a href={adminViewHref(`/workers/${worker.login}`)}
+                  >{worker.displayName}</a
+                >
               </h3>
               <code>{worker.login}</code>
             </div>
@@ -334,8 +341,9 @@
             >
               <td
                 ><small>{formatProjectName(issue.repository)}</small><a
-                  href={workIssueHref(issue.repository, issue.number)}
-                  >{formatIssueName(issue.number, issue.title)}</a
+                  href={adminViewHref(
+                    workIssueHref(issue.repository, issue.number),
+                  )}>{formatIssueName(issue.number, issue.title)}</a
                 ></td
               >
               <td>{issue.assignees.join("、") || "未設定"}</td><td
@@ -465,7 +473,7 @@
           {#each data.pendingRequests as request (request.id)}
             <tr>
               <td>
-                <a href={`/workers/${request.assigneeLogin}`}
+                <a href={adminViewHref(`/workers/${request.assigneeLogin}`)}
                   >{request.assigneeLogin}</a
                 >
               </td>

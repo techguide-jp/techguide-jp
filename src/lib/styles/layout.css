@@ -11,6 +11,30 @@
     @apply font-extrabold no-underline;
   }
 
+  .mode-switch {
+    @apply inline-flex gap-0.5 rounded-lg border border-stone-200 bg-stone-100 p-0.5 text-sm font-bold;
+  }
+
+  .mode-switch a {
+    @apply rounded-md px-3 py-1.5 text-slate-700 no-underline hover:bg-white hover:text-emerald-900;
+  }
+
+  .mode-switch a[aria-current="true"] {
+    @apply bg-emerald-900 text-white;
+  }
+
+  .mode-switch a:focus-visible {
+    @apply outline-2 outline-offset-2 outline-emerald-700;
+  }
+
+  .topbar.has-mode-switch .topnav {
+    @apply w-full border-t border-stone-200 pt-3 sm:gap-4;
+  }
+
+  .topbar.has-mode-switch {
+    @apply max-sm:gap-3 max-sm:px-4;
+  }
+
   .topnav {
     @apply flex flex-wrap gap-3 text-sm;
   }

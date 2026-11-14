@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { ActionData, PageProps } from "./$types";
@@ -79,7 +80,19 @@
         },
   );
   const submission = $derived(data.submission);
-  const canSubmitWork = $derived(data.user?.login === data.assignee);
+  const canSubmitWork = $derived(
+    !data.isAdminView && data.user?.login === data.assignee,
+  );
+  const feedback = $derived(
+    data.isAdminView && data.feedback
+      ? { ...data.feedback, privateReflection: undefined }
+      : data.feedback,
+  );
+  const viewHref = (href: string) =>
+    data.isAdminView ? adminViewHref(href) : href;
+  const payoutAccountHref = $derived(
+    viewHref(workerPayoutAccountHref(data.assignee)),
+  );
   const actionMessage = $derived(
     (formResult?.scope === "submission" && !("feedbackInput" in formResult)) ||
       (formResult?.scope === "preferences" &&
@@ -114,10 +127,11 @@
     <h1>{data.assignee} / {formatMonthLabel(data.month)}</h1>
   </div>
   <nav class="month-nav" aria-label="月移動">
-    <a href={`/settlements/${previousMonth}/${data.assignee}`}>前月</a>
-    <a href={`/settlements/${currentMonth}/${data.assignee}`}>今月</a>
+    <a href={viewHref(`/settlements/${previousMonth}/${data.assignee}`)}>前月</a
+    >
+    <a href={viewHref(`/settlements/${currentMonth}/${data.assignee}`)}>今月</a>
     {#if canGoNext}
-      <a href={`/settlements/${nextMonth}/${data.assignee}`}>翌月</a>
+      <a href={viewHref(`/settlements/${nextMonth}/${data.assignee}`)}>翌月</a>
     {:else}
       <span>翌月</span>
     {/if}
@@ -140,11 +154,15 @@
 {#if !data.payoutAccountStatus.registered}
   <section class="panel alert">
     <h2>振込先情報が未登録です</h2>
-    <p>
-      支払い前に振込先の登録が必要です。<a
-        href={workerPayoutAccountHref(data.assignee)}>振込先情報</a
-      >から登録してください。
-    </p>
+    {#if data.isAdminView}
+      <p>支払い前に、対象者へ振込先情報の登録を依頼してください。</p>
+    {:else}
+      <p>
+        支払い前に振込先の登録が必要です。<a href={payoutAccountHref}
+          >振込先情報</a
+        >から登録してください。
+      </p>
+    {/if}
   </section>
 {/if}
 
@@ -174,7 +192,9 @@
     <div>
       <dt>確認</dt>
       <dd>
-        <a href={workerPayoutAccountHref(data.assignee)}>振込先を確認・登録</a>
+        <a href={payoutAccountHref}>
+          {data.isAdminView ? "振込先を確認" : "振込先を確認・登録"}
+        </a>
       </dd>
     </div>
   </dl>
@@ -185,7 +205,7 @@
     {paymentInput}
     payment={data.payment}
     paymentEditable={data.paymentEditable}
-    isAdmin={Boolean(data.user?.isAdmin)}
+    isAdmin={data.isAdminView}
     message={paymentMessage}
     {pendingAction}
     {enhanceAction}
@@ -201,7 +221,7 @@
     <p>
       <a
         class="button primary"
-        href={`/settlements/${data.month}/${data.assignee}/notice`}
+        href={viewHref(`/settlements/${data.month}/${data.assignee}/notice`)}
       >
         支払い通知書を確認する
       </a>
@@ -224,7 +244,7 @@
       month={data.month}
       assignee={data.assignee}
       initiallyOpen={data.requestedForm === "feedback"}
-      feedback={data.feedback}
+      {feedback}
       canEdit={canSubmitWork && Boolean(submission) && !data.snapshot}
       result={form}
     />
@@ -375,7 +395,9 @@
                 <td>
                   {#if entry.payment.scheduledDate}
                     <a
-                      href={`/settlements/${data.month}/${data.assignee}/notice?supplemental=${entry.payment.id}`}
+                      href={viewHref(
+                        `/settlements/${data.month}/${data.assignee}/notice?supplemental=${entry.payment.id}`,
+                      )}
                     >
                       追加支払い通知書
                     </a>
@@ -396,7 +418,7 @@
       month={data.month}
       assignee={data.assignee}
       isSelf={canSubmitWork}
-      isAdmin={Boolean(data.user?.isAdmin)}
+      isAdmin={data.isAdminView}
       required={summary.approvalRequired}
       approved={Boolean(data.snapshot)}
       projectFetchError={data.projectFetchError}

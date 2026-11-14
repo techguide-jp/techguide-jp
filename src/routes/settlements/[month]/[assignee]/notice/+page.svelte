@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminViewHref } from "$lib/adminViewHref";
   import TimedRewardDetail from "$lib/components/TimedRewardDetail.svelte";
   import { enhance } from "$app/forms";
   import type { PageProps } from "./$types";
@@ -15,8 +16,8 @@
   let { data, form }: PageProps = $props();
 
   const notice = $derived(data.notice);
-  const isAdmin = $derived(Boolean(data.user?.isAdmin));
-  const isSelf = $derived(data.user?.login === data.assignee);
+  const isAdmin = $derived(data.isAdminView);
+  const detailHref = $derived(`/settlements/${data.month}/${data.assignee}`);
   const lineWarnings = $derived(
     (notice?.document.lines ?? []).filter((line) => line.warnings.length > 0),
   );
@@ -92,12 +93,12 @@
     {/if}
     <a
       class="button ghost"
-      href={`/settlements/${data.month}/${data.assignee}`}
+      href={isAdmin ? adminViewHref(detailHref) : detailHref}
     >
       月次精算に戻る
     </a>
     {#if isAdmin && data.approved && !data.isSupplemental}
-      <form method="POST" action="?/recreate" use:enhance>
+      <form method="POST" action={adminViewHref("?/recreate")} use:enhance>
         <button type="submit" class="button ghost">通知書を再作成</button>
       </form>
     {/if}
@@ -126,7 +127,7 @@
       <div class="alert">
         振込先情報が未登録のため、支払い通知書を作成できません。
       </div>
-      {#if isSelf}
+      {#if !isAdmin}
         <p>
           <a href={workerPayoutAccountHref(data.assignee)}>振込先情報</a
           >から登録してください。
@@ -136,11 +137,14 @@
       {/if}
     {:else}
       <h2>支払い通知書のスナップショットがありません</h2>
-      <p class="muted">
-        通知書がまだ保存されていません。承認済みの精算内容から通知書を再作成してください。
-      </p>
       {#if isAdmin}
-        <p class="muted">上部の「通知書を再作成」から作成できます。</p>
+        <p class="muted">
+          上部の「通知書を再作成」から承認済みの精算内容で作成できます。
+        </p>
+      {:else}
+        <p class="muted">
+          通知書の作成については管理者にお問い合わせください。
+        </p>
       {/if}
     {/if}
   </section>
