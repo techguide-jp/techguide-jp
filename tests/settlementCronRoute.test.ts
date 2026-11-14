@@ -38,6 +38,7 @@ describe("GET /api/cron/settlement-maintenance", () => {
       reconciledSupplemental: 2,
       remindersCreated: 3,
       reminderMonth: "2026-08",
+      adminReminderCreated: false,
     });
 
     const response = await call("Bearer cron-secret");
@@ -49,6 +50,7 @@ describe("GET /api/cron/settlement-maintenance", () => {
       reconciledSupplemental: 2,
       remindersCreated: 3,
       reminderMonth: "2026-08",
+      adminReminderCreated: false,
     });
   });
 });

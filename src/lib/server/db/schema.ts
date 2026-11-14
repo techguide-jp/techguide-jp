@@ -57,6 +57,7 @@ export const emailNotificationType = pgEnum("email_notification_type", [
   "monthly_submission_reminder",
   "supplemental_payment_scheduled",
   "supplemental_payment_paid",
+  "monthly_letter_missing",
 ]);
 
 export const emailDeliveryStatus = pgEnum("email_delivery_status", [
@@ -608,6 +609,29 @@ export const auditLogs = pgTable(
     index("audit_logs_actor_idx").on(table.actorLogin),
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const monthlyWorkerLetters = pgTable(
+  "monthly_worker_letters",
+  {
+    sendMonth: text("send_month").primaryKey(),
+    body: text("body").notNull(),
+    version: integer("version").notNull().default(1),
+    updatedBy: text("updated_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "monthly_worker_letters_send_month_chk",
+      sql`${table.sendMonth} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      "monthly_worker_letters_body_length_chk",
+      sql`char_length(${table.body}) <= 4000`,
+    ),
   ],
 );
 

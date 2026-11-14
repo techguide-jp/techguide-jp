@@ -4,6 +4,7 @@ import {
   authSessions,
   emailDeliveries,
   emailNotificationEvents,
+  monthlyWorkerLetters,
   githubProjectStatusSyncs,
   issueCompletionReports,
   issueHourlyRates,
@@ -31,6 +32,7 @@ export const POST = async () => {
   await db.delete(auditLogs);
   await db.delete(emailDeliveries);
   await db.delete(emailNotificationEvents);
+  await db.delete(monthlyWorkerLetters);
   await db.delete(paymentNotices);
   await db.delete(supplementalPayments);
   await db.delete(issueCompletionReports);

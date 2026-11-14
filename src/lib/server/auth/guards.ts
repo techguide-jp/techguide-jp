@@ -1,16 +1,12 @@
 import { redirect } from "@sveltejs/kit";
 import type { RequestEvent } from "@sveltejs/kit";
+import { safeLoginReturn } from "$lib/server/auth/loginReturn";
 
 export const requireUser = (event: RequestEvent) => {
   if (!event.locals.user) {
-    if (
-      event.request.method === "GET" &&
-      event.url.pathname.startsWith("/work/")
-    ) {
-      throw redirect(
-        303,
-        `/login?returnTo=${encodeURIComponent(event.url.pathname)}`,
-      );
+    const returnTo = safeLoginReturn(event.url.pathname);
+    if (event.request.method === "GET" && returnTo !== "/work") {
+      throw redirect(303, `/login?returnTo=${encodeURIComponent(returnTo)}`);
     }
     throw redirect(303, "/login");
   }

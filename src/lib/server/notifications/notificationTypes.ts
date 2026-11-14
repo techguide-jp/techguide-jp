@@ -3,6 +3,7 @@ export type NotificationType =
   | "settlement_approved"
   | "settlement_paid"
   | "monthly_submission_reminder"
+  | "monthly_letter_missing"
   | "supplemental_payment_scheduled"
   | "supplemental_payment_paid";
 
@@ -27,4 +28,10 @@ export type SettlementNotificationInput = {
   isRepeat?: boolean;
   hasPaymentNotice?: boolean;
   supplementalPaymentId?: string;
+  monthlyLetterBody?: string;
+  monthlySubmissionStatus?:
+    | "required"
+    | "submitted"
+    | "approved"
+    | "not_required";
 };

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout } from "node:timers/promises";
 import { Resend } from "resend";
 import type { EmailDelivery } from "$lib/server/db/schema";
 import { env } from "$lib/server/env";
@@ -37,7 +38,8 @@ export type PreparedSettlementNotification =
   | { mode: "resend"; write: PreparedNotificationWrite };
 
 const recipientLogins = (input: SettlementNotificationInput): string[] =>
-  input.type === "settlement_submitted"
+  input.type === "settlement_submitted" ||
+  input.type === "monthly_letter_missing"
     ? [...env.adminGithubLogins]
     : [input.assigneeLogin];
 
@@ -68,7 +70,9 @@ export const prepareSettlementNotification = async (
   );
   const logins = recipientLogins(input);
   const [profile, contacts] = await Promise.all([
-    getWorkerProfile(input.assigneeLogin),
+    input.type === "monthly_letter_missing"
+      ? null
+      : getWorkerProfile(input.assigneeLogin),
     listNotificationContacts(logins),
   ]);
   const message = buildSettlementNotification(
@@ -273,17 +277,27 @@ const dispatchPersistedDelivery = async (
 
 export const dispatchPreparedNotification = async (
   prepared: PreparedSettlementNotification,
+  options: { paceDeliveries?: boolean } = {},
 ): Promise<void> => {
   try {
     if (prepared.mode === "preview") {
       await Promise.all(prepared.entries.map(saveEmailPreview));
       return;
     }
-    await Promise.all(
-      prepared.write.deliveries.map(async (candidate) => {
-        await dispatchPersistedDelivery(candidate.id, "pending");
-      }),
-    );
+    if (options.paceDeliveries) {
+      for (const candidate of prepared.write.deliveries) {
+        if (await dispatchPersistedDelivery(candidate.id, "pending")) {
+          // 月次の一斉通知でAPIの送信レート上限に達しにくくする。
+          await setTimeout(150);
+        }
+      }
+    } else {
+      await Promise.all(
+        prepared.write.deliveries.map(async (candidate) => {
+          await dispatchPersistedDelivery(candidate.id, "pending");
+        }),
+      );
+    }
   } catch (error) {
     // 通知障害は、確定済みの精算操作を失敗させない。
     console.error("Email notification dispatch deferred", error);

@@ -53,6 +53,24 @@ describe("案件URLのログイン復帰", () => {
       }),
     );
   });
+  it.each([
+    "/work/preferences",
+    "/admin/email-previews/monthly-letter",
+    "/settlements/2026-08/worker",
+  ])("通知先の %s をログイン復帰先に引き継ぐ", (path) => {
+    expect(safeLoginReturn(path)).toBe(path);
+    expect(() =>
+      requireUser({
+        locals: { user: null },
+        request: { method: "GET" },
+        url: new URL(path, "https://techguide-jp.vercel.app"),
+      } as RequestEvent),
+    ).toThrow(
+      expect.objectContaining({
+        location: `/login?returnTo=${encodeURIComponent(path)}`,
+      }),
+    );
+  });
   it("OAuth state検証後に元の案件へ戻り、戻り先Cookieを削除する", async () => {
     const cookies = {
       get: (name: string) =>
