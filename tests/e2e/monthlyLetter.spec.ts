@@ -91,3 +91,98 @@ test("翌月のお手紙を管理者が保存でき、他の画面からの上�
   await expect(page).toHaveURL("/workers/worker#preferences-heading");
   await expect(page.getByRole("heading", { name: "現在の希望" })).toBeVisible();
 });
+
+test("共通の件名とデフォルト文を設定するとプレビューと再表示に反映される", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const month = formatMonthLabel(currentJstMonth());
+  await page.goto("/__e2e/login");
+  await page.goto(letterPath);
+  const preview = page.frameLocator(
+    'iframe[title="月次メールの本文プレビュー"]',
+  );
+  const status = page.getByLabel("申請状況", { exact: true });
+  const requiredSubject = page.getByLabel("件名（未申請者向け）");
+  const standardSubject = page.getByLabel(
+    "件名（提出済み・承認済み・精算対象なし）",
+  );
+  const defaultBody = page.getByLabel("デフォルト文", { exact: true });
+  const letter = page.getByLabel("本文", { exact: true });
+  const save = page.getByRole("button", { name: "共通設定を保存" });
+  await page.waitForLoadState("networkidle");
+
+  const other = await context.newPage();
+  await other.goto(letterPath);
+  await other.waitForLoadState("networkidle");
+
+  await requiredSubject.fill("{対象月}の月次申請をお願いします");
+  await standardSubject.fill("{対象月}のお知らせ");
+  await defaultBody.fill("{対象月}のご協力に感謝します。");
+  await expect(
+    page.getByText(`${month}の月次申請をお願いします`),
+  ).toBeVisible();
+  await expect(
+    preview.getByText(`${month}のご協力に感謝します。`),
+  ).toBeVisible();
+  await status.selectOption("submitted");
+  await expect(page.getByText(`${month}のお知らせ`)).toBeVisible();
+
+  await letter.fill("翌月分だけの下書き");
+  await save.click();
+  await expect(page.getByRole("status")).toHaveText(
+    "月次メールの共通設定を保存しました。",
+  );
+  await expect(letter).toHaveValue("翌月分だけの下書き");
+  await expect(preview.getByText("翌月分だけの下書き")).toBeVisible();
+  await expect(preview.getByText(`${month}のご協力に感謝します。`)).toHaveCount(
+    0,
+  );
+
+  await other
+    .getByLabel("デフォルト文", { exact: true })
+    .fill("古い画面の共通設定");
+  await other.getByRole("button", { name: "共通設定を保存" }).click();
+  await expect(other.getByRole("status")).toContainText(
+    "別の画面で共通設定が更新されました",
+  );
+  await expect(other.getByLabel("デフォルト文", { exact: true })).toHaveValue(
+    "古い画面の共通設定",
+  );
+  await other.close();
+
+  await page.reload();
+  await expect(requiredSubject).toHaveValue("{対象月}の月次申請をお願いします");
+  await expect(standardSubject).toHaveValue("{対象月}のお知らせ");
+  await expect(defaultBody).toHaveValue("{対象月}のご協力に感謝します。");
+  await expect(letter).toHaveValue("");
+  await expect(
+    preview.getByText(`${month}のご協力に感謝します。`),
+  ).toBeVisible();
+
+  const invalid = await page.request.post(`${letterPath}?/saveTemplates`, {
+    form: {
+      templatesVersion: "1",
+      requiredSubject: "件名\n改行",
+      standardSubject: "お知らせ",
+      defaultBody: "本文",
+    },
+    headers: { origin: baseURL!, accept: "text/html" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  await page.goto("/__e2e/login?login=worker");
+  const denied = await page.request.post(`${letterPath}?/saveTemplates`, {
+    form: {
+      templatesVersion: "1",
+      requiredSubject: "権限外の入力",
+      standardSubject: "お知らせ",
+      defaultBody: "本文",
+    },
+    headers: { origin: baseURL!, accept: "text/html" },
+    maxRedirects: 0,
+  });
+  expect(denied.status()).toBe(303);
+  expect(denied.headers().location).toBe("/work");
+});

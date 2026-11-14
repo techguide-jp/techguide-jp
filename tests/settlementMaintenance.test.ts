@@ -11,12 +11,23 @@ import {
   prepareSettlementNotificationSafely,
 } from "$lib/server/notifications/notificationService";
 import { runSettlementMaintenance } from "$lib/server/settlements/settlementMaintenanceService";
-import { getMonthlyWorkerLetter } from "$lib/server/notifications/monthlyLetterRepository";
+import {
+  getMonthlyLetterTemplates,
+  getMonthlyWorkerLetter,
+} from "$lib/server/notifications/monthlyLetterRepository";
 import { listAllWorkerProfiles } from "$lib/server/workers/workerProfileRepository";
 
 vi.mock("$lib/server/notifications/monthlyLetterRepository", () => ({
+  getMonthlyLetterTemplates: vi.fn(),
   getMonthlyWorkerLetter: vi.fn(),
 }));
+
+const templates = {
+  requiredSubject: "{対象月}の精算申請のご案内",
+  standardSubject: "{対象月}のお手紙",
+  defaultBody: "{対象月}もありがとうございました。",
+  version: 1,
+};
 vi.mock("$lib/server/workers/workerProfileRepository", () => ({
   listAllWorkerProfiles: vi.fn(),
 }));
@@ -70,6 +81,7 @@ describe("runSettlementMaintenance", () => {
       supplemental: 2,
     });
     vi.mocked(getMonthlyWorkerLetter).mockResolvedValue(null);
+    vi.mocked(getMonthlyLetterTemplates).mockResolvedValue(templates);
     vi.mocked(listAllWorkerProfiles).mockResolvedValue([
       { login: "worker", displayName: "作業者" },
     ] as never);
@@ -134,6 +146,7 @@ describe("runSettlementMaintenance", () => {
       expect(reconcileCompletionReports).toHaveBeenCalledOnce();
       expect(loadSettlementMonth).toHaveBeenCalledWith("2026-08");
       expect(getMonthlyWorkerLetter).toHaveBeenCalledWith("2026-09");
+      expect(getMonthlyLetterTemplates).toHaveBeenCalledOnce();
       expect(
         vi
           .mocked(prepareSettlementNotificationSafely)
@@ -152,6 +165,7 @@ describe("runSettlementMaintenance", () => {
           type: "monthly_submission_reminder",
           month: "2026-08",
           monthlyLetterBody: "今月のお手紙",
+          monthlyLetterTemplates: templates,
         }),
       );
       expect(insertPreparedNotification).toHaveBeenCalledTimes(4);

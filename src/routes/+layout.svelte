@@ -1,8 +1,10 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import { onMount } from "svelte";
   import type { LayoutProps } from "./$types";
   import { currentJstMonth, formatMonthLabel } from "$lib/month";
   import LocalImpersonationBanner from "$lib/components/LocalImpersonationBanner.svelte";
+  import { watchDeploymentAfterReload } from "$lib/refreshDeployment";
   import "../app.css";
 
   type BreadcrumbItem = {
@@ -11,6 +13,7 @@
   };
 
   let { data, children }: LayoutProps = $props();
+  onMount(watchDeploymentAfterReload);
   const currentMonth = $derived(currentJstMonth());
   const pathname = $derived(page.url.pathname);
   const homeHref = $derived(

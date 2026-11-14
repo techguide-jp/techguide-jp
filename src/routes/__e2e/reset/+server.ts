@@ -5,6 +5,7 @@ import {
   emailDeliveries,
   emailNotificationEvents,
   monthlyWorkerLetters,
+  monthlyWorkerLetterSettings,
   githubProjectStatusSyncs,
   issueCompletionReports,
   issueHourlyRates,
@@ -23,6 +24,7 @@ import {
 import { db } from "$lib/server/db/client";
 import { env } from "$lib/server/env";
 import { cleanupEmailPreviews } from "$lib/server/notifications/previewStore";
+import { defaultMonthlyLetterTemplates } from "$lib/monthlyLetter";
 
 export const POST = async () => {
   if (!env.e2eTestMode) {
@@ -33,6 +35,13 @@ export const POST = async () => {
   await db.delete(emailDeliveries);
   await db.delete(emailNotificationEvents);
   await db.delete(monthlyWorkerLetters);
+  await db
+    .insert(monthlyWorkerLetterSettings)
+    .values(defaultMonthlyLetterTemplates)
+    .onConflictDoUpdate({
+      target: monthlyWorkerLetterSettings.id,
+      set: { ...defaultMonthlyLetterTemplates, version: 1 },
+    });
   await db.delete(paymentNotices);
   await db.delete(supplementalPayments);
   await db.delete(issueCompletionReports);
