@@ -11,7 +11,10 @@ import {
 } from "$lib/server/notifications/notificationService";
 import { buildNotificationOperationId } from "$lib/server/notifications/notificationOperation";
 import type { SettlementNotificationInput } from "$lib/server/notifications/notificationTypes";
-import { getMonthlyWorkerLetter } from "$lib/server/notifications/monthlyLetterRepository";
+import {
+  getMonthlyLetterTemplates,
+  getMonthlyWorkerLetter,
+} from "$lib/server/notifications/monthlyLetterRepository";
 import { listAllWorkerProfiles } from "$lib/server/workers/workerProfileRepository";
 import { normalizeNotificationLogin } from "$lib/server/notifications/contactRepository";
 import { loadSettlementMonth } from "$lib/server/settlements/settlementService";
@@ -83,11 +86,13 @@ export const runSettlementMaintenance = async (
   }
   const reconciled = await reconcileCompletionReports(project.issues);
   const reminderMonth = addMonths(month, -1);
-  const [settlement, workers, letter] = await Promise.all([
-    loadSettlementMonth(reminderMonth),
-    listAllWorkerProfiles(),
-    getMonthlyWorkerLetter(month),
-  ]);
+  const [settlement, workers, letter, monthlyLetterTemplates] =
+    await Promise.all([
+      loadSettlementMonth(reminderMonth),
+      listAllWorkerProfiles(),
+      getMonthlyWorkerLetter(month),
+      getMonthlyLetterTemplates(),
+    ]);
   const settlementError =
     settlement.projectFetchError ?? settlement.settlementCalculationError;
   if (settlementError) throw new Error(settlementError);
@@ -135,6 +140,7 @@ export const runSettlementMaintenance = async (
       taxExcludedYen: summary?.taxExcludedYen ?? 0,
       taxIncludedYen: summary?.taxIncludedYen ?? 0,
       monthlyLetterBody: letter?.body,
+      monthlyLetterTemplates,
       monthlySubmissionStatus,
     });
     if (inserted) remindersCreated += 1;

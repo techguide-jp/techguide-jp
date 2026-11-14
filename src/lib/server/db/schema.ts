@@ -635,6 +635,20 @@ export const monthlyWorkerLetters = pgTable(
   ],
 );
 
+export const monthlyWorkerLetterSettings = pgTable(
+  "monthly_worker_letter_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    requiredSubject: text("required_subject").notNull(),
+    standardSubject: text("standard_subject").notNull(),
+    defaultBody: text("default_body").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check("monthly_worker_letter_settings_singleton_chk", sql`${table.id} = 1`),
+  ],
+);
+
 export const emailNotificationEvents = pgTable(
   "email_notification_events",
   {

@@ -120,6 +120,13 @@
       "when": 1794644950440,
       "tag": "0016_monthly_worker_letters",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794647997217,
+      "tag": "0017_monthly_letter_settings",
+      "breakpoints": true
     }
   ]
 }

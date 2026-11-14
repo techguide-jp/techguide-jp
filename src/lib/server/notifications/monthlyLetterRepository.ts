@@ -1,6 +1,50 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "$lib/server/db/client";
-import { monthlyWorkerLetters } from "$lib/server/db/schema";
+import {
+  monthlyWorkerLetters,
+  monthlyWorkerLetterSettings,
+} from "$lib/server/db/schema";
+import {
+  defaultMonthlyLetterTemplates,
+  type MonthlyLetterTemplates,
+} from "$lib/monthlyLetter";
+
+export const getMonthlyLetterTemplates = async () => {
+  const { requiredSubject, standardSubject, defaultBody, version } =
+    monthlyWorkerLetterSettings;
+  const [settings] = await db
+    .select({ requiredSubject, standardSubject, defaultBody, version })
+    .from(monthlyWorkerLetterSettings);
+  return settings ?? { ...defaultMonthlyLetterTemplates, version: 0 };
+};
+
+export const saveMonthlyLetterTemplates = async (
+  templates: MonthlyLetterTemplates,
+  version: number,
+): Promise<boolean> => {
+  if (version === 0) {
+    const rows = await db
+      .insert(monthlyWorkerLetterSettings)
+      .values(templates)
+      .onConflictDoNothing({ target: monthlyWorkerLetterSettings.id })
+      .returning();
+    return rows.length > 0;
+  }
+  const rows = await db
+    .update(monthlyWorkerLetterSettings)
+    .set({
+      ...templates,
+      version: sql`${monthlyWorkerLetterSettings.version} + 1`,
+    })
+    .where(
+      and(
+        eq(monthlyWorkerLetterSettings.id, 1),
+        eq(monthlyWorkerLetterSettings.version, version),
+      ),
+    )
+    .returning();
+  return rows.length > 0;
+};
 
 export const getMonthlyWorkerLetter = async (
   sendMonth: string,

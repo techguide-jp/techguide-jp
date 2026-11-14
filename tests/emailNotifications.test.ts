@@ -37,18 +37,29 @@ describe("email notification templates", () => {
           taxIncludedYen: 0,
           monthlySubmissionStatus: status,
           monthlyLetterBody: status === "required" ? "本文 <b>\n2行目" : " ",
+          monthlyLetterTemplates: {
+            requiredSubject: "{対象月}の精算申請のご案内",
+            standardSubject: "{対象月}のお手紙",
+            defaultBody: "{対象月}もありがとうございました。",
+          },
         },
         "https://example.com/",
+      );
+      expect(message.subject).toBe(
+        status === "required"
+          ? "2026年8月の精算申請のご案内"
+          : "2026年8月のお手紙",
       );
       for (const body of [message.text, message.html]) {
         expect(body).toContain(guidance);
         expect(body).toContain("https://example.com/work/preferences");
         if (status === "required") {
+          expect(body).not.toContain("2026年8月もありがとうございました。");
           expect(body).toContain(
             "https://example.com/settlements/2026-08/worker",
           );
         } else {
-          expect(body).toContain("TechGuideの業務にお力添え");
+          expect(body).toContain("2026年8月もありがとうございました。");
           expect(body).not.toContain("月次精算を確認・申請する");
         }
       }

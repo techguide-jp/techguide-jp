@@ -3,8 +3,9 @@ import type {
   SettlementNotificationInput,
 } from "$lib/server/notifications/notificationTypes";
 import {
-  defaultMonthlyLetter,
+  defaultMonthlyLetterTemplates,
   monthlyLetterAdminHref,
+  renderMonthlyLetterTemplate,
 } from "$lib/monthlyLetter";
 import { workerPreferencesEntryHref } from "$lib/workerPreferences";
 
@@ -119,6 +120,8 @@ const buildEmailContent = (
 
   if (input.type === "monthly_submission_reminder") {
     const applicationRequired = input.monthlySubmissionStatus === "required";
+    const templates =
+      input.monthlyLetterTemplates ?? defaultMonthlyLetterTemplates;
     const settlementMessages = {
       required: `${month}の月次確定申請がまだ提出されていません。内容を確認し、3日を目安に申請してください。3日以降も申請できます。`,
       submitted: `${month}の月次確定申請は提出済みです。`,
@@ -126,12 +129,16 @@ const buildEmailContent = (
       not_required: `${month}は月次確定申請の対象となる精算がありません。`,
     };
     return {
-      subject: applicationRequired
-        ? `【TechGuide】${month}のお手紙と月次確定申請のご案内`
-        : `【TechGuide】${month}のお手紙とアンケート`,
+      subject: renderMonthlyLetterTemplate(
+        applicationRequired
+          ? templates.requiredSubject
+          : templates.standardSubject,
+        input.month,
+      ),
       greeting: `${input.workerDisplayName}さん`,
       letter:
-        input.monthlyLetterBody?.trim() || defaultMonthlyLetter(input.month),
+        input.monthlyLetterBody?.trim() ||
+        renderMonthlyLetterTemplate(templates.defaultBody, input.month),
       introduction:
         settlementMessages[input.monthlySubmissionStatus ?? "not_required"],
       actionLabel: "アンケートで現在の希望を確認・更新する",
@@ -145,7 +152,7 @@ const buildEmailContent = (
     return {
       subject: `【TechGuide】${month}の作業者向けのお手紙が未記入です`,
       greeting: "TechGuide管理者のみなさま",
-      introduction: `${month}に配信する作業者向けのお手紙が未記入です。月初の配信までに本文を保存してください。空欄のままの場合は固定文を配信します。`,
+      introduction: `${month}に配信する作業者向けのお手紙が未記入です。月初の配信までに本文を保存してください。空欄のままの場合は共通設定のデフォルト文を配信します。`,
       actionLabel: "翌月配信のお手紙を書く",
       actionPath: monthlyLetterAdminHref,
       details: [],
