@@ -4,6 +4,7 @@ import {
   currentJstMonth,
   formatMonthLabel,
 } from "../../src/lib/month";
+import { preferenceQuestions } from "../../src/lib/workerPreferences";
 
 const letterPath = "/admin/email-previews/monthly-letter";
 
@@ -27,12 +28,41 @@ test("翌月のお手紙を管理者が保存でき、他の画面からの上�
   await expect(
     page.getByText(`${formatMonthLabel(sendMonth)}1日 9時台（日本時間）に配信`),
   ).toBeVisible();
+  await page.waitForLoadState("networkidle");
+
+  const preview = page.frameLocator(
+    'iframe[title="月次メールの本文プレビュー"]',
+  );
+  const status = page.getByLabel("申請状況", { exact: true });
+  await expect(
+    preview.getByText("TechGuideの業務にお力添え", { exact: false }),
+  ).toBeVisible();
+  for (const [value, text] of [
+    ["required", "月次確定申請がまだ提出されていません"],
+    ["submitted", "月次確定申請は提出済みです"],
+    ["approved", "月次精算は承認済みです"],
+    ["not_required", "月次確定申請の対象となる精算がありません"],
+  ]) {
+    await status.selectOption(value);
+    await expect(preview.getByText(text, { exact: false })).toBeVisible();
+    await expect(
+      preview.getByText("月次精算を確認・申請する", { exact: true }),
+    ).toHaveCount(value === "required" ? 1 : 0);
+  }
+  await page.getByRole("link", { name: "希望アンケートの設問を見る" }).click();
+  const survey = page.getByRole("region", { name: "希望アンケートの設問" });
+  for (const question of Object.values(preferenceQuestions)) {
+    await expect(survey.getByText(question, { exact: false })).toBeVisible();
+  }
 
   const other = await context.newPage();
   await other.goto(letterPath);
   await page
     .getByRole("textbox", { name: "本文" })
     .fill("今月のお手紙\nいつもありがとうございます。");
+  await expect(
+    preview.getByText("今月のお手紙", { exact: false }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "お手紙を保存" }).click();
   await expect(page.getByRole("status")).toHaveText("お手紙を保存しました。");
   await other.getByRole("textbox", { name: "本文" }).fill("古い画面の入力");

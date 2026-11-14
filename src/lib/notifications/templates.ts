@@ -215,7 +215,7 @@ const buildEmailContent = (
 export const buildSettlementNotification = (
   input: SettlementNotificationInput,
   appOrigin: string,
-  replyTo?: string,
+  hasReplyTo = false,
 ): NotificationMessage => {
   const origin = appOrigin.replace(/\/$/, "");
   const detailUrl = `${origin}/settlements/${encodeURIComponent(input.month)}/${encodeURIComponent(input.assigneeLogin)}`;
@@ -233,7 +233,7 @@ export const buildSettlementNotification = (
   const noticeText = input.hasPaymentNotice
     ? `\n支払い通知書を確認する\n${noticeUrl}\n`
     : "";
-  const replyText = replyTo
+  const replyText = hasReplyTo
     ? "ご不明な点は、このメールへの返信でお問い合わせください。"
     : "このメールには返信できません。お問い合わせは管理者へお願いします。";
   const text = [

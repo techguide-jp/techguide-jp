@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSettlementNotification } from "$lib/server/notifications/templates";
+import { buildSettlementNotification } from "$lib/notifications/templates";
 import { sanitizeEmailPreviewHtml } from "$lib/server/notifications/previewSafety";
 import {
   buildNotificationEventKey,
@@ -102,7 +102,7 @@ describe("email notification templates", () => {
         hasPaymentNotice: true,
       },
       "https://example.com/",
-      "support@example.com",
+      true,
     );
     expect(message.subject).toBe(
       "【TechGuide】2026年8月分の月次精算が承認されました",

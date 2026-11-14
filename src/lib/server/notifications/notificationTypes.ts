@@ -29,9 +29,6 @@ export type SettlementNotificationInput = {
   hasPaymentNotice?: boolean;
   supplementalPaymentId?: string;
   monthlyLetterBody?: string;
-  monthlySubmissionStatus?:
-    | "required"
-    | "submitted"
-    | "approved"
-    | "not_required";
+  monthlySubmissionStatus?: MonthlyLetterSubmissionStatus;
 };
+import type { MonthlyLetterSubmissionStatus } from "$lib/monthlyLetter";
