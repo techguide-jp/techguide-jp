@@ -1,3 +1,6 @@
+export const workerPreferencesEntryHref = "/work/preferences";
+export const workerPreferencesAnchor = "preferences-heading";
+
 export const preferenceQuestions = {
   availabilityNote: "今後の稼働量・時期・時間帯の希望を教えてください。",
   selfAssignmentNote:

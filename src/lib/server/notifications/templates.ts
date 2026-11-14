@@ -2,6 +2,11 @@ import type {
   NotificationMessage,
   SettlementNotificationInput,
 } from "$lib/server/notifications/notificationTypes";
+import {
+  defaultMonthlyLetter,
+  monthlyLetterAdminHref,
+} from "$lib/monthlyLetter";
+import { workerPreferencesEntryHref } from "$lib/workerPreferences";
 
 const escapeHtml = (value: string): string =>
   value.replace(
@@ -48,6 +53,9 @@ type EmailContent = {
   appreciation?: string;
   introduction: string;
   actionLabel: string;
+  actionPath?: string;
+  letter?: string;
+  showSettlementLink?: boolean;
   details: Array<{ label: string; value: string }>;
 };
 
@@ -110,15 +118,37 @@ const buildEmailContent = (
   }
 
   if (input.type === "monthly_submission_reminder") {
+    const applicationRequired = input.monthlySubmissionStatus === "required";
+    const settlementMessages = {
+      required: `${month}の月次確定申請がまだ提出されていません。内容を確認し、3日を目安に申請してください。3日以降も申請できます。`,
+      submitted: `${month}の月次確定申請は提出済みです。`,
+      approved: `${month}の月次精算は承認済みです。`,
+      not_required: `${month}は月次確定申請の対象となる精算がありません。`,
+    };
     return {
-      subject: `【TechGuide】${month}の月次確定申請をお願いします`,
+      subject: applicationRequired
+        ? `【TechGuide】${month}のお手紙と月次確定申請のご案内`
+        : `【TechGuide】${month}のお手紙とアンケート`,
       greeting: `${input.workerDisplayName}さん`,
-      introduction: `${month}の月次確定申請がまだ提出されていません。内容を確認し、3日を目安に申請してください。3日以降も申請できます。`,
-      actionLabel: "月次精算を確認・申請する",
-      details: [
-        { label: "対象月", value: month },
-        { label: "確認日時", value: formatJstDateTime(input.occurredAt) },
-      ],
+      letter:
+        input.monthlyLetterBody?.trim() || defaultMonthlyLetter(input.month),
+      introduction:
+        settlementMessages[input.monthlySubmissionStatus ?? "not_required"],
+      actionLabel: "アンケートで現在の希望を確認・更新する",
+      actionPath: workerPreferencesEntryHref,
+      showSettlementLink: applicationRequired,
+      details: [],
+    };
+  }
+
+  if (input.type === "monthly_letter_missing") {
+    return {
+      subject: `【TechGuide】${month}の作業者向けのお手紙が未記入です`,
+      greeting: "TechGuide管理者のみなさま",
+      introduction: `${month}に配信する作業者向けのお手紙が未記入です。月初の配信までに本文を保存してください。空欄のままの場合は固定文を配信します。`,
+      actionLabel: "翌月配信のお手紙を書く",
+      actionPath: monthlyLetterAdminHref,
+      details: [],
     };
   }
 
@@ -187,11 +217,16 @@ export const buildSettlementNotification = (
   appOrigin: string,
   replyTo?: string,
 ): NotificationMessage => {
-  const detailUrl = `${appOrigin.replace(/\/$/, "")}/settlements/${encodeURIComponent(input.month)}/${encodeURIComponent(input.assigneeLogin)}`;
+  const origin = appOrigin.replace(/\/$/, "");
+  const detailUrl = `${origin}/settlements/${encodeURIComponent(input.month)}/${encodeURIComponent(input.assigneeLogin)}`;
   const noticeUrl = input.supplementalPaymentId
     ? `${detailUrl}/notice?supplemental=${encodeURIComponent(input.supplementalPaymentId)}`
     : `${detailUrl}/notice`;
   const content = buildEmailContent(input);
+  const actionUrl = content.actionPath
+    ? `${origin}${content.actionPath}`
+    : detailUrl;
+  const settlementLabel = "月次精算を確認・申請する";
   const textDetails = content.details
     .map(({ label, value }) => `${label}: ${value}`)
     .join("\n");
@@ -204,9 +239,11 @@ export const buildSettlementNotification = (
   const text = [
     `${content.greeting}\n`,
     content.appreciation,
+    content.letter,
     content.introduction,
+    content.showSettlementLink ? `${settlementLabel}\n${detailUrl}` : "",
     textDetails,
-    `${content.actionLabel}\n${detailUrl}`,
+    `${content.actionLabel}\n${actionUrl}`,
     noticeText.trim(),
     replyText,
     "※このメールはTechGuideの稼働精算システムから自動送信されています。",
@@ -226,7 +263,16 @@ export const buildSettlementNotification = (
   const appreciationHtml = content.appreciation
     ? `<p style="margin:0 0 16px;font-size:15px;">${escapeHtml(content.appreciation)}</p>`
     : "";
-  const html = `<div style="margin:0 auto;max-width:640px;padding:32px 24px;color:#172b4d;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7;"><p style="margin:0 0 20px;font-size:15px;">${escapeHtml(content.greeting)}</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.4;">${escapeHtml(content.subject)}</h1>${appreciationHtml}<p style="margin:0 0 24px;font-size:15px;">${escapeHtml(content.introduction)}</p><table role="presentation" style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f8fafc;border:1px solid #e8edf2;border-radius:8px;">${htmlDetails}</table><p style="margin:0;"><a href="${escapeHtml(detailUrl)}" style="display:inline-block;padding:12px 20px;border-radius:6px;background:#0052cc;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(content.actionLabel)}</a></p>${noticeHtml}<hr style="margin:28px 0 20px;border:0;border-top:1px solid #e8edf2;"><p style="margin:0 0 8px;color:#52606d;font-size:13px;">${escapeHtml(replyText)}</p><p style="margin:0;color:#7a869a;font-size:12px;">※このメールはTechGuideの稼働精算システムから自動送信されています。</p></div>`;
+  const letterHtml = content.letter
+    ? `<p style="margin:0 0 24px;overflow-wrap:anywhere">${escapeHtml(content.letter).replace(/\n/g, "<br>")}</p>`
+    : "";
+  const settlementHtml = content.showSettlementLink
+    ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(detailUrl)}">${settlementLabel}</a></p>`
+    : "";
+  const detailsHtml = htmlDetails
+    ? `<table role="presentation" style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f8fafc;border:1px solid #e8edf2;">${htmlDetails}</table>`
+    : "";
+  const html = `<div style="margin:0 auto;max-width:640px;padding:32px 24px;color:#172b4d;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7;"><p style="margin:0 0 20px;font-size:15px;">${escapeHtml(content.greeting)}</p><h1 style="margin:0 0 16px;font-size:22px;line-height:1.4;">${escapeHtml(content.subject)}</h1>${appreciationHtml}${letterHtml}<p style="margin:0 0 24px;font-size:15px;">${escapeHtml(content.introduction)}</p>${settlementHtml}${detailsHtml}<p style="margin:0;"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 20px;border-radius:6px;background:#0052cc;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(content.actionLabel)}</a></p>${noticeHtml}<hr style="margin:28px 0 20px;border:0;border-top:1px solid #e8edf2;"><p style="margin:0 0 8px;color:#52606d;font-size:13px;">${escapeHtml(replyText)}</p><p style="margin:0;color:#7a869a;font-size:12px;">※このメールはTechGuideの稼働精算システムから自動送信されています。</p></div>`;
 
   return {
     subject: content.subject,

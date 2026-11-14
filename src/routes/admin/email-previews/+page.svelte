@@ -4,6 +4,7 @@
   import type { ActionData, PageProps } from "./$types";
   import ActionSubmit from "$lib/components/ActionSubmit.svelte";
   import { formatDateTime } from "$lib/format";
+  import { monthlyLetterAdminHref } from "$lib/monthlyLetter";
   let { data, form }: PageProps = $props();
   let pendingAction = $state<string | null>(null);
   const formResult = $derived(
@@ -33,6 +34,14 @@
 <section class="page-heading">
   <p class="eyebrow">email notifications</p>
   <h1>メール通知</h1>
+</section>
+
+<section class="panel">
+  <h2>月次のお手紙</h2>
+  <p>毎月1日に作業者へ送るお手紙を編集できます。</p>
+  <a class="button secondary" href={monthlyLetterAdminHref}
+    >翌月配信のお手紙を書く</a
+  >
 </section>
 
 <section class="panel">

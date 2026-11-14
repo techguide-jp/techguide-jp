@@ -7,6 +7,7 @@
   import {
     preferenceQuestions,
     partnerInterestOptions,
+    workerPreferencesAnchor,
     type WorkerPreferencesInput,
     type WorkerPreferencesView,
   } from "$lib/workerPreferences";
@@ -42,9 +43,9 @@
 {#if saved && input}
   <section
     class="panel preferences-panel"
-    aria-labelledby="preferences-heading"
+    aria-labelledby={workerPreferencesAnchor}
   >
-    <h2 id="preferences-heading">現在の希望</h2>
+    <h2 id={workerPreferencesAnchor}>現在の希望</h2>
     <p class="muted">
       プロフィールと共通の最新情報です。精算の有無にかかわらず、いつでも希望だけ保存できます。本人と運営が確認できます。
     </p>

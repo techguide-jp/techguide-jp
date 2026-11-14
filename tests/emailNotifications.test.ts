@@ -17,6 +17,47 @@ import { buildNotificationOperationId } from "$lib/server/notifications/notifica
 const operationId = "11111111-1111-4111-8111-111111111111";
 
 describe("email notification templates", () => {
+  it.each([
+    ["required", "月次確定申請がまだ提出されていません"],
+    ["submitted", "月次確定申請は提出済みです"],
+    ["approved", "月次精算は承認済みです"],
+    ["not_required", "月次確定申請の対象となる精算がありません"],
+  ] as const)(
+    "月次のお手紙に申請状態 %s とアンケートを含める",
+    (status, guidance) => {
+      const message = buildSettlementNotification(
+        {
+          type: "monthly_submission_reminder",
+          month: "2026-08",
+          operationId,
+          assigneeLogin: "worker",
+          workerDisplayName: "作業者",
+          occurredAt: new Date("2026-09-01T00:00:00Z"),
+          taxExcludedYen: 0,
+          taxIncludedYen: 0,
+          monthlySubmissionStatus: status,
+          monthlyLetterBody: status === "required" ? "本文 <b>\n2行目" : " ",
+        },
+        "https://example.com/",
+      );
+      for (const body of [message.text, message.html]) {
+        expect(body).toContain(guidance);
+        expect(body).toContain("https://example.com/work/preferences");
+        if (status === "required") {
+          expect(body).toContain(
+            "https://example.com/settlements/2026-08/worker",
+          );
+        } else {
+          expect(body).toContain("TechGuideの業務にお力添え");
+          expect(body).not.toContain("月次精算を確認・申請する");
+        }
+      }
+      if (status === "required") {
+        expect(message.html).toContain("本文 &lt;b&gt;<br>2行目");
+      }
+    },
+  );
+
   it("申請メールに対象月・対象者・日時・安全な詳細リンクを含める", () => {
     const message = buildSettlementNotification(
       {
