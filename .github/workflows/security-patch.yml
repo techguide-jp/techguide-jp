@@ -1,0 +1,60 @@
+name: Dependabot security patch
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-patch-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  security-patch:
+    if: >-
+      github.repository == 'techguide-jp/techguide-jp' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.SECURITY_PATCH_APP_CLIENT_ID != '' &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      # Keep PR code outside the workflow that can merge to main.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc
+        id: app
+        with:
+          client-id: ${{ vars.SECURITY_PATCH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SECURITY_PATCH_APP_PRIVATE_KEY }}
+          permission-actions: read
+          permission-contents: write
+          permission-deployments: read
+          permission-pull-requests: read
+          permission-vulnerability-alerts: read
+      - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
+        id: metadata
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          alert-lookup: true
+      - name: Validate patch, Preview, CI and production
+        env:
+          PATCH_APP_TOKEN: ${{ steps.app.outputs.token }}
+          PATCH_ENABLED: ${{ vars.SECURITY_AUTO_MERGE }}
+          DEPENDENCY_NAME: ${{ steps.metadata.outputs.dependency-names }}
+          DEPENDENCY_FROM: ${{ steps.metadata.outputs.previous-version }}
+          DEPENDENCY_TO: ${{ steps.metadata.outputs.new-version }}
+          DEPENDENCY_UPDATE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_TYPE: ${{ steps.metadata.outputs.dependency-type }}
+          DEPENDENCY_ADVISORY: ${{ steps.metadata.outputs.ghsa-id }}
+          DEPENDENCY_ALERT_STATE: ${{ steps.metadata.outputs.alert-state }}
+        run: node .github/security-patch-merge.mjs
